@@ -1,13 +1,3 @@
-function readLocalArray(key) {
-    try {
-        let value = JSON.parse(localStorage.getItem(key));
-        return Array.isArray(value) ? value : [];
-    } catch (error) {
-        localStorage.removeItem(key);
-        return [];
-    }
-}
-
 let vocab = readLocalArray("vocab");
 let wrongWords = readLocalArray("wrongWords");
 vocab = vocab.map(normalizeWord).filter(w => w.eng && w.vie);
@@ -119,6 +109,10 @@ answersDiv[i].click();
 
 document.addEventListener("keydown", function(e){
 
+if(e.key === "Escape"){
+    closeChallengeMenu();
+}
+
 if(e.key === "Enter" && quizData?.length){
 
     if(answered[index]) return;
@@ -164,10 +158,10 @@ wrongWords = wrongWords.map(w => ({
 
 let autoSpeakToggle = document.getElementById("autoSpeakToggle");
 if (autoSpeakToggle) {
-    autoSpeak = localStorage.getItem("autoSpeak") === "true";
+    autoSpeak = localStorage.getItem(accountStorageKey("autoSpeak")) === "true";
     autoSpeakToggle.checked = autoSpeak;
     autoSpeakToggle.addEventListener("change", () => {
         autoSpeak = autoSpeakToggle.checked;
-        localStorage.setItem("autoSpeak", autoSpeak ? "true" : "false");
+        localStorage.setItem(accountStorageKey("autoSpeak"), autoSpeak ? "true" : "false");
     });
 }

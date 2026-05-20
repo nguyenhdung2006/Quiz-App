@@ -223,11 +223,17 @@ startWordSetQuiz(dailyWords, "mixed", { challenge: true, time: 15 });
 function renderQuestionText(questionEl, q, currentIndex, total) {
 questionEl.innerHTML = "";
 
+let modeBadge = document.createElement("div");
+modeBadge.className = "questionModeBadge";
+modeBadge.textContent = currentMode === "eng" ? "English to Vietnamese" : "Vietnamese to English";
+
 let number = document.createElement("div");
 number.className = "qNumber";
 number.textContent = `Question ${currentIndex + 1}/${total}`;
 
 let line = document.createElement("div");
+line.className = "questionPrompt";
+
 let keyword = document.createElement("span");
 keyword.className = "keyword";
 
@@ -242,7 +248,7 @@ keyword.textContent = q.vie;
 line.append(keyword, '" ?');
 }
 
-questionEl.append(number, line);
+questionEl.append(modeBadge, number, line);
 }
 
 function loadQuestion() {

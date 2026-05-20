@@ -4,6 +4,6 @@ alert("You need at least 4 unique answers for this challenge mode.");
 return;
 }
 
-document.getElementById("challengeMenu").classList.remove("show");
+closeChallengeMenu(false);
 startWordSetQuiz(vocab, modeSelect.value, { challenge: true, time });
 }

@@ -11,6 +11,24 @@ function goHome() {
 location.reload();
 }
 
+function closeChallengeMenu(restoreHome = true) {
+let menu = document.getElementById("challengeMenu");
+if (!menu) return;
+
+menu.classList.remove("show");
+menu.classList.add("hidden");
+
+if (restoreHome) {
+    document.getElementById("home").classList.remove("hidden");
+
+    let hero = document.querySelector(".heroPanel");
+    if (hero) hero.classList.remove("hidden");
+
+    let title = document.querySelector("h1");
+    if (title) title.classList.remove("hidden");
+}
+}
+
 function updateDifficulty() {
 let total = vocab.length;
 
@@ -46,8 +64,12 @@ document.getElementById("home").classList.add("hidden");
 let hero = document.querySelector(".heroPanel");
 if (hero) hero.classList.add("hidden");
 
-document.querySelector("h1").classList.add("hidden");
-document.getElementById("challengeMenu").classList.add("show");
+let title = document.querySelector("h1");
+if (title) title.classList.add("hidden");
+
+let menu = document.getElementById("challengeMenu");
+menu.classList.remove("hidden");
+menu.classList.add("show");
 }
 
 function renderMistakeTable() {

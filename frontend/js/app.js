@@ -33,6 +33,18 @@ function getTotalCorrect() {
 return getVocab().reduce((sum, word) => sum + Number(word?.stats?.correct || 0), 0);
 }
 
+function getMasteredCount(words = getVocab()) {
+return words.filter(word => {
+if (word.mastered) return true;
+if (typeof getMasteryLabel === "function") return getMasteryLabel(word) === "Mastered";
+return false;
+}).length;
+}
+
+function getProfileXp(words = getVocab()) {
+return words.length * 25 + getTotalCorrect() * 12 + getMasteredCount(words) * 50;
+}
+
 function getBestStreak() {
 let streaks = getVocab().map(word => Number(word?.stats?.bestStreak || word?.stats?.streak || 0));
 return streaks.length ? Math.max(...streaks, 0) : 0;
@@ -40,12 +52,8 @@ return streaks.length ? Math.max(...streaks, 0) : 0;
 
 function updateProfilePanel() {
 let words = getVocab();
-let mastered = words.filter(word => {
-if (word.mastered) return true;
-if (typeof getMasteryLabel === "function") return getMasteryLabel(word) === "Mastered";
-return false;
-}).length;
-let xp = words.length * 25 + getTotalCorrect() * 12 + mastered * 50;
+let mastered = getMasteredCount(words);
+let xp = getProfileXp(words);
 let level = Math.max(1, Math.floor(xp / 250) + 1);
 let levelProgress = Math.min(100, Math.round((xp % 250) / 250 * 100));
 let mastery = words.length ? Math.round(mastered / words.length * 100) : 0;
@@ -69,14 +77,10 @@ function renderLeaderboard() {
 let list = document.getElementById("leaderboardList");
 if (!list) return;
 
-let xp = getVocab().length * 25 + getTotalCorrect() * 12;
+let xp = getProfileXp();
 let currentPlayer = getCurrentPlayer();
 let words = getVocab();
-let mastered = words.filter(word => {
-if (word.mastered) return true;
-if (typeof getMasteryLabel === "function") return getMasteryLabel(word) === "Mastered";
-return false;
-}).length;
+let mastered = getMasteredCount(words);
 let mastery = words.length ? Math.round(mastered / words.length * 100) : 0;
 let weekly = [
 { name: currentPlayer.name || "You", score: xp || 0, tag: "XP" },
@@ -105,15 +109,16 @@ list.appendChild(item);
 }
 
 function getCurrentPlayer() {
-try {
-return JSON.parse(localStorage.getItem("quizUserProfile") || "{}");
-} catch (error) {
-return {};
-}
+return typeof getCachedProfile === "function" ? getCachedProfile() : {};
 }
 
 function cacheCurrentPlayer(profile) {
+if (typeof switchAccountStorage === "function") {
+return switchAccountStorage(profile);
+}
+
 localStorage.setItem("quizUserProfile", JSON.stringify(profile));
+return profile;
 }
 
 function setText(id, value) {
@@ -129,19 +134,48 @@ if (element && value) element.src = value;
 function applyProfile(profile) {
 let safeProfile = {
 name: profile?.name || "Vocabulary Runner",
-email: profile?.email || "Signed in with Google",
-avatar: profile?.avatar || "images/icon.png"
+email: profile?.email || "",
+avatar: profile?.avatar || "images/icon.png",
+birthday: profile?.birthday || "",
+gender: profile?.gender || "",
+goal: profile?.goal || "",
+bio: profile?.bio || ""
 };
 
-cacheCurrentPlayer(safeProfile);
+safeProfile = cacheCurrentPlayer(safeProfile) || safeProfile;
+let identity = safeProfile.email ? `Signed in as ${safeProfile.email}` : "Local guest profile";
+
 setText("profileName", safeProfile.name);
 setText("profileNameSmall", safeProfile.name.split(" ")[0] || "Account");
 setText("profileMenuName", safeProfile.name);
-setText("profileMenuEmail", safeProfile.email);
+setText("profileMenuEmail", identity);
+setText("profileIdentityLine", identity);
+setText("profileEditorAccount", identity);
 setImage("profileAvatarSmall", safeProfile.avatar);
 setImage("profileMenuAvatar", safeProfile.avatar);
+setImage("profileAvatarLarge", safeProfile.avatar);
+setImage("profileEditorAvatarPreview", safeProfile.avatar);
 renderLeaderboard();
 }
+
+function refreshAccountData() {
+wrongWords = wrongWords.map(w => ({
+...w,
+mastered: w.mastered || false
+}));
+
+let autoSpeakToggle = document.getElementById("autoSpeakToggle");
+if (autoSpeakToggle && typeof accountStorageKey === "function") {
+autoSpeak = localStorage.getItem(accountStorageKey("autoSpeak")) === "true";
+autoSpeakToggle.checked = autoSpeak;
+}
+
+renderTable();
+renderMistakeTable();
+updateStats();
+}
+
+let profileEditorPendingAvatar = "";
 
 async function loadAuthenticatedProfile() {
 let cached = getCurrentPlayer();
@@ -164,17 +198,135 @@ if (!response.ok) return;
 let profile = await response.json();
 if (profile?.authenticated) {
 applyProfile(profile);
+refreshAccountData();
 }
 } catch (error) {
-toast("Could not sync Google profile. Check that the backend is running.", "warn", 3200);
+if (sessionStorage.getItem("backendLoginWarned") !== "true") {
+toast("Backend login sync is offline. Local profile and words still work.", "warn", 3200);
+sessionStorage.setItem("backendLoginWarned", "true");
 }
+}
+}
+
+function getEditableProfile() {
+let base = getCurrentPlayer();
+let accountProfile = typeof getAccountProfile === "function" ? getAccountProfile() : {};
+return {
+name: accountProfile.name || base.name || "Vocabulary Runner",
+email: accountProfile.email || base.email || "",
+avatar: accountProfile.avatar || base.avatar || "images/icon.png",
+birthday: accountProfile.birthday || "",
+gender: accountProfile.gender || "",
+goal: accountProfile.goal || "",
+bio: accountProfile.bio || ""
+};
+}
+
+function populateProfileForm(profile = getEditableProfile()) {
+let name = document.getElementById("profileFormName");
+let email = document.getElementById("profileFormEmail");
+let birthday = document.getElementById("profileFormBirthday");
+let gender = document.getElementById("profileFormGender");
+let goal = document.getElementById("profileFormGoal");
+let bio = document.getElementById("profileFormBio");
+
+if (name) name.value = profile.name || "";
+if (email) email.value = profile.email || "local-guest";
+if (birthday) birthday.value = profile.birthday || "";
+if (gender) gender.value = profile.gender || "";
+if (goal) goal.value = profile.goal || "";
+if (bio) bio.value = profile.bio || "";
+setImage("profileEditorAvatarPreview", profile.avatar || "images/icon.png");
+}
+
+function openProfileEditor() {
+let overlay = document.getElementById("profileEditor");
+if (!overlay) return;
+
+populateProfileForm();
+profileEditorPendingAvatar = "";
+overlay.classList.remove("hidden");
+document.body.classList.add("modalOpen");
+}
+
+function closeProfileEditor() {
+let overlay = document.getElementById("profileEditor");
+if (!overlay) return;
+
+overlay.classList.add("hidden");
+document.body.classList.remove("modalOpen");
+}
+
+function initProfileEditor() {
+let overlay = document.getElementById("profileEditor");
+let closeBtn = document.getElementById("profileEditorCloseBtn");
+let form = document.getElementById("profileForm");
+let pickBtn = document.getElementById("profileAvatarPickBtn");
+let fileInput = document.getElementById("profileAvatarInput");
+let resetBtn = document.getElementById("profileResetBtn");
+let avatarPreview = document.getElementById("profileEditorAvatarPreview");
+
+if (!overlay || !form) return;
+
+closeBtn?.addEventListener("click", closeProfileEditor);
+overlay.addEventListener("click", event => {
+if (event.target === overlay) closeProfileEditor();
+});
+
+pickBtn?.addEventListener("click", () => fileInput?.click());
+resetBtn?.addEventListener("click", () => {
+profileEditorPendingAvatar = "images/icon.png";
+if (avatarPreview) avatarPreview.src = profileEditorPendingAvatar;
+});
+
+fileInput?.addEventListener("change", () => {
+let file = fileInput.files?.[0];
+fileInput.value = "";
+if (!file) return;
+
+if (!file.type.startsWith("image/")) {
+toast("Please choose an image file.", "warn");
+return;
+}
+
+let reader = new FileReader();
+reader.onload = () => {
+profileEditorPendingAvatar = String(reader.result || "");
+if (avatarPreview && profileEditorPendingAvatar) avatarPreview.src = profileEditorPendingAvatar;
+};
+reader.readAsDataURL(file);
+});
+
+form.addEventListener("submit", event => {
+event.preventDefault();
+
+let current = getEditableProfile();
+let nextProfile = {
+...current,
+name: document.getElementById("profileFormName")?.value.trim() || "Vocabulary Runner",
+email: current.email || "",
+avatar: profileEditorPendingAvatar || current.avatar || "images/icon.png",
+birthday: document.getElementById("profileFormBirthday")?.value || "",
+gender: document.getElementById("profileFormGender")?.value || "",
+goal: document.getElementById("profileFormGoal")?.value.trim() || "",
+bio: document.getElementById("profileFormBio")?.value.trim() || ""
+};
+
+profileEditorPendingAvatar = "";
+applyProfile(nextProfile);
+closeProfileEditor();
+toast("Profile saved for this account.", "ok");
+});
+
+document.addEventListener("keydown", event => {
+if (event.key === "Escape" && !overlay.classList.contains("hidden")) closeProfileEditor();
+});
 }
 
 function initProfileMenu() {
 let trigger = document.getElementById("profileTrigger");
 let menu = document.getElementById("profileMenu");
 let logoutButtons = [
-document.getElementById("logoutBtn"),
 document.getElementById("profileLogoutBtn")
 ].filter(Boolean);
 let settingsBtn = document.getElementById("profileSettingsBtn");
@@ -214,7 +366,7 @@ window.location.href = `${AUTH_API_ORIGIN}/logout`;
 
 settingsBtn?.addEventListener("click", () => {
 closeMenu();
-toast("Settings panel is not available yet.", "warn");
+openProfileEditor();
 });
 }
 
@@ -403,6 +555,7 @@ if (event.key === "Escape" && !overlay.classList.contains("hidden")) close();
 initSearch();
 initImportExport();
 initPreview();
+initProfileEditor();
 initProfileMenu();
 loadAuthenticatedProfile();
 updateStats();

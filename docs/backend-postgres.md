@@ -13,20 +13,20 @@ Default mode uses H2 memory database so the API can run immediately.
 Create the database:
 
 ```sql
-CREATE DATABASE vocabulary_quiz;
+CREATE DATABASE quizapp;
 ```
 
 Then run:
 
 ```powershell
-$env:DATABASE_URL="jdbc:postgresql://localhost:5432/vocabulary_quiz"
+$env:DATABASE_URL="jdbc:postgresql://localhost:5432/quizapp"
 $env:DATABASE_USERNAME="postgres"
 $env:DATABASE_PASSWORD="your_password"
-$env:SPRING_PROFILES_ACTIVE="postgres"
+$env:JPA_DDL_AUTO="validate"
 .\mvnw.cmd spring-boot:run
 ```
 
-Optional manual schema is in `database/schema.sql`. Spring JPA can also create/update tables automatically while learning.
+The manual schema is in `database/schema.sql`. Run it once before starting the backend with `JPA_DDL_AUTO=validate`.
 
 ## API Endpoints
 Words:

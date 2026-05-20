@@ -24,7 +24,10 @@
 </head>
 
 <body oncontextmenu="return false">
-<button class="homeBtn" onclick="goHome()" type="button" aria-label="Go home" title="Go home">Home</button>
+<button class="homeBtn" onclick="goHome()" type="button" aria-label="Go home" title="Go home">
+<span class="btnIcon" aria-hidden="true">⌂</span>
+<span>Home</span>
+</button>
 <div class="authCluster" id="authCluster">
 <button class="profileTrigger" id="profileTrigger" type="button" aria-haspopup="true" aria-expanded="false">
 <img id="profileAvatarSmall" src="images/icon.png" alt="" class="profileAvatarSmall">
@@ -38,10 +41,9 @@
 <span id="profileMenuEmail">Signed in with Google</span>
 </div>
 </div>
-<button id="profileSettingsBtn" class="profileMenuItem" type="button" role="menuitem">Settings</button>
+<button id="profileSettingsBtn" class="profileMenuItem" type="button" role="menuitem">Profile</button>
 <button id="profileLogoutBtn" class="profileMenuItem profileMenuItem--danger" type="button" role="menuitem">Logout</button>
 </div>
-<button class="logoutBtn" id="logoutBtn" type="button" aria-label="Log out" title="Log out">Logout</button>
 </div>
 <div class="utilityBar">
 <button class="utilityBtn" id="previewBtn" type="button">Preview</button>
@@ -77,10 +79,11 @@
 <section class="playerHub" aria-label="Profile and leaderboard">
 <article class="profilePanel">
 <div class="profileTop">
-<img src="images/icon.png" alt="" class="profileAvatar">
+<img id="profileAvatarLarge" src="images/icon.png" alt="" class="profileAvatar">
 <div>
 <span class="heroEyebrow">Player Profile</span>
 <h2 id="profileName">Vocabulary Runner</h2>
+<p id="profileIdentityLine">Local guest profile</p>
 <p>Daily learning streak</p>
 </div>
 </div>
@@ -207,7 +210,7 @@
 
 <option value="eng" selected>Eng -> Vie</option>
 <option value="vie">Vie -> Eng</option>
-<option value="mixed">Mixed</option>
+<option value="mixed">Mixed: Eng + Vie</option>
 
 </select>
 
@@ -251,8 +254,8 @@
 <button class="bigBtn startBtn" onclick="startQuiz()">Start Quiz</button>
 <button class="bigBtn wrongBtn" onclick="openMistakeScreen()">Practice Wrong Words</button>
 <button class="bigBtn favoriteBtn" onclick="practiceFavorites()">Practice Favorites</button>
-<button class="bigBtn dailyBtn" onclick="startDailyChallenge()">Daily Challenge</button>
-<button class="bigBtn challengeBtn" onclick="openChallengeMenu()">Challenge</button>
+<button class="bigBtn dailyBtn" onclick="startDailyChallenge()"><span class="btnIcon" aria-hidden="true">◷</span><span>Daily Challenge</span></button>
+<button class="bigBtn challengeBtn" onclick="openChallengeMenu()"><span class="btnIcon" aria-hidden="true">⚡</span><span>Challenge</span></button>
 
 </div>
 
@@ -261,11 +264,21 @@
 <!-- CHALLENGE MENU -->
 <div id="challengeMenu" class="hidden">
 
+<div class="challengePanel" role="dialog" aria-modal="true" aria-labelledby="challengeTitle">
+<button class="challengeCloseBtn" onclick="closeChallengeMenu()" type="button" aria-label="Close challenge menu">×</button>
+<div class="challengeHeader">
+<span class="challengeBadge">⚡</span>
+<div>
+<h2 id="challengeTitle">Challenge Mode</h2>
+<p>Pick a timer. Faster rounds give sharper focus.</p>
+</div>
+</div>
 <div class="challengeLevels">
-<button class="challengeLevelBtn easyLevel" onclick="startChallenge(20)">Easy (20s)</button>
-<button class="challengeLevelBtn mediumLevel" onclick="startChallenge(15)">Medium (15s)</button>
-<button class="challengeLevelBtn hardLevel" onclick="startChallenge(10)">Hard (10s)</button>
-<button class="challengeLevelBtn masterLevel" onclick="startChallenge(5)">Master (5s)</button>
+<button class="challengeLevelBtn easyLevel" onclick="startChallenge(20)"><span class="levelIcon" aria-hidden="true">✓</span><span>Easy</span><strong>20s</strong></button>
+<button class="challengeLevelBtn mediumLevel" onclick="startChallenge(15)"><span class="levelIcon" aria-hidden="true">◷</span><span>Medium</span><strong>15s</strong></button>
+<button class="challengeLevelBtn hardLevel" onclick="startChallenge(10)"><span class="levelIcon" aria-hidden="true">!</span><span>Hard</span><strong>10s</strong></button>
+<button class="challengeLevelBtn masterLevel" onclick="startChallenge(5)"><span class="levelIcon" aria-hidden="true">◆</span><span>Master</span><strong>5s</strong></button>
+</div>
 </div>
 </div>
 
@@ -439,6 +452,69 @@ Hmm… choose one before moving on!
 <p><strong>Current scope:</strong> this version is client-only and private. Backend login, cloud sync, accounts, and shared progress can be added later without changing the core gameplay loop.</p>
 <p><strong>Best way to use:</strong> add a small set of words every day, play Mixed mode, then finish with Practice Wrong Words.</p>
 </div>
+</div>
+</div>
+
+<!-- PROFILE EDITOR -->
+<div id="profileEditor" class="profileEditorOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="profileEditorTitle">
+<div class="profileEditorPanel">
+<button class="profileEditorClose" id="profileEditorCloseBtn" type="button" aria-label="Close profile editor">x</button>
+
+<div class="profileEditorHeader">
+<div class="profileEditorAvatarWrap">
+<img id="profileEditorAvatarPreview" src="images/icon.png" alt="" class="profileEditorAvatar">
+<button id="profileAvatarPickBtn" class="miniBtn" type="button">Change Photo</button>
+<input id="profileAvatarInput" type="file" accept="image/*" hidden>
+</div>
+<div>
+<span class="heroEyebrow">Profile</span>
+<h2 id="profileEditorTitle">Edit Player Profile</h2>
+<p id="profileEditorAccount">Local guest profile</p>
+</div>
+</div>
+
+<form id="profileForm" class="profileForm">
+<label class="profileFormField">
+<span>Name</span>
+<input id="profileFormName" type="text" maxlength="80" placeholder="Your display name">
+</label>
+
+<label class="profileFormField">
+<span>Email</span>
+<input id="profileFormEmail" type="text" readonly>
+</label>
+
+<label class="profileFormField">
+<span>Birthday</span>
+<input id="profileFormBirthday" type="date">
+</label>
+
+<label class="profileFormField">
+<span>Gender</span>
+<select id="profileFormGender">
+<option value="">Prefer not to say</option>
+<option value="female">Female</option>
+<option value="male">Male</option>
+<option value="nonbinary">Non-binary</option>
+<option value="custom">Custom</option>
+</select>
+</label>
+
+<label class="profileFormField">
+<span>Learning Goal</span>
+<input id="profileFormGoal" type="text" maxlength="120" placeholder="IELTS, school, travel...">
+</label>
+
+<label class="profileFormField profileFormField--wide">
+<span>About</span>
+<textarea id="profileFormBio" maxlength="220" placeholder="A short note about this learner profile"></textarea>
+</label>
+
+<div class="profileFormActions">
+<button class="miniBtn" id="profileResetBtn" type="button">Reset Photo</button>
+<button class="utilityBtn" type="submit">Save Profile</button>
+</div>
+</form>
 </div>
 </div>
 
