@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Vocabulary Quiz</title>
+
+<link rel="apple-touch-icon" sizes="180x180" href="favicon_io/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon_io/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon_io/favicon-16x16.png">
+<link rel="manifest" href="favicon_io/site.webmanifest">
+
+<!-- CSS FILES -->
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/typography.css">
+<link rel="stylesheet" href="css/quiz.css">
+<link rel="stylesheet" href="css/effects.css">
+<link rel="stylesheet" href="css/modern.css">
+
+</head>
+
+<body oncontextmenu="return false">
+<button class="homeBtn" onclick="goHome()" type="button" aria-label="Go home" title="Go home">Home</button>
+<div class="authCluster" id="authCluster">
+<button class="profileTrigger" id="profileTrigger" type="button" aria-haspopup="true" aria-expanded="false">
+<img id="profileAvatarSmall" src="images/icon.png" alt="" class="profileAvatarSmall">
+<span id="profileNameSmall">Account</span>
+</button>
+<div class="profileMenu hidden" id="profileMenu" role="menu">
+<div class="profileMenuHead">
+<img id="profileMenuAvatar" src="images/icon.png" alt="" class="profileMenuAvatar">
+<div>
+<strong id="profileMenuName">Vocabulary Runner</strong>
+<span id="profileMenuEmail">Signed in with Google</span>
+</div>
+</div>
+<button id="profileSettingsBtn" class="profileMenuItem" type="button" role="menuitem">Settings</button>
+<button id="profileLogoutBtn" class="profileMenuItem profileMenuItem--danger" type="button" role="menuitem">Logout</button>
+</div>
+<button class="logoutBtn" id="logoutBtn" type="button" aria-label="Log out" title="Log out">Logout</button>
+</div>
+<div class="utilityBar">
+<button class="utilityBtn" id="previewBtn" type="button">Preview</button>
+<button class="utilityBtn" id="exportBtn" type="button">Export</button>
+<button class="utilityBtn" id="importBtn" type="button">Import</button>
+<input id="importFile" type="file" accept="application/json,.json" hidden>
+</div>
+
+<header class="heroPanel">
+<div class="heroEyebrow">Private vocabulary trainer</div>
+<h1>Vocabulary Quiz</h1>
+<p>Build your word list, play fast quiz rounds, and turn mistakes into mastery.</p>
+</header>
+
+<!-- HOME SCREEN -->
+<div id="home">
+
+<section class="dashboardPanel">
+<div class="dashCard">
+<span class="dashLabel">Words</span>
+<strong id="totalWordsTop">0</strong>
+</div>
+<div class="dashCard">
+<span class="dashLabel">Wrong Bank</span>
+<strong id="totalWrongWordsTop">0</strong>
+</div>
+<div class="dashCard">
+<span class="dashLabel">Main Loop</span>
+<strong>Add - Quiz - Review</strong>
+</div>
+</section>
+
+<section class="playerHub" aria-label="Profile and leaderboard">
+<article class="profilePanel">
+<div class="profileTop">
+<img src="images/icon.png" alt="" class="profileAvatar">
+<div>
+<span class="heroEyebrow">Player Profile</span>
+<h2 id="profileName">Vocabulary Runner</h2>
+<p>Daily learning streak</p>
+</div>
+</div>
+<div class="xpTrack">
+<div class="xpTrackMeta">
+<span>Level <strong id="profileLevel">1</strong></span>
+<span><strong id="profileXp">0</strong> XP</span>
+</div>
+<div class="xpBar" aria-hidden="true"><span id="profileXpBar"></span></div>
+</div>
+<div class="profileStats">
+<span><strong id="profileStreak">0</strong> Streak</span>
+<span><strong id="profileMastery">0%</strong> Mastery</span>
+<span><strong id="profileAchievements">3</strong> Badges</span>
+</div>
+</article>
+
+<article class="leaderboardPanel">
+<div class="leaderboardHead">
+<span class="heroEyebrow">Leaderboard</span>
+<h2>Weekly Progress</h2>
+</div>
+<div class="leaderboardTabs" aria-label="Leaderboard categories">
+<span>XP</span>
+<span>Streak</span>
+<span>Combo</span>
+</div>
+<ol class="leaderboardList" id="leaderboardList"></ol>
+</article>
+</section>
+
+<div class="sectionHeader">
+<span class="heroEyebrow">Vocabulary</span>
+<h2>Add Word</h2>
+<p>Capture vocabulary with context, tags, and notes in one fast flow.</p>
+</div>
+
+<div class="addWordBox">
+
+<label class="formField formField--primary">
+<span>English</span>
+<input id="engInput" placeholder="English">
+</label>
+
+<label class="formField formField--primary">
+<span>Vietnamese</span>
+<input id="vieInput" placeholder="Vietnamese">
+</label>
+
+<label class="formField formField--tag">
+<span>Tag</span>
+<input id="tagInput" placeholder="Tag (school, family...)">
+</label>
+
+<label class="formField formField--compact">
+<span>POS</span>
+<select id="posInput">
+<option>n</option>
+<option>v</option>
+<option>adj</option>
+<option>adv</option>
+<option value="proverb">Proverb</option>
+<option value="idiom">Idiom</option>
+</select>
+</label>
+
+<label class="formField formField--wide">
+<span>Example</span>
+<input id="exampleInput" class="wideInput" placeholder="Example sentence">
+</label>
+
+<label class="formField formField--wide">
+<span>Note</span>
+<input id="noteInput" class="wideInput" placeholder="Meaning / note">
+</label>
+
+<button class="addBtn" onclick="addWord()" aria-label="Add word">+</button>
+
+</div>
+
+<h3 class="wordCountLine">Total words: <span id="totalWords">0</span></h3>
+
+<div class="sectionHeader sectionHeader--table">
+<span class="heroEyebrow">Word Bank</span>
+<h2>Vocabulary Table</h2>
+</div>
+
+<div class="tableTools">
+<label class="searchBox" for="vocabSearch">
+<span>Search</span>
+<input id="vocabSearch" placeholder="Find English, Vietnamese, POS, tag, note, or level">
+</label>
+<button class="miniBtn" id="clearSearch" type="button">Clear</button>
+</div>
+
+<div class="table-container">
+
+<table>
+
+<thead>
+<tr>
+<th>English</th>
+<th>POS</th>
+<th>Tag</th>
+<th>Vietnamese</th>
+<th>Level</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody id="tableBody"></tbody>
+
+</table>
+
+</div>
+
+<div class="quizOptions">
+
+<div class="quizBlock">
+
+<h2>Quiz Mode</h2>
+
+<select id="modeSelect">
+
+<option value="eng" selected>Eng -> Vie</option>
+<option value="vie">Vie -> Eng</option>
+<option value="mixed">Mixed</option>
+
+</select>
+
+</div>
+
+<div class="quizBlock">
+
+<h2>Quiz Level</h2>
+
+<select id="quizDifficulty">
+
+<option value="all" selected>All Words</option>
+<option value="10">Easy (10)</option>
+<option value="20">Medium (20)</option>
+<option value="30">Hard (30)</option>
+
+</select>
+
+<select id="challengeDifficulty" class="hidden">
+
+<option value="20">Easy (20s)</option>
+<option value="15">Medium (15s)</option>
+<option value="10">Hard (10s)</option>
+<option value="5">Insane (5s)</option>
+
+</select>
+
+</div>
+
+<div class="playSettings">
+<label class="toggleLine">
+<input id="autoSpeakToggle" type="checkbox">
+<span>Auto speak English words</span>
+</label>
+</div>
+
+</div>
+
+<div class="practiceActions">
+
+<button class="bigBtn startBtn" onclick="startQuiz()">Start Quiz</button>
+<button class="bigBtn wrongBtn" onclick="openMistakeScreen()">Practice Wrong Words</button>
+<button class="bigBtn favoriteBtn" onclick="practiceFavorites()">Practice Favorites</button>
+<button class="bigBtn dailyBtn" onclick="startDailyChallenge()">Daily Challenge</button>
+<button class="bigBtn challengeBtn" onclick="openChallengeMenu()">Challenge</button>
+
+</div>
+
+</div>
+
+<!-- CHALLENGE MENU -->
+<div id="challengeMenu" class="hidden">
+
+<div class="challengeLevels">
+<button class="challengeLevelBtn easyLevel" onclick="startChallenge(20)">Easy (20s)</button>
+<button class="challengeLevelBtn mediumLevel" onclick="startChallenge(15)">Medium (15s)</button>
+<button class="challengeLevelBtn hardLevel" onclick="startChallenge(10)">Hard (10s)</button>
+<button class="challengeLevelBtn masterLevel" onclick="startChallenge(5)">Master (5s)</button>
+</div>
+</div>
+
+<!-- QUIZ SCREEN -->
+<div id="quizScreen" class="hidden">
+
+<div id="comboDisplay">Combo x1</div>
+
+<div id="progressBar">
+<div id="progress">
+<div id="progressHead"></div>
+</div>
+</div>
+
+<div id="timer">10</div>
+
+<h2 id="question"></h2>
+
+<div id="answers"></div>
+
+<br>
+
+<button class="bigBtn backQuestionBtn" onclick="prevQuestion()">Back</button>
+<button class="bigBtn submitBtn" onclick="submitAnswer()">Submit</button>
+<button class="bigBtn nextBtn" onclick="nextQuestion()">Next</button>
+
+</div>
+
+<!-- RESULT SCREEN -->
+<div id="resultScreen" class="hidden">
+
+<div class="resultCard">
+
+<h2>Result</h2>
+
+<div class="resultStats">
+<p>Total <span id="rTotal"></span></p>
+<p>Correct <span id="rCorrect"></span></p>
+<p>Wrong <span id="rWrong"></span></p>
+</div>
+
+<h1 id="score"></h1>
+<p id="grade"></p>
+<p id="comment"></p>
+
+<button class="bigBtn reviewBtn" onclick="openReviewScreen()">Review Answers</button>
+<button class="bigBtn backBtn" onclick="goHome()">Back</button>
+
+</div>
+</div>
+
+<div id="reviewScreen" class="hidden">
+<h2>Answer Review</h2>
+<div class="reviewTools">
+<p>See what you picked, the correct answer, and the example or note saved with each word.</p>
+</div>
+<div id="reviewList" class="reviewList"></div>
+<button class="bigBtn backBtn" onclick="showResultScreen()">Back To Result</button>
+<button class="bigBtn startBtn" onclick="goHome()">Home</button>
+</div>
+
+<div id="mistakeScreen" class="hidden">
+
+<h2>Mistake Words</h2>
+
+<button onclick="clearMastered()" class="clearBtn">
+    Clear Mastered
+</button>
+
+<h3>Total wrong words: <span id="totalWrongWords">0</span></h3>
+
+<h2>Mistake Words Table</h2>
+
+<div class="table-container">
+
+<table>
+
+<thead>
+<tr>
+<th>English</th>
+<th>POS</th>
+<th>Tag</th>
+<th>Vietnamese</th>
+<th>Level</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody id="mistakeTableBody"></tbody>
+
+</table>
+
+</div>
+
+<br><br>
+
+<button class="bigBtn startBtn" onclick="practiceWrong()">Start Practice</button>
+<button class="bigBtn backBtn" onclick="goHome()">Back</button>
+
+</div>
+
+<!-- THINK HELPER -->
+<div id="think-helper">
+
+<div id="think-bubble">
+Hmm… choose one before moving on!
+</div>
+
+</div>
+
+<!-- APP PREVIEW / GUIDE -->
+<div id="appPreview" class="previewOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+<div class="previewPanel">
+<button class="previewClose" id="previewCloseBtn" type="button" aria-label="Close preview">x</button>
+
+<div class="previewHeader">
+<div>
+<span class="heroEyebrow">Guide</span>
+<h2 id="previewTitle">How Vocabulary Quiz Works</h2>
+</div>
+<p>A private, lightweight trainer with favorites, daily challenge, mistake practice, examples, notes, and mastery tracking.</p>
+</div>
+
+<div class="previewGrid">
+<section class="previewCard">
+<h3>1. Build The Word Bank</h3>
+<p>Add English, Vietnamese, and part of speech. The app stores everything locally in this browser.</p>
+</section>
+
+<section class="previewCard">
+<h3>2. Choose A Mode</h3>
+<p>Play English to Vietnamese, Vietnamese to English, or Mixed mode. Difficulty controls how many words enter the round.</p>
+</section>
+
+<section class="previewCard">
+<h3>3. Answer Fast</h3>
+<p>Pick one of four answers. Number keys 1-4 work too. Challenge mode adds a countdown per question.</p>
+</section>
+
+<section class="previewCard">
+<h3>4. Master Mistakes</h3>
+<p>Wrong answers are saved into the mistake bank. Practice them later, then clear mastered words when they are stable.</p>
+</section>
+
+<section class="previewCard">
+<h3>5. Review Answers</h3>
+<p>After each quiz, open the review screen to see your answer, the correct answer, examples, and notes.</p>
+</section>
+
+<section class="previewCard">
+<h3>6. Build Favorites</h3>
+<p>Star important words and practice them as a focused mini deck whenever you want.</p>
+</section>
+</div>
+
+<div class="previewFlow">
+<span>Add Word</span>
+<b></b>
+<span>Quiz Round</span>
+<b></b>
+<span>Progress Feedback</span>
+<b></b>
+<span>Result</span>
+<b></b>
+<span>Review</span>
+<b></b>
+<span>Practice Wrong</span>
+</div>
+
+<div class="previewNotes">
+<p><strong>Current scope:</strong> this version is client-only and private. Backend login, cloud sync, accounts, and shared progress can be added later without changing the core gameplay loop.</p>
+<p><strong>Best way to use:</strong> add a small set of words every day, play Mixed mode, then finish with Practice Wrong Words.</p>
+</div>
+</div>
+</div>
+
+<!-- SOUND EFFECTS -->
+
+<audio id="soundSmall" src="sounds/combo_x1_x3_x5.mp3"></audio>
+<audio id="soundMedium" src="sounds/combo_x10_x20_x30.mp3"></audio>
+<audio id="sound50" src="sounds/combo_x50.mp3"></audio>
+<audio id="sound100" src="sounds/combo_x100.mp3"></audio>
+
+<!-- JS FILES -->
+
+<script src="js/storage.js"></script>
+<script src="js/vocab.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/effects.js"></script>
+<script src="js/timer.js"></script>
+<script src="js/quiz.js"></script>
+<script src="js/challenge.js"></script>
+<script src="js/main.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

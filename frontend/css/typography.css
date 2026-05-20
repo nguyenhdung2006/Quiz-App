@@ -1,0 +1,70 @@
+.engWord{
+cursor:pointer;
+color:#1d4ed8;
+font-weight:bold;
+}
+
+.keyword{
+color:#e63946;
+font-weight:bold;
+}
+
+.resultComment{
+font-style:italic;
+font-size:26px;
+margin-top:10px;
+font-weight:500;
+}
+
+h1{
+color:#ffffff;
+
+text-shadow:
+0 0 5px #00f7ff,
+0 0 10px #00f7ff,
+0 0 20px #00f7ff;
+
+letter-spacing:1px;
+}
+
+h2{
+color:#ff9cff;
+
+text-shadow:
+0 0 5px rgba(255,156,255,0.7),
+0 0 10px rgba(255,156,255,0.6);
+}
+
+h3{
+color:#b8f9ff;
+
+text-shadow:0 2px 6px rgba(0,0,0,0.7);
+}
+
+.qNumber{
+font-size:18px;
+color:#aaa;
+margin-bottom:10px;
+}
+
+.keyword{
+color:#ff4d6d;
+font-weight:700;
+font-size:1.1em;
+}
+
+.resultCard h2{
+
+font-size:44px;
+
+font-weight:700;
+
+letter-spacing:2px;
+
+text-shadow:
+0 0 6px #ff9cff,
+0 0 12px rgba(255,156,255,0.8);
+
+margin-bottom:25px;
+
+}

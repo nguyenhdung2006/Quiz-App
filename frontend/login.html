@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login</title>
+<link rel="stylesheet" href="css/login.css">
+<link rel="stylesheet" href="css/login-modern.css">
+<link rel="icon" href="./favicon1_io/favicon-32x32.png?v=2">
+</head>
+<body>
+
+<div class="login-box">
+    <span class="login-eyebrow">Private Vocabulary Trainer</span>
+    <h2>Welcome Back</h2>
+    <p class="login-copy">Sign in with Google to enter your private vocabulary workspace.</p>
+
+    <a
+        href="http://localhost:8080/oauth2/authorization/google"
+        id="googleLoginBtn"
+        class="google-login"
+        aria-label="Continue with Google"
+    >
+        <span class="google-mark" aria-hidden="true">G</span>
+        <span>Continue with Google</span>
+    </a>
+</div>
+
+<div id="butterfly-container"></div>
+<script src="js/login.js"></script>
+</body>
+</html>

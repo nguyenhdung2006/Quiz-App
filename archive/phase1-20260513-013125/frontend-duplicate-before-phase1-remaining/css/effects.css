@@ -1,0 +1,178 @@
+@keyframes progressGlow{
+
+0%{
+left:-60px;
+}
+
+100%{
+left:100%;
+}
+
+}
+
+@keyframes progressPulse{
+
+0%{
+box-shadow:
+0 0 10px #00f7ff,
+0 0 20px rgba(0,247,255,0.8);
+}
+
+100%{
+box-shadow:
+0 0 18px #00f7ff,
+0 0 36px rgba(0,247,255,1);
+}
+
+}
+
+@keyframes floatBubble{
+
+0%{transform:translateY(0)}
+
+50%{transform:translateY(-8px)}
+
+100%{transform:translateY(0)}
+
+}
+
+@keyframes thinkAppear{
+from{
+opacity:0;
+transform:translateY(20px);
+}
+to{
+opacity:1;
+transform:translateY(0);
+}
+}
+
+@keyframes selectGlow{
+
+0%{
+box-shadow:
+0 0 6px #00f7ff,
+0 0 14px rgba(0,247,255,0.8);
+}
+
+100%{
+box-shadow:
+0 0 14px #00f7ff,
+0 0 28px rgba(0,247,255,1),
+0 0 40px rgba(0,247,255,0.7);
+}
+
+}
+
+@keyframes fadeIn{
+from{
+opacity:0;
+transform:translateY(10px);
+}
+to{
+opacity:1;
+transform:translateY(0);
+}
+}
+
+@keyframes masterGlow{
+
+0%{
+
+box-shadow:
+0 0 10px #ff003c,
+0 0 20px rgba(255,0,60,0.6);
+
+}
+
+100%{
+
+box-shadow:
+0 0 20px #ff003c,
+0 0 40px rgba(255,0,60,1);
+
+}
+
+}
+
+@keyframes comboPulse{
+
+0%{transform:scale(1);}
+100%{transform:scale(1.08);}
+
+}
+
+@keyframes comboBoom{
+
+0%{
+transform:translate3d(-50%,-50%,0) scale(0.4);
+opacity:0;
+}
+
+40%{
+transform:translate3d(-50%,-50%,0) scale(1.4);
+opacity:1;
+}
+
+100%{
+transform:translate3d(-50%,-80%,0) scale(1);
+opacity:0;
+}
+
+}
+
+@keyframes particleMove{
+
+0%{
+transform:translate(0,0);
+opacity:1;
+}
+
+100%{
+transform:translate(var(--x),var(--y));
+opacity:0;
+}
+
+}
+
+@keyframes screenShake{
+
+0%{transform:translate(0,0);}
+20%{transform:translate(-10px,5px);}
+40%{transform:translate(10px,-5px);}
+60%{transform:translate(-8px,3px);}
+80%{transform:translate(8px,-3px);}
+100%{transform:translate(0,0);}
+
+}
+
+.spark{
+
+position:absolute;
+
+width:3px;
+height:3px;
+
+border-radius:50%;
+
+background:white;
+
+pointer-events:none;
+
+animation:sparkMove 0.6s linear forwards;
+
+}
+
+@keyframes sparkMove{
+
+0%{
+opacity:1;
+transform:translate(0,0);
+}
+
+100%{
+opacity:0;
+transform:translate(var(--x),var(--y));
+}
+
+}

@@ -1,0 +1,356 @@
+#question{
+font-size:clamp(32px,4vw,46px);
+font-weight:bold;
+margin-bottom:30px;
+}
+
+#answers{
+display:grid;
+grid-template-columns:repeat(2,1fr);
+gap:20px;
+width:min(60%,900px);
+margin:auto;
+}
+
+.answer{
+font-weight:500;
+padding:24px;
+background:white;
+border:2px solid #ddd;
+border-radius:12px;
+cursor:pointer;
+font-size:23px;
+transition:all 0.25s ease;
+}
+
+.answer:hover{
+background:#e8f9ff;
+border:2px solid #00f7ff;
+box-shadow:0 0 10px rgba(0,247,255,0.6);
+transform:translateY(-2px);
+}
+
+.selected{
+background:linear-gradient(135deg,#4facfe,#00f2fe);
+border:3px solid #00f7ff;
+color:#003049;
+font-weight:600;
+
+box-shadow:
+0 0 8px #00f7ff,
+0 0 16px rgba(0,247,255,0.9),
+0 0 28px rgba(0,247,255,0.6);
+
+animation:selectGlow 1.4s infinite alternate;
+}
+
+#quizScreen{
+transition:0.3s;
+}
+
+.correct{
+background:#d4edda;
+border:2px solid #2ecc71;
+}
+
+.wrong{
+background:#ffd6d6;
+border:2px solid #e74c3c;
+}
+#progressBar{
+width:80%;
+height:24px;
+background:#ddd;
+margin:auto;
+margin-bottom:35px;
+border-radius:12px;
+overflow:hidden;
+position:relative;
+}
+
+#progress{
+height:100%;
+width:0%;
+
+display:flex;
+align-items:center;
+
+background:linear-gradient(90deg,#00f7ff,#2ecc71);
+
+width:0%;
+transition:width 0.35s ease;
+border-radius:12px; 
+will-change:transform;
+
+box-shadow:
+0 0 12px #00f7ff,
+0 0 24px rgba(0,247,255,0.9);
+
+position:relative;
+overflow:visible;
+}
+
+/* highlight trên thanh */
+
+#progress::before{
+content:"";
+position:absolute;
+top:0;
+left:0;
+width:100%;
+height:50%;
+
+background:linear-gradient(
+to bottom,
+rgba(255,255,255,0.35),
+rgba(255,255,255,0.05),
+transparent
+);
+
+pointer-events:none;
+}
+
+/* ánh sáng chạy */
+
+#progress::after{
+content:"";
+position:absolute;
+top:0;
+left:-80px;
+width:80px;
+height:100%;
+
+background:linear-gradient(
+90deg,
+transparent 0%,
+rgba(255,255,255,0.25) 30%,
+rgba(255,255,255,0.65) 50%,
+rgba(255,255,255,0.25) 70%,
+transparent 100%
+);
+
+filter:blur(1px);
+
+animation:progressGlow 1.4s linear infinite;
+}
+
+#timer{
+font-size:26px;
+font-weight:bold;
+color:#ff4d6d;
+margin-bottom:15px;
+}
+
+.timerDanger{
+color:#ff0000;
+animation:shake 0.4s infinite;
+}
+
+#quizScreen{
+animation:fadeIn 0.3s ease;
+}
+
+#challengeMenu{
+
+position:fixed;
+
+top:0;
+left:0;
+
+width:100%;
+height:100vh;
+
+display:flex;
+flex-direction:column;
+
+justify-content:center;
+align-items:center;
+
+gap:40px;
+
+background:rgba(0,0,0,0.45);
+
+backdrop-filter:blur(6px);
+
+opacity:0;
+pointer-events:none;
+
+transition:0.3s;
+
+}
+
+#challengeMenu.show{
+
+opacity:1;
+pointer-events:auto;
+
+}
+
+
+.challengeLevels{
+
+display:flex;
+
+flex-direction:column;
+
+align-items:center;
+
+gap:25px;
+
+}
+
+
+.challengeLevels button{
+
+width:300px;
+height:80px;
+
+font-size:30px;
+font-weight:600;
+
+border:none;
+border-radius:14px;
+
+color:white;
+
+cursor:pointer;
+
+letter-spacing:1px;
+
+transition:
+transform 0.25s,
+box-shadow 0.25s,
+filter 0.25s;
+
+}
+
+.easyLevel{
+
+background:linear-gradient(135deg,#2ecc71,#27ae60);
+
+box-shadow:
+0 0 10px #2ecc71,
+0 0 20px rgba(46,204,113,0.7);
+
+}
+
+.easyLevel:hover{
+
+box-shadow:
+0 0 18px #2ecc71,
+0 0 30px rgba(46,204,113,0.9);
+
+}
+
+.mediumLevel{
+
+background:linear-gradient(135deg,#f1c40f,#f39c12);
+
+box-shadow:
+0 0 10px #f1c40f,
+0 0 20px rgba(241,196,15,0.7);
+
+}
+
+.mediumLevel:hover{
+
+box-shadow:
+0 0 18px #f1c40f,
+0 0 30px rgba(241,196,15,0.9);
+
+}
+
+
+.hardLevel{
+
+background:linear-gradient(135deg,#e67e22,#d35400);
+
+box-shadow:
+0 0 10px #e67e22,
+0 0 20px rgba(230,126,34,0.7);
+
+}
+
+.hardLevel:hover{
+
+box-shadow:
+0 0 18px #e67e22,
+0 0 30px rgba(230,126,34,0.9);
+
+}
+
+.masterLevel{
+
+background:linear-gradient(135deg,#ff003c,#c4002f);
+
+box-shadow:
+0 0 12px #ff003c,
+0 0 28px rgba(255,0,60,0.9);
+
+animation:masterGlow 1.6s infinite alternate;
+
+}
+
+.masterLevel:hover{
+
+box-shadow:
+0 0 20px #ff003c,
+0 0 40px rgba(255,0,60,1);
+
+}
+
+.challengeLevels button:hover{
+
+transform:scale(1.1);
+
+filter:brightness(1.15);
+
+box-shadow:
+0 0 10px rgba(255,255,255,0.5),
+0 0 20px currentColor,
+0 0 40px currentColor;
+
+}
+
+.challengeLevels button{
+
+letter-spacing:1px;
+font-weight:600;
+
+transition:
+transform 0.25s,
+box-shadow 0.25s,
+filter 0.25s;
+
+}
+
+
+.challengeLevels button:hover{
+
+transform:scale(1.1);
+
+filter:brightness(1.15);
+
+box-shadow:
+0 0 10px rgba(255,255,255,0.6),
+0 0 20px currentColor,
+0 0 40px currentColor;
+
+}
+
+#comboDisplay{
+
+font-size:26px;
+font-weight:bold;
+
+color:#ff9f43;
+
+margin-bottom:10px;
+
+text-shadow:
+0 0 6px #ff9f43,
+0 0 12px rgba(255,159,67,0.9);
+
+animation:comboPulse 1.2s infinite alternate;
+
+}

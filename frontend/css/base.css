@@ -1,0 +1,19 @@
+body{
+font-family:"Segoe UI",Arial;
+overflow-x:hidden;
+
+background:url("../images/quiz.jpg");
+background-size:cover;
+background-position:center;
+background-repeat:no-repeat;
+background-attachment:fixed;
+
+text-align:center;
+padding:20px;
+font-size:18px;
+line-height:1.5;
+}
+
+.hidden{
+display:none;
+}

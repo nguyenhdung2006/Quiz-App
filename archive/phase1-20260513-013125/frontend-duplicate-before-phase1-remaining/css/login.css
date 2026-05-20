@@ -1,0 +1,300 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: Arial, sans-serif;
+
+    background: 
+        linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)),
+        url("../images/family.jpg");
+
+    background-size: cover;
+    background-position: center;
+
+    animation: bgZoom 40s ease-in-out infinite alternate;
+}
+
+@keyframes bgZoom {
+    from { background-size: 100%; }
+    to   { background-size: 105%; }
+}
+
+/* LOGIN BOX */
+.login-box {
+    position: relative;
+    padding: 40px;
+    width: 320px;
+    border-radius: 16px;
+    text-align: center;
+
+    background: rgba(20, 20, 25, 0.85);
+    backdrop-filter: blur(16px);
+
+    border: 1px solid rgba(255,255,255,0.08);
+
+    box-shadow: 
+        0 15px 50px rgba(0,0,0,0.9),
+        inset 0 0 10px rgba(255,255,255,0.03);
+
+    animation: fadeIn 0.6s ease, floatSoft 4s ease-in-out infinite;
+}
+
+/* viền chạy */
+.login-box::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: 16px;
+
+    background: linear-gradient(270deg, #444, #888, #444);
+    background-size: 300%;
+
+    opacity: 0.25;
+    z-index: -1;
+
+    animation: borderRun 12s linear infinite;
+}
+
+@keyframes borderRun {
+    from { background-position: 0%; }
+    to   { background-position: 300%; }
+}
+
+/* fade */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* FLOAT MƯỢT */
+@keyframes floatSoft {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-6px);
+    }
+}
+
+/* TITLE */
+h2 {
+    color: white;
+    font-size: 30px;
+    margin-bottom: 20px;
+}
+
+/* INPUT */
+input {
+    width: 100%;
+    padding: 12px;
+    margin: 12px 0;
+
+    border: none;
+    border-bottom: 2px solid rgba(255,255,255,0.2);
+
+    background: transparent;
+    color: white;
+    font-size: 16px;
+
+    outline: none;
+    transition: 0.25s;
+}
+
+input::placeholder {
+    color: rgba(255,255,255,0.4);
+}
+
+input:focus {
+    border-bottom: 2px solid #aaa;
+    box-shadow: 0 6px 12px -6px rgba(255,255,255,0.25);
+}
+
+input:hover {
+    border-color: rgba(255,255,255,0.3);
+}
+
+/* PASSWORD */
+.password-wrapper {
+    position: relative;
+}
+
+.password-wrapper input {
+    padding-right: 45px;
+}
+
+#togglePass {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+
+    font-size: 18px;
+    opacity: 0.7;
+    transition: 0.2s;
+}
+
+#togglePass:hover {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.15);
+}
+
+/* REMEMBER */
+.remember-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    color: white;
+    font-size: 14px;
+    margin: 8px 0 12px;
+
+    cursor: pointer;
+}
+
+.remember-box input {
+    width: 16px;
+    height: 16px;
+}
+
+/* BUTTON */
+button {
+    width: 100%;
+    padding: 12px;
+
+    background: linear-gradient(145deg, #3a3a3a, #1f1f1f);
+    color: white;
+
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+
+    font-weight: 500;
+    letter-spacing: 0.5px;
+
+    box-shadow:
+        0 6px 15px rgba(0,0,0,0.6),
+        inset 0 1px 1px rgba(255,255,255,0.08);
+
+    transition: all 0.2s ease;
+
+    position: relative;
+    overflow: hidden;
+}
+
+/* hover */
+button:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 12px 25px rgba(0,0,0,0.8),
+        inset 0 1px 1px rgba(255,255,255,0.12);
+}
+
+/* click */
+button:active {
+    transform: scale(0.97);
+}
+
+/* light sweep */
+button::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+
+    background: linear-gradient(120deg, transparent, rgba(255,255,255,0.2), transparent);
+
+    opacity: 0;
+    transition: 0.3s;
+}
+
+button:hover::after {
+    opacity: 1;
+}
+
+/* SHAKE (login sai) */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+}
+
+.shake {
+    animation: shake 0.3s;
+}
+
+body::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+
+    background-image: radial-gradient(white 1px, transparent 1px);
+    background-size: 40px 40px;
+
+    opacity: 0.15;
+
+    animation: floatParticles 20s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes floatParticles {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-200px);
+    }
+}
+
+#butterfly-container{
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.butterfly{
+    position: absolute;
+    width: 42px;
+    height: 42px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    will-change: transform, filter;
+    pointer-events: auto;
+}
+
+/* SHADOW */
+.shadow{
+    position: absolute;
+    width: 35px;
+    height: 20px;
+    background: radial-gradient(ellipse, rgba(0,0,0,0.4), transparent);
+    border-radius: 50%;
+    filter: blur(6px);
+    pointer-events: none;
+}
+
+#butterfly-gl{
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+}
+
+/* đảm bảo bướm nằm trên */
+.butterfly, .shadow{
+    z-index: 2;
+}
