@@ -1,0 +1,11 @@
+package com.quizapp.vocab;
+
+import com.quizapp.user.ProfileDto;
+import java.util.List;
+
+public record SyncResponse(
+        ProfileDto profile,
+        List<WordDto> vocab,
+        List<WordDto> wrongWords
+) {
+}

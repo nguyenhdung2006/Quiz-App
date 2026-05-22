@@ -11,6 +11,10 @@ CREATE TABLE IF NOT EXISTS app_users (
     level INTEGER NOT NULL DEFAULT 1,
     streak INTEGER NOT NULL DEFAULT 0,
     best_streak INTEGER NOT NULL DEFAULT 0,
+    birthday DATE,
+    gender VARCHAR(40),
+    learning_goal VARCHAR(160),
+    bio TEXT,
     last_active_date DATE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -109,6 +113,10 @@ CREATE TABLE IF NOT EXISTS achievements (
 );
 
 ALTER TABLE achievements ADD COLUMN IF NOT EXISTS code VARCHAR(60);
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS birthday DATE;
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS gender VARCHAR(40);
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS learning_goal VARCHAR(160);
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS bio TEXT;
 UPDATE achievements
 SET code = UPPER(REGEXP_REPLACE(COALESCE(NULLIF(name, ''), 'ACHIEVEMENT_' || id::TEXT), '[^a-zA-Z0-9]+', '_', 'g'))
 WHERE code IS NULL;

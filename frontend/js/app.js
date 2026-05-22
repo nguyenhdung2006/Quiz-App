@@ -1,6 +1,9 @@
 // App polish layer: preview guide, search, backup, and small UX helpers.
 (function () {
 const AUTH_API_ORIGIN = "http://localhost:8080";
+let cloudSyncReady = false;
+let cloudSyncTimer = null;
+let applyingCloudSnapshot = false;
 
 function getVocab() {
 return typeof vocab !== "undefined" && Array.isArray(vocab) ? vocab : [];
@@ -17,6 +20,131 @@ save();
 renderTable();
 renderMistakeTable();
 updateStats();
+}
+
+function toServerWord(word) {
+let clean = normalizeWord(word);
+return {
+id: clean.id,
+eng: clean.eng,
+vie: clean.vie,
+pos: clean.pos,
+tag: clean.tag,
+example: clean.example,
+note: clean.note,
+favorite: clean.favorite,
+mastered: clean.mastered,
+stats: clean.stats
+};
+}
+
+function fromServerWord(word) {
+return normalizeWord({
+id: word?.id || null,
+eng: word?.eng,
+vie: word?.vie,
+pos: word?.pos,
+tag: word?.tag,
+example: word?.example,
+note: word?.note,
+favorite: word?.favorite,
+mastered: word?.mastered,
+stats: word?.stats
+});
+}
+
+function profilePayload() {
+let profile = getEditableProfile();
+return {
+name: profile.name,
+avatar: profile.avatar,
+birthday: profile.birthday || null,
+gender: profile.gender || "",
+goal: profile.goal || "",
+bio: profile.bio || ""
+};
+}
+
+function applyServerSnapshot(snapshot) {
+if (!snapshot) return;
+
+applyingCloudSnapshot = true;
+try {
+if (snapshot.profile) applyProfile(snapshot.profile);
+if (Array.isArray(snapshot.vocab)) vocab = snapshot.vocab.map(fromServerWord).filter(w => w.eng && w.vie);
+if (Array.isArray(snapshot.wrongWords)) wrongWords = snapshot.wrongWords.map(fromServerWord).filter(w => w.eng && w.vie);
+save();
+refreshAccountData();
+} finally {
+applyingCloudSnapshot = false;
+}
+}
+
+async function syncCloudNow() {
+if (!cloudSyncReady || applyingCloudSnapshot) return;
+
+try {
+let response = await fetch(`${AUTH_API_ORIGIN}/api/sync`, {
+method: "POST",
+credentials: "include",
+headers: { "Content-Type": "application/json" },
+body: JSON.stringify({
+profile: profilePayload(),
+vocab: getVocab().map(toServerWord),
+wrongWords: getWrongWords().map(toServerWord)
+})
+});
+
+if (!response.ok) return;
+applyServerSnapshot(await response.json());
+} catch (error) {
+// Local mode stays usable when the backend is offline.
+}
+}
+
+function scheduleCloudSync() {
+if (!cloudSyncReady || applyingCloudSnapshot) return;
+clearTimeout(cloudSyncTimer);
+cloudSyncTimer = setTimeout(syncCloudNow, 700);
+}
+
+async function submitCloudQuizResult() {
+if (!cloudSyncReady || !Array.isArray(quizData) || quizData.length === 0) return;
+
+try {
+let reviewAnswers = quizData.map((item, i) => {
+let word = normalizeWord(item.word);
+let correctAnswer = item.mode === "eng" ? word.vie : word.eng;
+let selectedAnswer = answers[i] || "";
+return {
+eng: word.eng,
+questionMode: item.mode,
+selectedAnswer,
+correctAnswer,
+correct: selectedAnswer === correctAnswer
+};
+});
+
+let response = await fetch(`${AUTH_API_ORIGIN}/api/quiz-results`, {
+method: "POST",
+credentials: "include",
+headers: { "Content-Type": "application/json" },
+body: JSON.stringify({
+quizMode: modeSelect?.value || currentMode || "mixed",
+challengeSeconds: isChallengeMode ? questionTime : null,
+totalQuestions: quizData.length,
+correctAnswers: correctCount,
+wrongAnswers: quizData.length - correctCount,
+score: quizData.length ? Number((correctCount / quizData.length * 10).toFixed(2)) : 0,
+maxCombo,
+answers: reviewAnswers
+})
+});
+
+if (response.ok) applyServerSnapshot(await response.json());
+} catch (error) {
+// Quiz result remains saved locally even if cloud sync cannot be reached.
+}
 }
 
 function updateStats() {
@@ -199,6 +327,8 @@ let profile = await response.json();
 if (profile?.authenticated) {
 applyProfile(profile);
 refreshAccountData();
+cloudSyncReady = true;
+syncCloudNow();
 }
 } catch (error) {
 if (sessionStorage.getItem("backendLoginWarned") !== "true") {
@@ -574,6 +704,24 @@ if (typeof originalRenderMistakeTable === "function") {
 window.renderMistakeTable = function (...args) {
 let result = originalRenderMistakeTable.apply(this, args);
 updateStats();
+return result;
+};
+}
+
+let originalSave = window.save;
+if (typeof originalSave === "function") {
+window.save = function (...args) {
+let result = originalSave.apply(this, args);
+scheduleCloudSync();
+return result;
+};
+}
+
+let originalFinishQuiz = window.finishQuiz;
+if (typeof originalFinishQuiz === "function") {
+window.finishQuiz = function (...args) {
+let result = originalFinishQuiz.apply(this, args);
+submitCloudQuizResult();
 return result;
 };
 }

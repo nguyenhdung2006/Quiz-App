@@ -1,8 +1,31 @@
 const AUTH_CONFIG = {
-    googleOAuthStartPath: "http://localhost:8080/oauth2/authorization/google"
+    apiOrigin: "http://localhost:8080"
 };
 
+AUTH_CONFIG.googleOAuthStartPath = `${AUTH_CONFIG.apiOrigin}/oauth2/authorization/google`;
+
 const googleLoginBtn = document.getElementById("googleLoginBtn");
+
+async function showCurrentGoogleSession() {
+    if (!googleLoginBtn) return;
+
+    try {
+        const response = await fetch(`${AUTH_CONFIG.apiOrigin}/api/me`, {
+            credentials: "include"
+        });
+        if (!response.ok) return;
+
+        const profile = await response.json();
+        if (!profile?.authenticated) return;
+
+        const label = googleLoginBtn.querySelector("span:last-child");
+        const name = profile.name || "Google";
+        const email = profile.email ? ` (${profile.email})` : "";
+        if (label) label.textContent = `Continue as ${name}${email}`;
+    } catch (error) {
+        // Login still works; the backend may simply be offline while editing locally.
+    }
+}
 
 function showOAuthError() {
     const params = new URLSearchParams(window.location.search);
@@ -22,6 +45,10 @@ function showOAuthError() {
 
 function continueWithGoogle() {
     window.location.href = AUTH_CONFIG.googleOAuthStartPath;
+}
+
+if (googleLoginBtn) {
+    googleLoginBtn.href = AUTH_CONFIG.googleOAuthStartPath;
 }
 
 googleLoginBtn?.addEventListener("click", continueWithGoogle);
@@ -44,13 +71,7 @@ framePaths.forEach(path => {
 });
 
 const butterflies = [];
-const butterflyCount = 10;
-const pointer = { x: -9999, y: -9999 };
-
-window.addEventListener("mousemove", event => {
-    pointer.x = event.clientX;
-    pointer.y = event.clientY;
-});
+const butterflyCount = window.matchMedia("(max-width: 680px)").matches ? 3 : 5;
 
 function createButterfly() {
     const el = document.createElement("div");
@@ -93,17 +114,8 @@ function animateButterflies() {
 
         if (distance < 70) resetTarget(b);
 
-        const pdx = b.x - pointer.x;
-        const pdy = b.y - pointer.y;
-        const pointerDistance = Math.hypot(pdx, pdy) || 1;
-
         b.vx += (dx / distance) * 0.035 + Math.sin(b.drift) * 0.025;
         b.vy += (dy / distance) * 0.035 + Math.cos(b.drift * 0.8) * 0.025;
-
-        if (pointerDistance < 130) {
-            b.vx += (pdx / pointerDistance) * 0.4;
-            b.vy += (pdy / pointerDistance) * 0.4;
-        }
 
         b.vx *= 0.965;
         b.vy *= 0.965;
@@ -123,19 +135,19 @@ function animateButterflies() {
 
         b.frame += 0.14 + speed * 0.28;
         b.el.style.backgroundImage = `url(${framePaths[Math.floor(b.frame) % framePaths.length]})`;
-        b.el.style.filter = `blur(${Math.abs(1 - depth) * 2}px) brightness(${1.05 + depth * 0.16}) saturate(1.1)`;
-        b.el.style.transform = `translate(${b.x}px, ${b.y}px) rotate(${angle}rad) scale(${depth})`;
-        b.shadow.style.transform = `translate(${b.x}px, ${b.y + 22}px) scale(${depth * 0.75})`;
+        b.el.style.transform = `translate3d(${b.x}px, ${b.y}px, 0) rotate(${angle}rad) scale(${depth})`;
+        b.shadow.style.transform = `translate3d(${b.x}px, ${b.y + 22}px, 0) scale(${depth * 0.75})`;
         b.shadow.style.opacity = String(0.16 + depth * 0.22);
     });
 
-    requestAnimationFrame(animateButterflies);
+    if (!document.hidden) requestAnimationFrame(animateButterflies);
 }
 
 animateButterflies();
 
 const dust = [];
-for (let i = 0; i < 80; i++) {
+const dustCount = window.matchMedia("(max-width: 680px)").matches ? 16 : 32;
+for (let i = 0; i < dustCount; i++) {
     const dot = document.createElement("div");
     dot.className = "ambient-dot";
     document.body.appendChild(dot);
@@ -162,12 +174,20 @@ function animateDust() {
             dot.life = 60 + Math.random() * 90;
         }
 
-        dot.el.style.transform = `translate(${dot.x}px, ${dot.y}px)`;
+        dot.el.style.transform = `translate3d(${dot.x}px, ${dot.y}px, 0)`;
         dot.el.style.opacity = String(Math.min(0.75, dot.life / 100));
     });
 
-    requestAnimationFrame(animateDust);
+    if (!document.hidden) requestAnimationFrame(animateDust);
 }
 
+document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+        requestAnimationFrame(animateButterflies);
+        requestAnimationFrame(animateDust);
+    }
+});
+
 showOAuthError();
+showCurrentGoogleSession();
 animateDust();

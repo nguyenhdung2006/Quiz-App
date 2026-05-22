@@ -792,6 +792,13 @@ body::before {
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
+#modeSelect option,
+#quizDifficulty option,
+#challengeDifficulty option {
+  background: #ffffff;
+  color: #111827;
+}
+
 .addWordBox input::placeholder,
 .searchBox input::placeholder {
   color: rgba(224, 240, 255, 0.52);

@@ -277,8 +277,9 @@ h2 {
   height: 42px;
   background-repeat: no-repeat;
   background-size: contain;
-  pointer-events: auto;
-  will-change: transform, filter;
+  pointer-events: none;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
 }
 
 .shadow {
@@ -290,6 +291,7 @@ h2 {
   background: radial-gradient(ellipse, rgba(0, 0, 0, 0.4), transparent);
   filter: blur(6px);
   pointer-events: none;
+  will-change: transform, opacity;
 }
 
 .ambient-dot {

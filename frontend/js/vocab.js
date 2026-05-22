@@ -2,6 +2,7 @@ function normalizeWord(word) {
 let stats = word?.stats || {};
 
 return {
+id: word?.id || null,
 eng: String(word?.eng || "").trim(),
 vie: String(word?.vie || "").trim(),
 pos: String(word?.pos || "n").trim() || "n",
