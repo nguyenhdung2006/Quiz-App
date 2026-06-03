@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -180,6 +180,7 @@
 <label class="formField formField--compact">
 <span>POS</span>
 <select id="posInput">
+<option value="interjection">interjection</option>
 <option>n</option>
 <option>v</option>
 <option>adj</option>
@@ -189,9 +190,58 @@
 </select>
 </label>
 
+<label class="formField formField--compact">
+<span>Level</span>
+<select id="levelInput">
+<option>A1</option>
+<option>A2</option>
+<option>B1</option>
+<option>B2</option>
+<option>C1</option>
+<option>C2</option>
+<option>IELTS</option>
+<option>School</option>
+</select>
+</label>
+
+<label class="formField formField--primary">
+<span>IPA</span>
+<input id="ipaInput" placeholder="&#47;h&#601;&#712;lo&#650;&#47;">
+</label>
+
+<label class="formField formField--primary">
+<span>Context / Sense</span>
+<input id="contextInput" placeholder="greeting, academic writing...">
+</label>
+
 <label class="formField formField--wide">
 <span>Example</span>
 <input id="exampleInput" class="wideInput" placeholder="Example sentence">
+</label>
+
+<label class="formField formField--wide">
+<span>Example Meaning</span>
+<input id="exampleMeaningInput" class="wideInput" placeholder="Vietnamese meaning of the example">
+</label>
+
+<label class="formField formField--wide">
+<span>Collocation</span>
+<input id="collocationInput" class="wideInput" placeholder="say hello, make a decision...">
+</label>
+
+<label class="formField formField--primary">
+<span>Synonyms</span>
+<input id="synonymsInput" placeholder="hi, greeting...">
+</label>
+
+<label class="formField formField--primary">
+<span>Antonyms</span>
+<input id="antonymsInput" placeholder="opposite words">
+</label>
+
+<label class="formField formField--wide">
+<span>Common Mistake</span>
+<input id="commonMistakeInput" class="wideInput" placeholder="Common learner mistake or usage warning">
 </label>
 
 <label class="formField formField--wide">
@@ -199,7 +249,12 @@
 <input id="noteInput" class="wideInput" placeholder="Meaning / note">
 </label>
 
-<button class="addBtn" onclick="addWord()" aria-label="Add word">+</button>
+<div class="addActions">
+<button class="addBtn" onclick="addWord()" aria-label="Add word" title="Add word">+</button>
+<button class="miniBtn" id="addQuizNowBtn" type="button">Add + Quiz</button>
+<button class="miniBtn" id="previewSpeakBtn" type="button">Speak</button>
+<button class="miniBtn" id="generateExampleBtn" type="button">Example</button>
+</div>
 
 </div>
 
@@ -242,6 +297,10 @@
 <input id="filterFavorites" type="checkbox">
 <span>Favorites</span>
 </label>
+<label class="favoriteFilter">
+<input id="filterDue" type="checkbox">
+<span>Due Today</span>
+</label>
 </div>
 <button class="miniBtn" id="clearSearch" type="button">Clear</button>
 </div>
@@ -253,11 +312,11 @@
 <thead>
 <tr>
 <th>English</th>
-<th>POS</th>
-<th>Tag</th>
-<th>Vietnamese</th>
+<th>Meaning & Context</th>
 <th>Level</th>
-<th>Next Review</th>
+<th>Accuracy</th>
+<th>Due Status</th>
+<th>Last Reviewed</th>
 <th>Action</th>
 </tr>
 </thead>

@@ -569,8 +569,8 @@ body::before {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.045)),
-    var(--surface);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.035)),
+    rgba(9, 14, 30, 0.88);
   color: var(--text);
   backdrop-filter: blur(18px) saturate(1.15);
   box-shadow:
@@ -1130,6 +1130,14 @@ body::before {
   grid-column: span 5;
 }
 
+.addActions {
+  grid-column: span 7;
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .addWordBox input,
 .addWordBox select,
 .searchBox input,
@@ -1173,7 +1181,7 @@ body::before {
 }
 
 .addBtn {
-  grid-column: span 2;
+  width: 58px;
   min-height: 52px;
   border: 0;
   border-radius: var(--radius);
@@ -1283,7 +1291,7 @@ body::before {
 }
 
 table {
-  min-width: 1120px;
+  min-width: 1320px;
   width: 100%;
   border-collapse: collapse;
 }
@@ -1327,17 +1335,65 @@ tbody tr:hover {
   font-weight: 950;
 }
 
+.engWord strong,
+.meaningCell strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
 .favoriteRow td:first-child::before {
-  content: "Star ";
+  content: "Star";
+  display: inline-flex;
+  margin-right: 6px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 227, 110, 0.16);
   color: var(--yellow);
   font-size: 0.78rem;
   font-weight: 900;
 }
 
 .wordMeta {
-  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
   font-size: 0.82rem;
   font-weight: 650;
+}
+
+.wordMeta span,
+.ipaBadge,
+.metaBadge,
+.wordLevelBadge,
+.dueBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid rgba(158, 241, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.075);
+  color: rgba(235, 248, 255, 0.86);
+  overflow-wrap: anywhere;
+}
+
+.ipaBadge {
+  margin-top: 7px;
+  color: #dffcff;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.levelCell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.wordLevelBadge {
+  border-color: rgba(93, 242, 162, 0.32);
+  color: #dfffea;
 }
 
 .levelBadge {
@@ -1369,9 +1425,43 @@ tbody tr:hover {
   color: #052219;
 }
 
+.dueBadge {
+  border: 0;
+  font-weight: 900;
+}
+
+.dueBadge--due {
+  background: linear-gradient(135deg, var(--yellow), #ff9345);
+  color: #321800;
+}
+
+.dueBadge--weak {
+  background: linear-gradient(135deg, #ff8a55, var(--danger));
+  color: white;
+}
+
+.dueBadge--strong {
+  background: linear-gradient(135deg, var(--green), var(--cyan));
+  color: #052219;
+}
+
+.dueBadge--new,
+.dueBadge--scheduled {
+  background: linear-gradient(135deg, rgba(24, 233, 255, 0.28), rgba(91, 141, 255, 0.26));
+  color: #e8fbff;
+}
+
+.reviewHint {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
 .actionCell {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -1400,6 +1490,15 @@ tbody tr:hover {
 .deleteBtn,
 .clearBtn {
   background: linear-gradient(135deg, var(--danger), #ff8a55);
+}
+
+.hardBtn {
+  background: linear-gradient(135deg, #ff9a4a, var(--danger));
+}
+
+.knownBtn {
+  background: linear-gradient(135deg, var(--green), var(--cyan));
+  color: #052219;
 }
 
 .editBtn,
@@ -1442,10 +1541,18 @@ tbody tr:hover {
   color: #111827;
 }
 
-.editMetaCell {
+.editMetaCell,
+.editStack {
   display: grid;
   gap: 8px;
   min-width: 230px;
+}
+
+.emptyTableCell {
+  padding: 30px 18px;
+  color: var(--text-muted);
+  text-align: center;
+  font-weight: 850;
 }
 
 .nextReviewCell {
@@ -2363,6 +2470,7 @@ tbody tr:hover {
   .formField--tag,
   .formField--compact,
   .formField--wide,
+  .addActions,
   .addBtn {
     grid-column: auto;
   }

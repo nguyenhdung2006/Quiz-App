@@ -5,10 +5,10 @@ Vocabulary Quiz is a local-first vocabulary trainer with Google-login cloud sync
 ## Features
 
 - Add, edit, delete, favorite, search, and filter vocabulary words.
-- Store POS, tags, examples, notes, mastery, and review stats.
+- Store learning-focused word profiles: POS, tag, IPA, CEFR/IELTS level, context, example meaning, collocations, synonyms, antonyms, common mistakes, notes, mastery, and review stats.
 - Quiz modes: English to Vietnamese, Vietnamese to English, mixed, favorites, wrong words, daily challenge, and timed challenge.
 - Answer review, wrong bank, combo feedback, sound effects, pronunciation, and JSON backup.
-- Profile, XP, level, achievements, weekly progress, due reviews, and starter sample words.
+- Profile, XP, level, achievements, weekly progress, due reviews, starter sample words, topic decks, and CSV import templates.
 - Spring Boot backend with Google OAuth, PostgreSQL/H2, vocabulary CRUD, sync, quiz history, achievements, and spaced repetition.
 
 ## Project Structure

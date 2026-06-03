@@ -9,7 +9,15 @@ let engInput = document.getElementById("engInput");
 let vieInput = document.getElementById("vieInput");
 let posInput = document.getElementById("posInput");
 let tagInput = document.getElementById("tagInput");
+let ipaInput = document.getElementById("ipaInput");
+let levelInput = document.getElementById("levelInput");
+let contextInput = document.getElementById("contextInput");
 let exampleInput = document.getElementById("exampleInput");
+let exampleMeaningInput = document.getElementById("exampleMeaningInput");
+let collocationInput = document.getElementById("collocationInput");
+let synonymsInput = document.getElementById("synonymsInput");
+let antonymsInput = document.getElementById("antonymsInput");
+let commonMistakeInput = document.getElementById("commonMistakeInput");
 let noteInput = document.getElementById("noteInput");
 let home = document.getElementById("home");
 
@@ -80,11 +88,24 @@ if (e.key === "Enter") addWord();
 
 });
 
-[tagInput, exampleInput, noteInput].forEach(input => {
+[tagInput, ipaInput, contextInput, exampleInput, exampleMeaningInput, collocationInput, synonymsInput, antonymsInput, commonMistakeInput, noteInput].forEach(input => {
 if (!input) return;
 input.addEventListener("keypress", function (e) {
 if (e.key === "Enter") addWord();
 });
+});
+
+document.getElementById("addQuizNowBtn")?.addEventListener("click", () => addWord({ quizNow: true }));
+
+document.getElementById("previewSpeakBtn")?.addEventListener("click", () => {
+let word = engInput?.value.trim();
+if (word) speak(word);
+});
+
+document.getElementById("generateExampleBtn")?.addEventListener("click", () => {
+let word = readWordForm();
+let generated = buildExampleSentence(word.eng, word.pos, word.context, word.collocation);
+if (generated && exampleInput) exampleInput.value = generated;
 });
 
 /* KEYBOARD ANSWER */

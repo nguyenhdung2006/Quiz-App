@@ -32,7 +32,15 @@ CREATE TABLE IF NOT EXISTS vocabulary (
     vie VARCHAR(255) NOT NULL,
     pos VARCHAR(50) NOT NULL DEFAULT 'n',
     tag VARCHAR(100),
+    ipa VARCHAR(120),
+    word_level VARCHAR(40),
+    context TEXT,
     example TEXT,
+    example_meaning TEXT,
+    collocation TEXT,
+    synonyms TEXT,
+    antonyms TEXT,
+    common_mistake TEXT,
     note TEXT,
     favorite BOOLEAN NOT NULL DEFAULT FALSE,
     mastered BOOLEAN NOT NULL DEFAULT FALSE,
@@ -117,6 +125,14 @@ ALTER TABLE app_users ADD COLUMN IF NOT EXISTS birthday DATE;
 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS gender VARCHAR(40);
 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS learning_goal VARCHAR(160);
 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS bio TEXT;
+ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS ipa VARCHAR(120);
+ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS word_level VARCHAR(40);
+ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS context TEXT;
+ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS example_meaning TEXT;
+ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS collocation TEXT;
+ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS synonyms TEXT;
+ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS antonyms TEXT;
+ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS common_mistake TEXT;
 UPDATE achievements
 SET code = UPPER(REGEXP_REPLACE(COALESCE(NULLIF(name, ''), 'ACHIEVEMENT_' || id::TEXT), '[^a-zA-Z0-9]+', '_', 'g'))
 WHERE code IS NULL;

@@ -40,8 +40,31 @@ public class VocabularyWord {
     private String pos = "n";
     private String tag;
 
+    private String ipa;
+
+    @Column(name = "word_level")
+    private String level;
+
+    @Column(columnDefinition = "TEXT")
+    private String context;
+
     @Column(columnDefinition = "TEXT")
     private String example;
+
+    @Column(name = "example_meaning", columnDefinition = "TEXT")
+    private String exampleMeaning;
+
+    @Column(columnDefinition = "TEXT")
+    private String collocation;
+
+    @Column(columnDefinition = "TEXT")
+    private String synonyms;
+
+    @Column(columnDefinition = "TEXT")
+    private String antonyms;
+
+    @Column(name = "common_mistake", columnDefinition = "TEXT")
+    private String commonMistake;
 
     @Column(columnDefinition = "TEXT")
     private String note;
@@ -81,8 +104,24 @@ public class VocabularyWord {
     public void setPos(String pos) { this.pos = pos; }
     public String getTag() { return tag; }
     public void setTag(String tag) { this.tag = tag; }
+    public String getIpa() { return ipa; }
+    public void setIpa(String ipa) { this.ipa = ipa; }
+    public String getLevel() { return level; }
+    public void setLevel(String level) { this.level = level; }
+    public String getContext() { return context; }
+    public void setContext(String context) { this.context = context; }
     public String getExample() { return example; }
     public void setExample(String example) { this.example = example; }
+    public String getExampleMeaning() { return exampleMeaning; }
+    public void setExampleMeaning(String exampleMeaning) { this.exampleMeaning = exampleMeaning; }
+    public String getCollocation() { return collocation; }
+    public void setCollocation(String collocation) { this.collocation = collocation; }
+    public String getSynonyms() { return synonyms; }
+    public void setSynonyms(String synonyms) { this.synonyms = synonyms; }
+    public String getAntonyms() { return antonyms; }
+    public void setAntonyms(String antonyms) { this.antonyms = antonyms; }
+    public String getCommonMistake() { return commonMistake; }
+    public void setCommonMistake(String commonMistake) { this.commonMistake = commonMistake; }
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
     public boolean isFavorite() { return favorite; }

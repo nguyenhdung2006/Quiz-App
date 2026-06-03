@@ -237,7 +237,15 @@ public class VocabularyService {
         word.setVie(vie);
         word.setPos(defaultText(request.pos(), "n"));
         word.setTag(trim(request.tag()));
+        word.setIpa(trim(request.ipa()));
+        word.setLevel(defaultText(request.level(), "A1"));
+        word.setContext(trim(request.context()));
         word.setExample(trim(request.example()));
+        word.setExampleMeaning(trim(request.exampleMeaning()));
+        word.setCollocation(trim(request.collocation()));
+        word.setSynonyms(trim(request.synonyms()));
+        word.setAntonyms(trim(request.antonyms()));
+        word.setCommonMistake(trim(request.commonMistake()));
         word.setNote(trim(request.note()));
         word.setFavorite(request.favorite());
         word.setMastered(request.mastered());
@@ -319,7 +327,58 @@ public class VocabularyService {
     }
 
     private static WordRequest starter(String eng, String vie, String pos, String tag) {
-        return new WordRequest(null, eng, vie, pos, tag, "", "", false, false, null);
+        String level = switch (tag) {
+            case "exam" -> "B1";
+            case "mindset", "study", "daily" -> "A2";
+            default -> "A1";
+        };
+        String ipa = switch (eng) {
+            case "resilient" -> "/ri-ZIL-yuhnt/";
+            case "curious" -> "/KYUR-ee-uhs/";
+            case "focus" -> "/FOH-kuhs/";
+            case "review" -> "/ri-VYOO/";
+            case "progress" -> "/PRAH-gres/";
+            case "attempt" -> "/uh-TEMPT/";
+            case "evidence" -> "/EV-i-duhns/";
+            case "compare" -> "/kuhm-PAIR/";
+            case "habit" -> "/HAB-it/";
+            case "calm" -> "/kahm/";
+            default -> "";
+        };
+        String example = switch (eng) {
+            case "resilient" -> "She stayed resilient after the hard exam.";
+            case "curious" -> "A curious learner asks better questions.";
+            case "focus" -> "Focus on one small step first.";
+            case "review" -> "Review the hard words tomorrow.";
+            case "progress" -> "Small progress still counts.";
+            case "attempt" -> "Attempt every question calmly.";
+            case "evidence" -> "Use evidence to support your answer.";
+            case "compare" -> "Compare the two ideas clearly.";
+            case "habit" -> "A tiny habit can become powerful.";
+            case "calm" -> "Stay calm before answering.";
+            default -> "";
+        };
+        String collocation = switch (eng) {
+            case "resilient" -> "resilient learner, remain resilient";
+            case "curious" -> "curious about, curious learner";
+            case "focus" -> "focus on, stay focused";
+            case "review" -> "review notes, review vocabulary";
+            case "progress" -> "make progress, steady progress";
+            case "attempt" -> "attempt a question, first attempt";
+            case "evidence" -> "strong evidence, provide evidence";
+            case "compare" -> "compare A with B";
+            case "habit" -> "build a habit, daily habit";
+            case "calm" -> "stay calm, calm down";
+            default -> "";
+        };
+        String commonMistake = switch (eng) {
+            case "focus" -> "Use focus on, not focus in.";
+            case "progress" -> "Say make progress, not do progress.";
+            case "evidence" -> "Evidence is usually uncountable.";
+            case "curious" -> "Say curious about something.";
+            default -> "Check the example before using this word in writing.";
+        };
+        return new WordRequest(null, eng, vie, pos, tag, ipa, level, tag, example, "", collocation, "", "", commonMistake, "", false, false, null);
     }
 
     private Achievement defaultAchievement(String code) {

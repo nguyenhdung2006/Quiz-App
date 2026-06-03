@@ -303,8 +303,21 @@ merged.push(clean);
 return merged;
 }
 
+function enrichTopicWord(word, topic) {
+let clean = normalizeWord(word);
+let defaultLevel = topic === "ielts" ? "B2" : topic === "it" ? "B1" : "A2";
+return normalizeWord({
+...clean,
+level: clean.level || defaultLevel,
+context: clean.context || topic,
+collocation: clean.collocation || `${clean.eng} practice`,
+commonMistake: clean.commonMistake || "Check the example before using this word in writing.",
+note: clean.note || `Topic deck: ${topic}`
+});
+}
+
 function importDeck(key) {
-let words = TOPIC_DECKS[key] || [];
+let words = (TOPIC_DECKS[key] || []).map(word => enrichTopicWord(word, key));
 let before = getWords().length;
 vocab = mergeByEnglishLocal(getWords(), words);
 localStorage.setItem(accountStorageKey("deckImported"), "true");
@@ -328,7 +341,15 @@ eng: row.eng || row.english,
 vie: row.vie || row.vietnamese,
 pos: row.pos || "n",
 tag: row.tag || "csv",
+ipa: row.ipa || row.pronunciation,
+level: row.level || row.cefr || "A1",
+context: row.context || row.sense || row.topic,
 example: row.example,
+exampleMeaning: row.examplemeaning || row.example_meaning || row.examplevi || row.example_vi,
+collocation: row.collocation || row.collocations,
+synonyms: row.synonyms || row.synonym,
+antonyms: row.antonyms || row.antonym,
+commonMistake: row.commonmistake || row.common_mistake || row.mistake,
 note: row.note
 });
 }).filter(word => word.eng && word.vie);
@@ -359,7 +380,7 @@ return values;
 async function importCsvFile(file) {
 let words = parseCsv(await file.text());
 if (!words.length) {
-setText("csvImportResult", "No valid words found. Check headers: eng,vie,pos,tag,example,note.");
+setText("csvImportResult", "No valid words found. Check headers: eng,vie,pos,tag,ipa,level,context,example,exampleMeaning,collocation,synonyms,antonyms,commonMistake,note.");
 return;
 }
 let before = getWords().length;
@@ -374,7 +395,9 @@ toastStudio("CSV import complete.");
 }
 
 function downloadCsvTemplate() {
-let blob = new Blob(["eng,vie,pos,tag,example,note\nfocus,tap trung,v,study,Focus on one thing.,Daily learning\n"], { type: "text/csv" });
+let headers = "eng,vie,pos,tag,ipa,level,context,example,exampleMeaning,collocation,synonyms,antonyms,commonMistake,note";
+let sample = "focus,tap trung,v,study,/FOH-kuhs/,A2,study action,Focus on one thing.,Tap trung vao mot viec.,focus on; stay focused,concentrate,distract,Use focus on not focus in,Daily learning";
+let blob = new Blob([`${headers}\n${sample}\n`], { type: "text/csv" });
 let url = URL.createObjectURL(blob);
 let a = document.createElement("a");
 a.href = url;
