@@ -1109,9 +1109,9 @@ body::before {
 .addWordBox {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 16px;
+  gap: 14px;
   align-items: end;
-  padding: 22px;
+  padding: 18px;
 }
 
 .formField {
@@ -1120,10 +1120,13 @@ body::before {
   text-align: left;
 }
 
-.formField--primary,
+.formField--primary {
+  grid-column: span 3;
+}
+
 .formField--tag,
 .formField--compact {
-  grid-column: span 3;
+  grid-column: span 2;
 }
 
 .formField--wide {
@@ -1131,11 +1134,12 @@ body::before {
 }
 
 .addActions {
-  grid-column: span 7;
+  grid-column: 1 / -1;
   display: flex;
   align-items: stretch;
   flex-wrap: wrap;
   gap: 10px;
+  justify-content: flex-start;
 }
 
 .addWordBox input,
@@ -1145,7 +1149,7 @@ body::before {
 #quizDifficulty,
 #challengeDifficulty {
   width: 100%;
-  min-height: 52px;
+  min-height: 50px;
   padding: 10px 14px;
   border: 1px solid rgba(158, 241, 255, 0.32);
   border-radius: var(--radius);
@@ -1155,6 +1159,68 @@ body::before {
   font-size: 1rem;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.learningDetails {
+  grid-column: 1 / -1;
+  border: 1px solid rgba(158, 241, 255, 0.18);
+  border-radius: var(--radius);
+  background: rgba(2, 8, 22, 0.26);
+  text-align: left;
+}
+
+.learningDetails summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 44px;
+  padding: 0 14px;
+  color: #eefcff;
+  cursor: pointer;
+  font-weight: 950;
+  list-style: none;
+}
+
+.learningDetails summary::-webkit-details-marker {
+  display: none;
+}
+
+.learningDetails summary::after {
+  content: "+";
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(24, 233, 255, 0.16);
+  color: var(--cyan);
+  font-size: 1.1rem;
+}
+
+.learningDetails[open] summary::after {
+  content: "-";
+}
+
+.learningDetails summary strong {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.learningDetailsGrid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 14px;
+  padding: 0 14px 14px;
+}
+
+.learningDetails .formField--primary {
+  grid-column: span 4;
+}
+
+.learningDetails .formField--wide {
+  grid-column: span 6;
 }
 
 #modeSelect option,
@@ -2459,6 +2525,7 @@ tbody tr:hover {
   .playerHub,
   .learningStudioStrip,
   .addWordBox,
+  .learningDetailsGrid,
   .profileEditorHeader,
   .previewHeader,
   .previewGrid,
@@ -2470,6 +2537,8 @@ tbody tr:hover {
   .formField--tag,
   .formField--compact,
   .formField--wide,
+  .learningDetails .formField--primary,
+  .learningDetails .formField--wide,
   .addActions,
   .addBtn {
     grid-column: auto;
