@@ -3,6 +3,10 @@ let editingWordIndex = null;
 const POS_OPTIONS = ["interjection", "n", "v", "adj", "adv", "proverb", "idiom"];
 const LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2", "IELTS 5.0", "IELTS 6.0", "IELTS 7.0", "IELTS 8.0+", "School"];
 
+document.addEventListener("click", () => {
+document.querySelectorAll(".actionMenu.is-open").forEach(menu => menu.classList.remove("is-open"));
+});
+
 function cleanText(value) {
 return String(value || "").trim();
 }
@@ -585,20 +589,6 @@ speakBtn.title = "Speak word";
 speakBtn.setAttribute("aria-label", "Speak word");
 speakBtn.addEventListener("click", () => speak(word.eng));
 
-let hardBtn = document.createElement("button");
-hardBtn.className = "actionBtn hardBtn";
-hardBtn.type = "button";
-hardBtn.textContent = "Hard";
-hardBtn.title = "Mark as hard";
-hardBtn.addEventListener("click", () => markWordHard(originalIndex));
-
-let knownBtn = document.createElement("button");
-knownBtn.className = "actionBtn knownBtn";
-knownBtn.type = "button";
-knownBtn.textContent = "Known";
-knownBtn.title = "Mark as known";
-knownBtn.addEventListener("click", () => markWordKnown(originalIndex));
-
 let editBtn = document.createElement("button");
 editBtn.className = "actionBtn editBtn";
 editBtn.type = "button";
@@ -609,15 +599,55 @@ editingWordIndex = originalIndex;
 renderTable();
 });
 
+let menuWrap = document.createElement("div");
+menuWrap.className = "actionMenu";
+
+let moreBtn = document.createElement("button");
+moreBtn.className = "actionBtn moreBtn";
+moreBtn.type = "button";
+moreBtn.innerHTML = "&#8942;";
+moreBtn.title = "More actions";
+moreBtn.setAttribute("aria-label", "More actions");
+
+let menu = document.createElement("div");
+menu.className = "actionMenuPanel";
+
+moreBtn.addEventListener("click", event => {
+event.stopPropagation();
+document.querySelectorAll(".actionMenu.is-open").forEach(openMenu => {
+if (openMenu !== menuWrap) openMenu.classList.remove("is-open");
+});
+menuWrap.classList.toggle("is-open");
+});
+
+let hardBtn = document.createElement("button");
+hardBtn.className = "menuAction hardBtn";
+hardBtn.type = "button";
+hardBtn.textContent = "Mark hard";
+hardBtn.title = "Mark as hard";
+hardBtn.addEventListener("click", () => markWordHard(originalIndex));
+
+let knownBtn = document.createElement("button");
+knownBtn.className = "menuAction knownBtn";
+knownBtn.type = "button";
+knownBtn.textContent = "Mark known";
+knownBtn.title = "Mark as known";
+knownBtn.addEventListener("click", () => markWordKnown(originalIndex));
+
 let deleteBtn = document.createElement("button");
-deleteBtn.className = "actionBtn deleteBtn";
+deleteBtn.className = "menuAction deleteBtn";
 deleteBtn.type = "button";
-deleteBtn.innerHTML = "&times;";
+deleteBtn.textContent = "Delete";
 deleteBtn.title = "Delete word";
 deleteBtn.setAttribute("aria-label", "Delete word");
 deleteBtn.addEventListener("click", () => deleteWord(originalIndex));
 
-actionCell.append(favoriteBtn, speakBtn, hardBtn, knownBtn, editBtn, deleteBtn);
+favoriteBtn.className = "menuAction favoriteAction";
+favoriteBtn.textContent = word.favorite ? "Unfavorite" : "Favorite";
+
+menu.append(favoriteBtn, hardBtn, knownBtn, deleteBtn);
+menuWrap.append(moreBtn, menu);
+actionCell.append(speakBtn, editBtn, menuWrap);
 row.append(engCell, meaningCell, levelCell, dueCell, actionCell);
 }
 
