@@ -6,6 +6,9 @@ import java.util.List;
 public record SyncResponse(
         ProfileDto profile,
         List<WordDto> vocab,
-        List<WordDto> wrongWords
+        List<WordDto> wrongWords,
+        ProgressSummaryDto progress,
+        List<AchievementDto> achievements,
+        List<QuizHistoryDto> quizHistory
 ) {
 }

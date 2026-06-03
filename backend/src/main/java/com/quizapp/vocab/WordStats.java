@@ -40,6 +40,9 @@ public class WordStats {
     @Column(name = "last_reviewed")
     private Instant lastReviewed;
 
+    @Column(name = "next_review")
+    private Instant nextReview;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -74,4 +77,6 @@ public class WordStats {
     public void setMasteryLevel(int masteryLevel) { this.masteryLevel = masteryLevel; }
     public Instant getLastReviewed() { return lastReviewed; }
     public void setLastReviewed(Instant lastReviewed) { this.lastReviewed = lastReviewed; }
+    public Instant getNextReview() { return nextReview; }
+    public void setNextReview(Instant nextReview) { this.nextReview = nextReview; }
 }

@@ -550,7 +550,7 @@ body::before {
 
 .dashboardPanel {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 16px;
 }
 
@@ -844,6 +844,7 @@ body::before {
 .tableTools {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 16px;
 }
@@ -853,6 +854,56 @@ body::before {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: min(360px, 100%);
+}
+
+.filterCluster {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.filterCluster label {
+  display: grid;
+  gap: 6px;
+  min-width: 130px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.filterCluster select {
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid rgba(158, 241, 255, 0.32);
+  border-radius: var(--radius);
+  background: rgba(2, 8, 22, 0.56);
+  color: white;
+  font: inherit;
+}
+
+.filterCluster select option {
+  background: #ffffff;
+  color: #111827;
+}
+
+.favoriteFilter {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid rgba(158, 241, 255, 0.2);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.favoriteFilter input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--yellow);
 }
 
 .table-container {
@@ -875,7 +926,7 @@ body::before {
 }
 
 table {
-  min-width: 980px;
+  min-width: 1120px;
   width: 100%;
   border-collapse: collapse;
 }
@@ -992,6 +1043,57 @@ tbody tr:hover {
 .deleteBtn,
 .clearBtn {
   background: linear-gradient(135deg, var(--danger), #ff8a55);
+}
+
+.editBtn,
+.saveBtn,
+.cancelBtn {
+  width: auto;
+  padding: 0 11px;
+  font-size: 0.78rem;
+}
+
+.editBtn,
+.saveBtn {
+  background: linear-gradient(135deg, var(--cyan), var(--green));
+  color: #031526;
+}
+
+.cancelBtn {
+  background: linear-gradient(135deg, #42506d, #27334c);
+}
+
+.editingRow {
+  background: rgba(24, 233, 255, 0.09) !important;
+  box-shadow: inset 4px 0 0 var(--cyan);
+}
+
+.editingRow input,
+.editingRow select {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid rgba(158, 241, 255, 0.32);
+  border-radius: var(--radius);
+  background: rgba(2, 8, 22, 0.62);
+  color: white;
+  font: inherit;
+}
+
+.editingRow select option {
+  background: #ffffff;
+  color: #111827;
+}
+
+.editMetaCell {
+  display: grid;
+  gap: 8px;
+  min-width: 230px;
+}
+
+.nextReviewCell {
+  color: #d8faff;
+  font-weight: 850;
 }
 
 .actionBtn:hover,

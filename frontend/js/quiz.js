@@ -69,6 +69,7 @@ maxCombo = 0;
 
 isPracticeMode = Boolean(options.practice);
 isChallengeMode = Boolean(options.challenge);
+window.currentQuizKind = options.kind || (options.challenge ? "challenge" : "quiz");
 
 if (options.challenge) {
 questionTime = options.time || 15;
@@ -99,6 +100,7 @@ quizDifficulty.classList.remove("hidden");
 
 isPracticeMode = false;
 isChallengeMode = false;
+window.currentQuizKind = "quiz";
 
 if (vocab.length === 0) {
 alert("Please add some words first!");
@@ -151,6 +153,7 @@ document.getElementById("timer").style.display = "none";
 
 isPracticeMode = true;
 isChallengeMode = false;
+window.currentQuizKind = "wrong-practice";
 
 if (wrongWords.length === 0) {
 alert("No wrong words yet!");
@@ -189,7 +192,7 @@ alert("Star at least 4 favorite words first.");
 return;
 }
 
-startWordSetQuiz(favorites, modeSelect.value, { practice: false });
+startWordSetQuiz(favorites, modeSelect.value, { practice: false, kind: "favorites" });
 }
 
 function seededShuffle(array, seedText) {
@@ -217,7 +220,7 @@ alert("You need at least 4 words for Daily Challenge.");
 return;
 }
 
-startWordSetQuiz(dailyWords, "mixed", { challenge: true, time: 15 });
+startWordSetQuiz(dailyWords, "mixed", { challenge: true, time: 15, kind: "daily" });
 }
 
 function renderQuestionText(questionEl, q, currentIndex, total) {

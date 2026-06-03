@@ -7,13 +7,19 @@ From `backend`:
 .\mvnw.cmd spring-boot:run
 ```
 
-Default mode uses H2 memory database so the API can run immediately.
+Default mode uses an H2 in-memory database so the backend can start quickly for development.
 
 ## Run With PostgreSQL
 Create the database:
 
 ```sql
 CREATE DATABASE quizapp;
+```
+
+Apply the manual schema once:
+
+```powershell
+psql -d quizapp -f ..\database\schema.sql
 ```
 
 Then run:
@@ -26,23 +32,43 @@ $env:JPA_DDL_AUTO="validate"
 .\mvnw.cmd spring-boot:run
 ```
 
-The manual schema is in `database/schema.sql`. Run it once before starting the backend with `JPA_DDL_AUTO=validate`.
+For fast development without manual schema validation, leave `JPA_DDL_AUTO` unset and Spring will use `update`.
 
 ## API Endpoints
-Words:
+All app APIs require an authenticated Google session except the OAuth/login routes.
 
-- `GET /api/v1/words`
-- `POST /api/v1/words`
-- `PUT /api/v1/words/{id}`
-- `PATCH /api/v1/words/{id}/favorite`
-- `DELETE /api/v1/words/{id}`
+Profile:
 
-Wrong bank:
+- `GET /api/me`
+- `PUT /api/profile`
 
-- `GET /api/v1/wrong-words`
-- `POST /api/v1/wrong-words`
-- `PATCH /api/v1/wrong-words/{id}/mastered`
-- `DELETE /api/v1/wrong-words/{id}`
-- `DELETE /api/v1/wrong-words/mastered`
+Vocabulary:
 
-Google login is intentionally not built yet. The backend currently permits `/api/**` so the app can be developed first, then OAuth can be added cleanly.
+- `GET /api/vocab`
+- `POST /api/vocab`
+- `PUT /api/vocab/{id}`
+- `DELETE /api/vocab/{id}`
+
+Learning:
+
+- `GET /api/wrong-words`
+- `GET /api/snapshot`
+- `POST /api/sync`
+- `POST /api/quiz-results`
+- `GET /api/progress`
+- `GET /api/achievements`
+- `GET /api/quiz-history`
+
+Sample import:
+
+- `POST /api/admin/sample-words`
+
+## Stored Backend Features
+The backend stores vocabulary words, word stats, wrong bank entries, quiz history, quiz answers, achievements, and unlocked achievements. `next_review` is used for spaced repetition.
+
+## Verification
+Run backend tests from `backend`:
+
+```powershell
+.\mvnw.cmd test
+```

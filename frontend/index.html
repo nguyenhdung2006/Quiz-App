@@ -25,7 +25,7 @@
 
 <body oncontextmenu="return false">
 <button class="homeBtn" onclick="goHome()" type="button" aria-label="Go home" title="Go home">
-<span class="btnIcon" aria-hidden="true">⌂</span>
+<span class="btnIcon" aria-hidden="true">&#8962;</span>
 <span>Home</span>
 </button>
 <div class="authCluster" id="authCluster">
@@ -49,6 +49,7 @@
 <button class="utilityBtn" id="previewBtn" type="button">Preview</button>
 <button class="utilityBtn" id="exportBtn" type="button">Export</button>
 <button class="utilityBtn" id="importBtn" type="button">Import</button>
+<button class="utilityBtn" id="sampleImportBtn" type="button">Samples</button>
 <input id="importFile" type="file" accept="application/json,.json" hidden>
 </div>
 
@@ -73,6 +74,14 @@
 <div class="dashCard">
 <span class="dashLabel">Main Loop</span>
 <strong>Add - Quiz - Review</strong>
+</div>
+<div class="dashCard">
+<span class="dashLabel">Due Today</span>
+<strong id="dueTodayTop">0</strong>
+</div>
+<div class="dashCard">
+<span class="dashLabel">Weekly Correct</span>
+<strong id="weeklyCorrectTop">0</strong>
 </div>
 </section>
 
@@ -110,6 +119,7 @@
 <span>XP</span>
 <span>Streak</span>
 <span>Combo</span>
+<span>Review</span>
 </div>
 <ol class="leaderboardList" id="leaderboardList"></ol>
 </article>
@@ -176,6 +186,34 @@
 <span>Search</span>
 <input id="vocabSearch" placeholder="Find English, Vietnamese, POS, tag, note, or level">
 </label>
+<div class="filterCluster" aria-label="Vocabulary filters">
+<label>
+<span>POS</span>
+<select id="filterPos">
+<option value="">All POS</option>
+</select>
+</label>
+<label>
+<span>Tag</span>
+<select id="filterTag">
+<option value="">All tags</option>
+</select>
+</label>
+<label>
+<span>Mastery</span>
+<select id="filterMastery">
+<option value="">All levels</option>
+<option value="New">New</option>
+<option value="Learning">Learning</option>
+<option value="Review">Review</option>
+<option value="Mastered">Mastered</option>
+</select>
+</label>
+<label class="favoriteFilter">
+<input id="filterFavorites" type="checkbox">
+<span>Favorites</span>
+</label>
+</div>
 <button class="miniBtn" id="clearSearch" type="button">Clear</button>
 </div>
 
@@ -190,6 +228,7 @@
 <th>Tag</th>
 <th>Vietnamese</th>
 <th>Level</th>
+<th>Next Review</th>
 <th>Action</th>
 </tr>
 </thead>
@@ -254,8 +293,8 @@
 <button class="bigBtn startBtn" onclick="startQuiz()">Start Quiz</button>
 <button class="bigBtn wrongBtn" onclick="openMistakeScreen()">Practice Wrong Words</button>
 <button class="bigBtn favoriteBtn" onclick="practiceFavorites()">Practice Favorites</button>
-<button class="bigBtn dailyBtn" onclick="startDailyChallenge()"><span class="btnIcon" aria-hidden="true">◷</span><span>Daily Challenge</span></button>
-<button class="bigBtn challengeBtn" onclick="openChallengeMenu()"><span class="btnIcon" aria-hidden="true">⚡</span><span>Challenge</span></button>
+<button class="bigBtn dailyBtn" onclick="startDailyChallenge()"><span class="btnIcon" aria-hidden="true">&#9719;</span><span>Daily Challenge</span></button>
+<button class="bigBtn challengeBtn" onclick="openChallengeMenu()"><span class="btnIcon" aria-hidden="true">&#9889;</span><span>Challenge</span></button>
 
 </div>
 
@@ -265,19 +304,19 @@
 <div id="challengeMenu" class="hidden">
 
 <div class="challengePanel" role="dialog" aria-modal="true" aria-labelledby="challengeTitle">
-<button class="challengeCloseBtn" onclick="closeChallengeMenu()" type="button" aria-label="Close challenge menu">×</button>
+<button class="challengeCloseBtn" onclick="closeChallengeMenu()" type="button" aria-label="Close challenge menu">&times;</button>
 <div class="challengeHeader">
-<span class="challengeBadge">⚡</span>
+<span class="challengeBadge">&#9889;</span>
 <div>
 <h2 id="challengeTitle">Challenge Mode</h2>
 <p>Pick a timer. Faster rounds give sharper focus.</p>
 </div>
 </div>
 <div class="challengeLevels">
-<button class="challengeLevelBtn easyLevel" onclick="startChallenge(20)"><span class="levelIcon" aria-hidden="true">✓</span><span>Easy</span><strong>20s</strong></button>
-<button class="challengeLevelBtn mediumLevel" onclick="startChallenge(15)"><span class="levelIcon" aria-hidden="true">◷</span><span>Medium</span><strong>15s</strong></button>
+<button class="challengeLevelBtn easyLevel" onclick="startChallenge(20)"><span class="levelIcon" aria-hidden="true">&#10003;</span><span>Easy</span><strong>20s</strong></button>
+<button class="challengeLevelBtn mediumLevel" onclick="startChallenge(15)"><span class="levelIcon" aria-hidden="true">&#9719;</span><span>Medium</span><strong>15s</strong></button>
 <button class="challengeLevelBtn hardLevel" onclick="startChallenge(10)"><span class="levelIcon" aria-hidden="true">!</span><span>Hard</span><strong>10s</strong></button>
-<button class="challengeLevelBtn masterLevel" onclick="startChallenge(5)"><span class="levelIcon" aria-hidden="true">◆</span><span>Master</span><strong>5s</strong></button>
+<button class="challengeLevelBtn masterLevel" onclick="startChallenge(5)"><span class="levelIcon" aria-hidden="true">&#9670;</span><span>Master</span><strong>5s</strong></button>
 </div>
 </div>
 </div>
@@ -384,7 +423,7 @@
 <div id="think-helper">
 
 <div id="think-bubble">
-Hmm… choose one before moving on!
+Hmm... choose one before moving on!
 </div>
 
 </div>

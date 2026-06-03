@@ -4,6 +4,21 @@ const AUTH_API_ORIGIN = "http://localhost:8080";
 let cloudSyncReady = false;
 let cloudSyncTimer = null;
 let applyingCloudSnapshot = false;
+let latestProgressSummary = null;
+let latestAchievements = [];
+
+const STARTER_WORDS = [
+{ eng: "resilient", vie: "kien cuong", pos: "adj", tag: "mindset", example: "She stayed resilient after the hard exam.", note: "Useful for school and life." },
+{ eng: "curious", vie: "to mo", pos: "adj", tag: "mindset", example: "A curious learner asks better questions.", note: "Good learning attitude." },
+{ eng: "focus", vie: "tap trung", pos: "v", tag: "study", example: "Focus on one small step first.", note: "Can be noun or verb." },
+{ eng: "review", vie: "on lai", pos: "v", tag: "study", example: "Review the hard words tomorrow.", note: "Core spaced repetition action." },
+{ eng: "progress", vie: "tien bo", pos: "n", tag: "study", example: "Small progress still counts.", note: "Motivation word." },
+{ eng: "attempt", vie: "co gang thu", pos: "v", tag: "exam", example: "Attempt every question calmly.", note: "Try, not necessarily succeed." },
+{ eng: "evidence", vie: "bang chung", pos: "n", tag: "exam", example: "Use evidence to support your answer.", note: "Common in essays." },
+{ eng: "compare", vie: "so sanh", pos: "v", tag: "exam", example: "Compare the two ideas clearly.", note: "Task verb." },
+{ eng: "habit", vie: "thoi quen", pos: "n", tag: "daily", example: "A tiny habit can become powerful.", note: "Daily routine." },
+{ eng: "calm", vie: "binh tinh", pos: "adj", tag: "daily", example: "Stay calm before answering.", note: "Mood and behavior." }
+];
 
 function getVocab() {
 return typeof vocab !== "undefined" && Array.isArray(vocab) ? vocab : [];
@@ -34,7 +49,11 @@ example: clean.example,
 note: clean.note,
 favorite: clean.favorite,
 mastered: clean.mastered,
-stats: clean.stats
+stats: {
+...clean.stats,
+lastReviewed: clean.stats.lastReviewed || null,
+nextReview: clean.stats.nextReview || null
+}
 };
 }
 
@@ -73,6 +92,8 @@ try {
 if (snapshot.profile) applyProfile(snapshot.profile);
 if (Array.isArray(snapshot.vocab)) vocab = snapshot.vocab.map(fromServerWord).filter(w => w.eng && w.vie);
 if (Array.isArray(snapshot.wrongWords)) wrongWords = snapshot.wrongWords.map(fromServerWord).filter(w => w.eng && w.vie);
+if (snapshot.progress) latestProgressSummary = snapshot.progress;
+if (Array.isArray(snapshot.achievements)) latestAchievements = snapshot.achievements;
 save();
 refreshAccountData();
 } finally {
@@ -108,6 +129,66 @@ clearTimeout(cloudSyncTimer);
 cloudSyncTimer = setTimeout(syncCloudNow, 700);
 }
 
+async function requestJson(path, options = {}) {
+if (!cloudSyncReady || applyingCloudSnapshot) return null;
+
+try {
+let response = await fetch(`${AUTH_API_ORIGIN}${path}`, {
+credentials: "include",
+headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+...options
+});
+
+if (!response.ok) return null;
+if (response.status === 204) return {};
+return await response.json();
+} catch (error) {
+return null;
+}
+}
+
+async function createCloudWord(word) {
+let created = await requestJson("/api/vocab", {
+method: "POST",
+body: JSON.stringify(toServerWord(word))
+});
+return created ? fromServerWord(created) : null;
+}
+
+async function updateCloudWord(word) {
+let clean = toServerWord(word);
+if (!clean.id) return null;
+
+let updated = await requestJson(`/api/vocab/${clean.id}`, {
+method: "PUT",
+body: JSON.stringify(clean)
+});
+return updated ? fromServerWord(updated) : null;
+}
+
+async function deleteCloudWord(word) {
+let id = word?.id;
+if (!id) return null;
+
+return requestJson(`/api/vocab/${id}`, { method: "DELETE" });
+}
+
+async function importCloudSamples() {
+let snapshot = await requestJson("/api/admin/sample-words", { method: "POST" });
+if (!snapshot) return false;
+applyServerSnapshot(snapshot);
+return true;
+}
+
+window.quizCloud = {
+createWord: createCloudWord,
+updateWord: updateCloudWord,
+deleteWord: deleteCloudWord,
+importSamples: importCloudSamples,
+syncNow: syncCloudNow,
+isReady: () => cloudSyncReady
+};
+
 async function submitCloudQuizResult() {
 if (!cloudSyncReady || !Array.isArray(quizData) || quizData.length === 0) return;
 
@@ -130,7 +211,7 @@ method: "POST",
 credentials: "include",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({
-quizMode: modeSelect?.value || currentMode || "mixed",
+quizMode: window.currentQuizKind || modeSelect?.value || currentMode || "mixed",
 challengeSeconds: isChallengeMode ? questionTime : null,
 totalQuestions: quizData.length,
 correctAnswers: correctCount,
@@ -150,9 +231,13 @@ if (response.ok) applyServerSnapshot(await response.json());
 function updateStats() {
 let topWords = document.getElementById("totalWordsTop");
 let topWrong = document.getElementById("totalWrongWordsTop");
+let dueToday = document.getElementById("dueTodayTop");
+let weeklyCorrect = document.getElementById("weeklyCorrectTop");
 
 if (topWords) topWords.textContent = String(getVocab().length);
 if (topWrong) topWrong.textContent = String(getWrongWords().length);
+if (dueToday) dueToday.textContent = String(getDueTodayCount());
+if (weeklyCorrect) weeklyCorrect.textContent = String(getWeeklyCorrectCount());
 updateProfilePanel();
 renderLeaderboard();
 }
@@ -178,6 +263,58 @@ let streaks = getVocab().map(word => Number(word?.stats?.bestStreak || word?.sta
 return streaks.length ? Math.max(...streaks, 0) : 0;
 }
 
+function getDueTodayCount() {
+let now = Date.now();
+return getVocab().filter(word => {
+let nextReview = word?.stats?.nextReview;
+if (!nextReview) return Number(word?.stats?.seen || 0) > 0 && !word.mastered;
+let due = new Date(nextReview).getTime();
+return !Number.isNaN(due) && due <= now;
+}).length;
+}
+
+function getQuizHistory() {
+try {
+let raw = localStorage.getItem(accountStorageKey("quizHistory"));
+let parsed = raw ? JSON.parse(raw) : [];
+return Array.isArray(parsed) ? parsed : [];
+} catch (error) {
+return [];
+}
+}
+
+function saveQuizHistory(history) {
+localStorage.setItem(accountStorageKey("quizHistory"), JSON.stringify(history.slice(-80)));
+}
+
+function getWeeklyCorrectCount() {
+if (latestProgressSummary?.weeklyCorrectAnswers != null) {
+return latestProgressSummary.weeklyCorrectAnswers;
+}
+
+let cutoff = Date.now() - 7 * 86400000;
+return getQuizHistory()
+.filter(item => new Date(item.createdAt).getTime() >= cutoff)
+.reduce((sum, item) => sum + Number(item.correctAnswers || 0), 0);
+}
+
+function recordLocalQuizHistory() {
+if (!Array.isArray(quizData) || quizData.length === 0) return;
+
+let history = getQuizHistory();
+history.push({
+createdAt: new Date().toISOString(),
+quizMode: window.currentQuizKind || modeSelect?.value || currentMode || "mixed",
+challengeSeconds: isChallengeMode ? questionTime : null,
+totalQuestions: quizData.length,
+correctAnswers: correctCount,
+wrongAnswers: quizData.length - correctCount,
+score: quizData.length ? Number((correctCount / quizData.length * 10).toFixed(2)) : 0,
+maxCombo
+});
+saveQuizHistory(history);
+}
+
 function updateProfilePanel() {
 let words = getVocab();
 let mastered = getMasteredCount(words);
@@ -198,7 +335,10 @@ if (profileXp) profileXp.textContent = String(xp);
 if (profileXpBar) profileXpBar.style.width = levelProgress + "%";
 if (profileStreak) profileStreak.textContent = String(getBestStreak());
 if (profileMastery) profileMastery.textContent = mastery + "%";
-if (profileAchievements) profileAchievements.textContent = String(3 + Math.min(4, Math.floor(words.length / 10)));
+if (profileAchievements) {
+let fallbackBadges = 3 + Math.min(4, Math.floor(words.length / 10));
+profileAchievements.textContent = String(latestAchievements.length || fallbackBadges);
+}
 }
 
 function renderLeaderboard() {
@@ -212,9 +352,10 @@ let mastered = getMasteredCount(words);
 let mastery = words.length ? Math.round(mastered / words.length * 100) : 0;
 let weekly = [
 { name: currentPlayer.name || "You", score: xp || 0, tag: "XP" },
-{ name: "Best streak", score: getBestStreak(), tag: "days" },
+{ name: "Best streak", score: getBestStreak(), tag: "combo" },
 { name: "Mastery", score: mastery, tag: "%" },
-{ name: "Word bank", score: words.length, tag: "words" }
+{ name: "Due today", score: getDueTodayCount(), tag: "words" },
+{ name: "Week correct", score: getWeeklyCorrectCount(), tag: "answers" }
 ];
 
 list.innerHTML = "";
@@ -528,19 +669,31 @@ setTimeout(() => el.remove(), 220);
 function initSearch() {
 let input = document.getElementById("vocabSearch");
 let clearBtn = document.getElementById("clearSearch");
+let filterControls = [
+document.getElementById("filterPos"),
+document.getElementById("filterTag"),
+document.getElementById("filterMastery"),
+document.getElementById("filterFavorites")
+].filter(Boolean);
 
 window.vocabFilterQuery = "";
-if (!input) return;
 
 function update() {
-window.vocabFilterQuery = (input.value || "").trim();
+window.vocabFilterQuery = (input?.value || "").trim();
 renderTable();
 }
 
-input.addEventListener("input", update);
+input?.addEventListener("input", update);
+filterControls.forEach(control => control.addEventListener("change", update));
 clearBtn?.addEventListener("click", () => {
+if (input) {
 input.value = "";
 input.focus();
+}
+filterControls.forEach(control => {
+if (control.type === "checkbox") control.checked = false;
+else control.value = "";
+});
 update();
 });
 }
@@ -611,13 +764,29 @@ merged.push(w);
 return merged;
 }
 
+async function importStarterWords() {
+if (await window.quizCloud?.importSamples()) {
+toast("Imported starter words to your cloud deck.", "ok");
+return;
+}
+
+let incoming = STARTER_WORDS.map(cleanWord).filter(Boolean);
+let before = getVocab().length;
+setData(mergeByEnglish(getVocab(), incoming), getWrongWords());
+let added = getVocab().length - before;
+toast(added ? `Imported ${added} starter words.` : "Starter words are already in this deck.", added ? "ok" : "warn");
+syncCloudNow();
+}
+
 function initImportExport() {
 let exportBtn = document.getElementById("exportBtn");
 let importBtn = document.getElementById("importBtn");
+let sampleImportBtn = document.getElementById("sampleImportBtn");
 let file = document.getElementById("importFile");
 
 exportBtn?.addEventListener("click", exportData);
 importBtn?.addEventListener("click", () => file?.click());
+sampleImportBtn?.addEventListener("click", importStarterWords);
 
 file?.addEventListener("change", async () => {
 let selectedFile = file.files?.[0];
@@ -721,6 +890,8 @@ let originalFinishQuiz = window.finishQuiz;
 if (typeof originalFinishQuiz === "function") {
 window.finishQuiz = function (...args) {
 let result = originalFinishQuiz.apply(this, args);
+recordLocalQuizHistory();
+updateStats();
 submitCloudQuizResult();
 return result;
 };

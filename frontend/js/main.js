@@ -118,7 +118,7 @@ if(e.key === "Enter" && quizData?.length){
     if(answered[index]) return;
 
     if(!answers[index]){
-        showThinkHint("Hmm… choose one before moving on.");
+        showThinkHint("Hmm... choose one before moving on.");
         return;
     }
 

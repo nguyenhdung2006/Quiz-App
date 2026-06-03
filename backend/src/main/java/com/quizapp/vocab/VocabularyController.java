@@ -64,6 +64,26 @@ public class VocabularyController {
         return vocabulary.sync(currentUsers.requireUser(principal), request);
     }
 
+    @GetMapping("/progress")
+    ProgressSummaryDto progress(@AuthenticationPrincipal OAuth2User principal) {
+        return vocabulary.snapshot(currentUsers.requireUser(principal)).progress();
+    }
+
+    @GetMapping("/achievements")
+    List<AchievementDto> achievements(@AuthenticationPrincipal OAuth2User principal) {
+        return vocabulary.snapshot(currentUsers.requireUser(principal)).achievements();
+    }
+
+    @GetMapping("/quiz-history")
+    List<QuizHistoryDto> quizHistory(@AuthenticationPrincipal OAuth2User principal) {
+        return vocabulary.snapshot(currentUsers.requireUser(principal)).quizHistory();
+    }
+
+    @PostMapping("/admin/sample-words")
+    SyncResponse importSampleWords(@AuthenticationPrincipal OAuth2User principal) {
+        return vocabulary.importStarterWords(currentUsers.requireUser(principal));
+    }
+
     @PostMapping("/quiz-results")
     SyncResponse quizResult(
             @AuthenticationPrincipal OAuth2User principal,

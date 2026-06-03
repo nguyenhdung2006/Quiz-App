@@ -1,3 +1,5 @@
+let editingWordIndex = null;
+
 function normalizeWord(word) {
 let stats = word?.stats || {};
 
@@ -16,7 +18,10 @@ seen: Number(stats.seen || 0),
 correct: Number(stats.correct || 0),
 wrong: Number(stats.wrong || 0),
 streak: Number(stats.streak || 0),
-bestStreak: Number(stats.bestStreak || 0)
+bestStreak: Number(stats.bestStreak || 0),
+masteryLevel: Number(stats.masteryLevel || 0),
+lastReviewed: stats.lastReviewed || "",
+nextReview: stats.nextReview || ""
 }
 };
 }
@@ -24,28 +29,59 @@ bestStreak: Number(stats.bestStreak || 0)
 function getMasteryLabel(word) {
 let stats = word?.stats || {};
 
-if (word.mastered || stats.streak >= 5) return "Mastered";
+if (word.mastered || stats.streak >= 5 || stats.masteryLevel >= 5) return "Mastered";
 if ((stats.wrong || 0) > (stats.correct || 0)) return "Review";
-if ((stats.streak || 0) >= 2 || (stats.correct || 0) >= 3) return "Learning";
+if ((stats.streak || 0) >= 2 || (stats.correct || 0) >= 3 || stats.masteryLevel >= 2) return "Learning";
 return "New";
+}
+
+function nextReviewDate(stats, isCorrect) {
+let streak = Number(stats?.streak || 0);
+let days = isCorrect ? Math.min(30, [1, 3, 7, 14, 30][Math.min(streak, 4)] || 30) : 1;
+let due = new Date();
+due.setDate(due.getDate() + days);
+return due.toISOString();
+}
+
+function getNextReviewText(word) {
+let raw = word?.stats?.nextReview;
+if (!raw) return "Ready";
+
+let due = new Date(raw);
+if (Number.isNaN(due.getTime())) return "Ready";
+
+let today = new Date();
+let startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+let startDue = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+let days = Math.ceil((startDue - startToday) / 86400000);
+
+if (days <= 0) return "Today";
+if (days === 1) return "Tomorrow";
+return `${days} days`;
 }
 
 function recordWordResult(word, isCorrect) {
 let target = vocab.find(w => w.eng === word.eng);
 if (!target) return;
 
-target.stats = target.stats || { seen: 0, correct: 0, wrong: 0, streak: 0, bestStreak: 0 };
-target.stats.seen++;
+target.stats = target.stats || {};
+target.stats.seen = Number(target.stats.seen || 0) + 1;
+target.stats.lastReviewed = new Date().toISOString();
 
 if (isCorrect) {
-target.stats.correct++;
-target.stats.streak++;
-target.stats.bestStreak = Math.max(target.stats.bestStreak || 0, target.stats.streak);
+target.stats.correct = Number(target.stats.correct || 0) + 1;
+target.stats.streak = Number(target.stats.streak || 0) + 1;
+target.stats.bestStreak = Math.max(Number(target.stats.bestStreak || 0), target.stats.streak);
+target.stats.masteryLevel = Math.min(5, Number(target.stats.masteryLevel || 0) + 1);
+if (target.stats.streak >= 5) target.mastered = true;
 } else {
-target.stats.wrong++;
+target.stats.wrong = Number(target.stats.wrong || 0) + 1;
 target.stats.streak = 0;
+target.stats.masteryLevel = Math.max(0, Number(target.stats.masteryLevel || 0) - 1);
 target.mastered = false;
 }
+
+target.stats.nextReview = nextReviewDate(target.stats, isCorrect);
 }
 
 function addWord() {
@@ -63,10 +99,18 @@ alert("Word already exists!");
 return;
 }
 
-vocab.push(normalizeWord({ eng, vie, pos, tag, example, note }));
+let word = normalizeWord({ eng, vie, pos, tag, example, note });
+let localIndex = vocab.push(word) - 1;
 
 save();
 renderTable();
+
+Promise.resolve(window.quizCloud?.createWord?.(word)).then(serverWord => {
+if (!serverWord) return;
+vocab[localIndex] = normalizeWord(serverWord);
+save();
+renderTable();
+});
 
 engInput.value = "";
 vieInput.value = "";
@@ -86,53 +130,168 @@ meta.textContent = details.join(" | ");
 parent.appendChild(meta);
 }
 
-function renderTable() {
-let table = document.getElementById("tableBody");
-table.innerHTML = "";
-
-let query = "";
-if (typeof vocabFilterQuery !== "undefined") {
-query = String(vocabFilterQuery || "").toLowerCase();
+function uniqueSorted(values) {
+return [...new Set(values.map(value => String(value || "").trim()).filter(Boolean))]
+.sort((a, b) => a.localeCompare(b));
 }
 
-let rows = vocab
-.map((word, originalIndex) => ({ word: normalizeWord(word), originalIndex }))
-.filter(({ word }) => {
-if (!query) return true;
-return [word.eng, word.vie, word.pos, word.tag, word.example, word.note, getMasteryLabel(word)]
-.some(value => String(value || "").toLowerCase().includes(query));
+function syncSelectOptions(select, values, placeholder) {
+if (!select) return;
+
+let current = select.value;
+select.innerHTML = "";
+
+let all = document.createElement("option");
+all.value = "";
+all.textContent = placeholder;
+select.appendChild(all);
+
+values.forEach(value => {
+let option = document.createElement("option");
+option.value = value;
+option.textContent = value;
+select.appendChild(option);
 });
 
-let fragment = document.createDocumentFragment();
+select.value = values.includes(current) ? current : "";
+}
 
-rows.forEach(({ word: w, originalIndex }) => {
-vocab[originalIndex] = w;
+function refreshFilterOptions() {
+syncSelectOptions(document.getElementById("filterPos"), uniqueSorted(vocab.map(w => w.pos)), "All POS");
+syncSelectOptions(document.getElementById("filterTag"), uniqueSorted(vocab.map(w => w.tag)), "All tags");
+}
 
-let row = document.createElement("tr");
-if (w.favorite) row.classList.add("favoriteRow");
+function getActiveFilters() {
+return {
+query: String(window.vocabFilterQuery || "").toLowerCase(),
+pos: document.getElementById("filterPos")?.value || "",
+tag: document.getElementById("filterTag")?.value || "",
+mastery: document.getElementById("filterMastery")?.value || "",
+favorites: Boolean(document.getElementById("filterFavorites")?.checked)
+};
+}
+
+function matchesFilters(word, filters) {
+let level = getMasteryLabel(word);
+let queryText = [word.eng, word.vie, word.pos, word.tag, word.example, word.note, level, getNextReviewText(word)]
+.join(" ")
+.toLowerCase();
+
+if (filters.query && !queryText.includes(filters.query)) return false;
+if (filters.pos && word.pos !== filters.pos) return false;
+if (filters.tag && word.tag !== filters.tag) return false;
+if (filters.mastery && level !== filters.mastery) return false;
+if (filters.favorites && !word.favorite) return false;
+return true;
+}
+
+function createCellInput(value, className, placeholder = "") {
+let input = document.createElement("input");
+input.className = className;
+input.value = value || "";
+input.placeholder = placeholder;
+return input;
+}
+
+function createEditSelect(value) {
+let select = document.createElement("select");
+["n", "v", "adj", "adv", "proverb", "idiom"].forEach(pos => {
+let option = document.createElement("option");
+option.value = pos;
+option.textContent = pos;
+select.appendChild(option);
+});
+select.value = value || "n";
+return select;
+}
+
+function renderEditRow(row, word, originalIndex) {
+row.classList.add("editingRow");
+
+let engCell = document.createElement("td");
+let engInputEdit = createCellInput(word.eng, "editEng", "English");
+engCell.appendChild(engInputEdit);
+
+let posCell = document.createElement("td");
+let posInputEdit = createEditSelect(word.pos);
+posCell.appendChild(posInputEdit);
+
+let tagCell = document.createElement("td");
+let tagInputEdit = createCellInput(word.tag, "editTag", "Tag");
+tagCell.appendChild(tagInputEdit);
+
+let vieCell = document.createElement("td");
+let vieInputEdit = createCellInput(word.vie, "editVie", "Vietnamese");
+vieCell.appendChild(vieInputEdit);
+
+let levelCell = document.createElement("td");
+let exampleInputEdit = createCellInput(word.example, "editExample", "Example");
+let noteInputEdit = createCellInput(word.note, "editNote", "Note");
+levelCell.className = "editMetaCell";
+levelCell.append(exampleInputEdit, noteInputEdit);
+
+let reviewCell = document.createElement("td");
+reviewCell.textContent = getNextReviewText(word);
+
+let actionCell = document.createElement("td");
+actionCell.className = "actionCell";
+
+let saveBtn = document.createElement("button");
+saveBtn.className = "actionBtn saveBtn";
+saveBtn.type = "button";
+saveBtn.textContent = "Save";
+saveBtn.addEventListener("click", () => {
+saveEditedWord(originalIndex, {
+eng: engInputEdit.value,
+vie: vieInputEdit.value,
+pos: posInputEdit.value,
+tag: tagInputEdit.value,
+example: exampleInputEdit.value,
+note: noteInputEdit.value
+});
+});
+
+let cancelBtn = document.createElement("button");
+cancelBtn.className = "actionBtn cancelBtn";
+cancelBtn.type = "button";
+cancelBtn.textContent = "Cancel";
+cancelBtn.addEventListener("click", () => {
+editingWordIndex = null;
+renderTable();
+});
+
+actionCell.append(saveBtn, cancelBtn);
+row.append(engCell, posCell, tagCell, vieCell, levelCell, reviewCell, actionCell);
+}
+
+function renderDisplayRow(row, word, originalIndex) {
+if (word.favorite) row.classList.add("favoriteRow");
 
 let engCell = document.createElement("td");
 engCell.className = "engWord";
-engCell.textContent = w.eng;
-appendMeta(engCell, w);
-engCell.addEventListener("click", () => speak(w.eng));
+engCell.textContent = word.eng;
+appendMeta(engCell, word);
+engCell.addEventListener("click", () => speak(word.eng));
 
 let posCell = document.createElement("td");
-posCell.textContent = w.pos;
+posCell.textContent = word.pos;
 
 let tagCell = document.createElement("td");
-tagCell.textContent = w.tag || "-";
+tagCell.textContent = word.tag || "-";
 
 let vieCell = document.createElement("td");
-vieCell.textContent = w.vie;
+vieCell.textContent = word.vie;
 
 let levelCell = document.createElement("td");
-let level = getMasteryLabel(w);
-levelCell.innerHTML = "";
+let level = getMasteryLabel(word);
 let levelBadge = document.createElement("span");
 levelBadge.className = "levelBadge levelBadge--" + level.toLowerCase();
 levelBadge.textContent = level;
 levelCell.appendChild(levelBadge);
+
+let reviewCell = document.createElement("td");
+reviewCell.className = "nextReviewCell";
+reviewCell.textContent = getNextReviewText(word);
 
 let actionCell = document.createElement("td");
 actionCell.className = "actionCell";
@@ -140,7 +299,7 @@ actionCell.className = "actionCell";
 let favoriteBtn = document.createElement("button");
 favoriteBtn.className = "actionBtn favoriteAction";
 favoriteBtn.type = "button";
-favoriteBtn.textContent = w.favorite ? "★" : "☆";
+favoriteBtn.innerHTML = word.favorite ? "&#9733;" : "&#9734;";
 favoriteBtn.title = "Toggle favorite";
 favoriteBtn.setAttribute("aria-label", "Toggle favorite");
 favoriteBtn.addEventListener("click", () => toggleFavorite(originalIndex));
@@ -148,21 +307,54 @@ favoriteBtn.addEventListener("click", () => toggleFavorite(originalIndex));
 let speakBtn = document.createElement("button");
 speakBtn.className = "actionBtn speakBtn";
 speakBtn.type = "button";
-speakBtn.textContent = "♪";
+speakBtn.innerHTML = "&#9835;";
 speakBtn.title = "Speak word";
 speakBtn.setAttribute("aria-label", "Speak word");
-speakBtn.addEventListener("click", () => speak(w.eng));
+speakBtn.addEventListener("click", () => speak(word.eng));
+
+let editBtn = document.createElement("button");
+editBtn.className = "actionBtn editBtn";
+editBtn.type = "button";
+editBtn.textContent = "Edit";
+editBtn.title = "Edit word";
+editBtn.addEventListener("click", () => {
+editingWordIndex = originalIndex;
+renderTable();
+});
 
 let deleteBtn = document.createElement("button");
 deleteBtn.className = "actionBtn deleteBtn";
 deleteBtn.type = "button";
-deleteBtn.textContent = "×";
+deleteBtn.innerHTML = "&times;";
 deleteBtn.title = "Delete word";
 deleteBtn.setAttribute("aria-label", "Delete word");
 deleteBtn.addEventListener("click", () => deleteWord(originalIndex));
 
-actionCell.append(favoriteBtn, speakBtn, deleteBtn);
-row.append(engCell, posCell, tagCell, vieCell, levelCell, actionCell);
+actionCell.append(favoriteBtn, speakBtn, editBtn, deleteBtn);
+row.append(engCell, posCell, tagCell, vieCell, levelCell, reviewCell, actionCell);
+}
+
+function renderTable() {
+let table = document.getElementById("tableBody");
+table.innerHTML = "";
+
+refreshFilterOptions();
+let filters = getActiveFilters();
+let rows = vocab
+.map((word, originalIndex) => ({ word: normalizeWord(word), originalIndex }))
+.filter(({ word }) => matchesFilters(word, filters));
+
+let fragment = document.createDocumentFragment();
+
+rows.forEach(({ word, originalIndex }) => {
+vocab[originalIndex] = word;
+
+let row = document.createElement("tr");
+if (editingWordIndex === originalIndex) {
+renderEditRow(row, word, originalIndex);
+} else {
+renderDisplayRow(row, word, originalIndex);
+}
 fragment.appendChild(row);
 });
 
@@ -176,12 +368,54 @@ if (topWords) topWords.innerText = vocab.length;
 updateDifficulty();
 }
 
+function saveEditedWord(i, patch) {
+let current = vocab[i];
+if (!current) return;
+
+let next = normalizeWord({ ...current, ...patch });
+if (!next.eng || !next.vie) {
+alert("English and Vietnamese are required.");
+return;
+}
+
+let duplicate = vocab.some((word, index) =>
+index !== i && String(word.eng || "").toLowerCase() === next.eng.toLowerCase()
+);
+if (duplicate) {
+alert("Word already exists!");
+return;
+}
+
+let oldEng = current.eng;
+vocab[i] = next;
+wrongWords = wrongWords.map(word => word.eng === oldEng ? normalizeWord({ ...word, ...next }) : word);
+editingWordIndex = null;
+
+save();
+renderTable();
+renderMistakeTable();
+
+Promise.resolve(window.quizCloud?.updateWord?.(next)).then(serverWord => {
+if (!serverWord) return;
+vocab[i] = normalizeWord(serverWord);
+save();
+renderTable();
+});
+}
+
 function toggleFavorite(i) {
 if (!vocab[i]) return;
 
 vocab[i].favorite = !vocab[i].favorite;
 save();
 renderTable();
+
+Promise.resolve(window.quizCloud?.updateWord?.(vocab[i])).then(serverWord => {
+if (!serverWord) return;
+vocab[i] = normalizeWord(serverWord);
+save();
+renderTable();
+});
 }
 
 function deleteWord(i) {
@@ -197,6 +431,8 @@ renderTable();
 
 let topWrong = document.getElementById("totalWrongWordsTop");
 if (topWrong) topWrong.innerText = wrongWords.length;
+
+window.quizCloud?.deleteWord(word);
 }
 
 function clearMastered() {
