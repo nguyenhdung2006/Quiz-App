@@ -1357,10 +1357,46 @@ body::before {
 }
 
 table {
-  min-width: 1180px;
+  min-width: 1120px;
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
+  table-layout: fixed;
+}
+
+thead th:nth-child(1),
+tbody td:nth-child(1) {
+  width: 10%;
+}
+
+thead th:nth-child(2),
+tbody td:nth-child(2) {
+  width: 14%;
+}
+
+thead th:nth-child(3),
+tbody td:nth-child(3) {
+  width: 22%;
+}
+
+thead th:nth-child(4),
+tbody td:nth-child(4) {
+  width: 13%;
+}
+
+thead th:nth-child(5),
+tbody td:nth-child(5) {
+  width: 13%;
+}
+
+thead th:nth-child(6),
+tbody td:nth-child(6) {
+  width: 10%;
+}
+
+thead th:nth-child(7),
+tbody td:nth-child(7) {
+  width: 18%;
 }
 
 thead th {
@@ -1380,12 +1416,13 @@ thead th {
 }
 
 td {
-  padding: 14px 18px;
+  padding: 14px 16px;
   border-bottom: 1px solid rgba(158, 241, 255, 0.12);
   color: rgba(250, 253, 255, 0.94);
   font-size: 0.95rem;
   text-align: left;
   vertical-align: middle;
+  height: 74px;
 }
 
 tr:nth-child(even) {
@@ -1420,6 +1457,18 @@ thead th:last-child {
 .meaningCell strong {
   display: block;
   overflow-wrap: anywhere;
+}
+
+.meaningHint {
+  display: block;
+  max-width: 100%;
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .favoriteRow td:first-child::before {
@@ -1468,15 +1517,18 @@ thead th:last-child {
 }
 
 .levelCell {
-  display: grid;
-  gap: 8px;
+  min-width: 0;
 }
 
 .studyInfoMain,
 .studyInfoSub {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px;
+}
+
+.studyInfoSub {
+  margin-top: 7px;
 }
 
 .wordLevelBadge {
@@ -1513,17 +1565,15 @@ thead th:last-child {
   color: #fff4b8;
 }
 
-.progressCell {
-  display: grid;
-  gap: 5px;
-}
-
 .progressCell strong {
+  display: block;
   color: #ffffff;
   font-size: 0.95rem;
 }
 
 .progressCell span {
+  display: block;
+  margin-top: 5px;
   color: var(--text-muted);
   font-size: 0.82rem;
   font-weight: 750;
@@ -1596,20 +1646,20 @@ thead th:last-child {
 }
 
 .actionCell {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 250px;
+  display: table-cell;
+  min-width: 0;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .actionBtn,
 .speakBtn,
 .deleteBtn,
 .clearBtn {
-  min-height: 34px;
-  min-width: 48px;
-  padding: 0 11px;
+  min-height: 32px;
+  min-width: 42px;
+  margin: 3px 2px;
+  padding: 0 10px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
   background: linear-gradient(135deg, rgba(24, 233, 255, 0.78), rgba(91, 141, 255, 0.78));
@@ -1618,6 +1668,14 @@ thead th:last-child {
   font-size: 0.76rem;
   font-weight: 900;
   transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
+}
+
+.favoriteAction,
+.speakBtn,
+.deleteBtn {
+  min-width: 36px;
+  width: 36px;
+  padding: 0;
 }
 
 .favoriteAction {

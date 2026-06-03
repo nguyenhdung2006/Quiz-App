@@ -122,6 +122,16 @@ if (/^[ABC][12]$/.test(level)) return `CEFR ${level}`;
 return level;
 }
 
+function getPosText(pos) {
+let value = cleanText(pos || "n").toLowerCase();
+return {
+n: "noun",
+v: "verb",
+adj: "adjective",
+adv: "adverb"
+}[value] || value;
+}
+
 function createLevelBadge(word) {
 let raw = cleanText(word?.level || "A1");
 let badge = document.createElement("span");
@@ -512,7 +522,6 @@ let engName = document.createElement("strong");
 engName.textContent = word.eng;
 engCell.appendChild(engName);
 if (word.ipa) engCell.appendChild(createBadge(word.ipa, "ipaBadge"));
-appendMeta(engCell, { ipa: "", context: "", example: "", exampleMeaning: "", collocation: "", synonyms: "", antonyms: "", commonMistake: "", note: "" });
 engCell.addEventListener("click", () => speak(word.eng));
 
 let meaningCell = document.createElement("td");
@@ -520,11 +529,17 @@ meaningCell.className = "meaningCell";
 let meaning = document.createElement("strong");
 meaning.textContent = word.vie;
 meaningCell.appendChild(meaning);
-appendMeta(meaningCell, word);
+let meaningHintText = word.context || word.example || word.note || "";
+if (meaningHintText) {
+let meaningHint = document.createElement("span");
+meaningHint.className = "meaningHint";
+meaningHint.textContent = meaningHintText;
+meaningCell.appendChild(meaningHint);
+}
 
 let levelCell = document.createElement("td");
 let levelBadge = createLevelBadge(word);
-let posBadge = createBadge(word.pos, "metaBadge");
+let posBadge = createBadge(getPosText(word.pos), "metaBadge");
 let mastery = getMasteryLabel(word);
 let masteryBadge = createBadge(mastery, "levelBadge levelBadge--" + mastery.toLowerCase());
 levelCell.className = "levelCell";
