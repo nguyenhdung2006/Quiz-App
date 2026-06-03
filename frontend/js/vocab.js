@@ -458,14 +458,13 @@ let posInputEdit = createEditSelect(word.pos, POS_OPTIONS);
 let tagInputEdit = createCellInput(word.tag, "editTag", "Topic / tag");
 appendInputStack(levelCell, [levelInputEdit, posInputEdit, tagInputEdit]);
 
-let accuracyCell = document.createElement("td");
-accuracyCell.textContent = getAccuracyText(word);
-
 let reviewCell = document.createElement("td");
-reviewCell.textContent = getNextReviewText(word);
-
-let lastReviewedCell = document.createElement("td");
-lastReviewedCell.textContent = getLastReviewedText(word);
+reviewCell.className = "reviewSummaryCell";
+let editReviewMain = document.createElement("strong");
+editReviewMain.textContent = getAccuracyText(word);
+let editReviewSub = document.createElement("span");
+editReviewSub.textContent = `${getNextReviewText(word)} · last ${getLastReviewedText(word).toLowerCase()}`;
+reviewCell.append(editReviewMain, editReviewSub);
 
 let actionCell = document.createElement("td");
 actionCell.className = "actionCell";
@@ -503,7 +502,7 @@ renderTable();
 });
 
 actionCell.append(saveBtn, cancelBtn);
-row.append(engCell, meaningCell, levelCell, accuracyCell, reviewCell, lastReviewedCell, actionCell);
+row.append(engCell, meaningCell, levelCell, reviewCell, actionCell);
 }
 
 function createBadge(text, className) {
@@ -545,32 +544,27 @@ let masteryBadge = createBadge(mastery, "levelBadge levelBadge--" + mastery.toLo
 levelCell.className = "levelCell";
 let levelMain = document.createElement("div");
 levelMain.className = "studyInfoMain";
-levelMain.append(levelBadge, masteryBadge);
+levelMain.append(levelBadge);
 let levelSub = document.createElement("div");
 levelSub.className = "studyInfoSub";
 levelSub.appendChild(posBadge);
 if (word.tag) levelSub.appendChild(createBadge(word.tag, "topicBadge"));
 levelCell.append(levelMain, levelSub);
 
-let accuracyCell = document.createElement("td");
-accuracyCell.className = "progressCell";
-let accuracy = document.createElement("strong");
-accuracy.textContent = getAccuracyText(word);
-let attempts = document.createElement("span");
-attempts.textContent = getAttemptText(word);
-accuracyCell.append(accuracy, attempts);
-
 let dueCell = document.createElement("td");
 dueCell.className = "reviewCellDisplay";
 let due = getDueStatus(word);
-dueCell.appendChild(createBadge(due.text, `dueBadge dueBadge--${due.tone}`));
+let reviewTop = document.createElement("div");
+reviewTop.className = "reviewTopLine";
+reviewTop.append(
+createBadge(due.text, `dueBadge dueBadge--${due.tone}`),
+masteryBadge
+);
+dueCell.appendChild(reviewTop);
 let next = document.createElement("div");
 next.className = "reviewHint";
-next.textContent = getNextReviewText(word);
+next.textContent = `${getAccuracyText(word)} · ${getAttemptText(word)} · last ${getLastReviewedText(word).toLowerCase()}`;
 dueCell.appendChild(next);
-
-let lastReviewedCell = document.createElement("td");
-lastReviewedCell.textContent = getLastReviewedText(word);
 
 let actionCell = document.createElement("td");
 actionCell.className = "actionCell";
@@ -624,13 +618,13 @@ deleteBtn.setAttribute("aria-label", "Delete word");
 deleteBtn.addEventListener("click", () => deleteWord(originalIndex));
 
 actionCell.append(favoriteBtn, speakBtn, hardBtn, knownBtn, editBtn, deleteBtn);
-row.append(engCell, meaningCell, levelCell, accuracyCell, dueCell, lastReviewedCell, actionCell);
+row.append(engCell, meaningCell, levelCell, dueCell, actionCell);
 }
 
 function renderEmptyTable(table, filters) {
 let row = document.createElement("tr");
 let cell = document.createElement("td");
-cell.colSpan = 7;
+cell.colSpan = 5;
 cell.className = "emptyTableCell";
 cell.textContent = vocab.length
 ? "No words match these filters."
