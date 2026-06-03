@@ -1339,8 +1339,8 @@ body::before {
 
 .table-container {
   width: min(1320px, 100%);
-  height: min(560px, 54vh);
-  min-height: 330px;
+  max-height: min(560px, 54vh);
+  min-height: 0;
   overflow: auto;
   scrollbar-color: var(--cyan) rgba(3, 10, 28, 0.72);
   scrollbar-width: thin;
@@ -1357,42 +1357,57 @@ body::before {
 }
 
 table {
-  min-width: 1320px;
+  min-width: 1180px;
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  padding: 16px;
+  padding: 14px 18px;
   background:
-    linear-gradient(135deg, rgba(24, 233, 255, 0.22), rgba(255, 106, 213, 0.18)),
-    rgba(7, 14, 32, 0.96);
+    linear-gradient(135deg, rgba(18, 74, 100, 0.92), rgba(50, 36, 76, 0.92)),
+    rgba(7, 14, 32, 0.98);
   color: white;
-  font-size: 0.95rem;
+  font-size: 0.82rem;
+  font-weight: 950;
   letter-spacing: 0;
+  text-align: left;
+  text-transform: uppercase;
 }
 
 td {
-  padding: 16px;
+  padding: 14px 18px;
   border-bottom: 1px solid rgba(158, 241, 255, 0.12);
   color: rgba(250, 253, 255, 0.94);
-  font-size: 1rem;
+  font-size: 0.95rem;
+  text-align: left;
+  vertical-align: middle;
 }
 
 tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.025);
 }
 
 tbody tr {
-  transition: background 160ms ease, box-shadow 160ms ease;
+  background: rgba(5, 11, 26, 0.36);
+  transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 tbody tr:hover {
-  background: rgba(24, 233, 255, 0.1);
-  box-shadow: inset 4px 0 0 var(--cyan);
+  background: rgba(24, 233, 255, 0.085);
+  box-shadow: inset 4px 0 0 rgba(24, 233, 255, 0.74);
+}
+
+thead th:first-child {
+  border-top-left-radius: var(--radius);
+}
+
+thead th:last-child {
+  border-top-right-radius: var(--radius);
 }
 
 .engWord {
@@ -1432,6 +1447,7 @@ tbody tr:hover {
 .ipaBadge,
 .metaBadge,
 .wordLevelBadge,
+.topicBadge,
 .dueBadge {
   display: inline-flex;
   align-items: center;
@@ -1440,7 +1456,7 @@ tbody tr:hover {
   padding: 4px 8px;
   border: 1px solid rgba(158, 241, 255, 0.18);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.075);
+  background: rgba(255, 255, 255, 0.06);
   color: rgba(235, 248, 255, 0.86);
   overflow-wrap: anywhere;
 }
@@ -1452,14 +1468,65 @@ tbody tr:hover {
 }
 
 .levelCell {
+  display: grid;
+  gap: 8px;
+}
+
+.studyInfoMain,
+.studyInfoSub {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
 }
 
 .wordLevelBadge {
-  border-color: rgba(93, 242, 162, 0.32);
-  color: #dfffea;
+  border-color: rgba(24, 233, 255, 0.34);
+  background: rgba(24, 233, 255, 0.1);
+  color: #dffcff;
+  font-weight: 950;
+  gap: 6px;
+}
+
+.wordLevelBadge small {
+  color: rgba(224, 240, 255, 0.68);
+  font-size: 0.66rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.wordLevelBadge strong {
+  color: #ffffff;
+  font-size: 0.86rem;
+}
+
+.wordLevelBadge--ielts {
+  border-color: rgba(255, 227, 110, 0.34);
+  background: rgba(255, 227, 110, 0.1);
+}
+
+.wordLevelBadge--ielts strong {
+  color: #fff4b8;
+}
+
+.topicBadge {
+  border-color: rgba(255, 227, 110, 0.25);
+  color: #fff4b8;
+}
+
+.progressCell {
+  display: grid;
+  gap: 5px;
+}
+
+.progressCell strong {
+  color: #ffffff;
+  font-size: 0.95rem;
+}
+
+.progressCell span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 750;
 }
 
 .levelBadge {
@@ -1524,26 +1591,31 @@ tbody tr:hover {
   font-weight: 750;
 }
 
+.reviewCellDisplay {
+  min-width: 128px;
+}
+
 .actionCell {
   display: flex;
-  justify-content: flex-start;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 8px;
+  min-width: 250px;
 }
 
 .actionBtn,
 .speakBtn,
 .deleteBtn,
 .clearBtn {
-  min-height: 36px;
-  min-width: 58px;
-  padding: 0 10px;
+  min-height: 34px;
+  min-width: 48px;
+  padding: 0 11px;
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
   background: linear-gradient(135deg, rgba(24, 233, 255, 0.78), rgba(91, 141, 255, 0.78));
   color: white;
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 900;
   transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
 }

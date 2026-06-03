@@ -1,7 +1,7 @@
 let editingWordIndex = null;
 
 const POS_OPTIONS = ["interjection", "n", "v", "adj", "adv", "proverb", "idiom"];
-const LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2", "IELTS", "School"];
+const LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2", "IELTS 5.0", "IELTS 6.0", "IELTS 7.0", "IELTS 8.0+", "School"];
 
 function cleanText(value) {
 return String(value || "").trim();
@@ -106,6 +106,46 @@ let total = Number(stats.correct || 0) + Number(stats.wrong || 0);
 if (!total) return "Not tried";
 let percent = Math.round(Number(stats.correct || 0) / total * 100);
 return `${percent}% (${stats.correct}/${total})`;
+}
+
+function getAttemptText(word) {
+let stats = word?.stats || {};
+let total = Number(stats.correct || 0) + Number(stats.wrong || 0);
+if (!total) return "0 attempts";
+return `${total} attempt${total === 1 ? "" : "s"}`;
+}
+
+function getLevelText(word) {
+let level = cleanText(word?.level || "A1");
+if (level.toUpperCase().startsWith("IELTS")) return level;
+if (/^[ABC][12]$/.test(level)) return `CEFR ${level}`;
+return level;
+}
+
+function createLevelBadge(word) {
+let raw = cleanText(word?.level || "A1");
+let badge = document.createElement("span");
+badge.className = "wordLevelBadge";
+
+let prefix = document.createElement("small");
+let value = document.createElement("strong");
+
+if (/^[ABC][12]$/.test(raw)) {
+badge.classList.add("wordLevelBadge--cefr");
+prefix.textContent = "CEFR";
+value.textContent = raw;
+} else if (raw.toUpperCase().startsWith("IELTS")) {
+badge.classList.add("wordLevelBadge--ielts");
+prefix.textContent = "IELTS";
+value.textContent = raw.replace(/^IELTS\s*/i, "") || "Band";
+} else {
+badge.classList.add("wordLevelBadge--custom");
+prefix.textContent = "Level";
+value.textContent = raw;
+}
+
+badge.append(prefix, value);
+return badge;
 }
 
 function getLastReviewedText(word) {
@@ -358,7 +398,7 @@ let select = document.createElement("select");
 values.forEach(item => {
 let option = document.createElement("option");
 option.value = item;
-option.textContent = item;
+option.textContent = getLevelText({ level: item });
 select.appendChild(option);
 });
 select.value = values.includes(value) ? value : values[0];
@@ -405,7 +445,7 @@ noteInputEdit
 let levelCell = document.createElement("td");
 let levelInputEdit = createEditSelect(word.level, LEVEL_OPTIONS);
 let posInputEdit = createEditSelect(word.pos, POS_OPTIONS);
-let tagInputEdit = createCellInput(word.tag, "editTag", "Tag");
+let tagInputEdit = createCellInput(word.tag, "editTag", "Topic / tag");
 appendInputStack(levelCell, [levelInputEdit, posInputEdit, tagInputEdit]);
 
 let accuracyCell = document.createElement("td");
@@ -483,18 +523,30 @@ meaningCell.appendChild(meaning);
 appendMeta(meaningCell, word);
 
 let levelCell = document.createElement("td");
-let levelBadge = createBadge(word.level || "A1", "wordLevelBadge");
+let levelBadge = createLevelBadge(word);
 let posBadge = createBadge(word.pos, "metaBadge");
-let tagBadge = createBadge(word.tag || "untagged", "metaBadge");
 let mastery = getMasteryLabel(word);
 let masteryBadge = createBadge(mastery, "levelBadge levelBadge--" + mastery.toLowerCase());
 levelCell.className = "levelCell";
-levelCell.append(levelBadge, posBadge, tagBadge, masteryBadge);
+let levelMain = document.createElement("div");
+levelMain.className = "studyInfoMain";
+levelMain.append(levelBadge, masteryBadge);
+let levelSub = document.createElement("div");
+levelSub.className = "studyInfoSub";
+levelSub.appendChild(posBadge);
+if (word.tag) levelSub.appendChild(createBadge(word.tag, "topicBadge"));
+levelCell.append(levelMain, levelSub);
 
 let accuracyCell = document.createElement("td");
-accuracyCell.textContent = getAccuracyText(word);
+accuracyCell.className = "progressCell";
+let accuracy = document.createElement("strong");
+accuracy.textContent = getAccuracyText(word);
+let attempts = document.createElement("span");
+attempts.textContent = getAttemptText(word);
+accuracyCell.append(accuracy, attempts);
 
 let dueCell = document.createElement("td");
+dueCell.className = "reviewCellDisplay";
 let due = getDueStatus(word);
 dueCell.appendChild(createBadge(due.text, `dueBadge dueBadge--${due.tone}`));
 let next = document.createElement("div");
