@@ -2,6 +2,7 @@ package com.quizapp.vocab;
 
 import com.quizapp.user.AppUser;
 import com.quizapp.user.CurrentUserService;
+import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -31,7 +32,7 @@ public class VocabularyController {
     }
 
     @PostMapping("/vocab")
-    WordDto create(@AuthenticationPrincipal OAuth2User principal, @RequestBody WordRequest request) {
+    WordDto create(@AuthenticationPrincipal OAuth2User principal, @Valid @RequestBody WordRequest request) {
         return vocabulary.createWord(currentUsers.requireUser(principal), request);
     }
 
@@ -39,7 +40,7 @@ public class VocabularyController {
     WordDto update(
             @AuthenticationPrincipal OAuth2User principal,
             @PathVariable Long id,
-            @RequestBody WordRequest request
+            @Valid @RequestBody WordRequest request
     ) {
         return vocabulary.updateWord(currentUsers.requireUser(principal), id, request);
     }
@@ -60,7 +61,7 @@ public class VocabularyController {
     }
 
     @PostMapping("/sync")
-    SyncResponse sync(@AuthenticationPrincipal OAuth2User principal, @RequestBody SyncRequest request) {
+    SyncResponse sync(@AuthenticationPrincipal OAuth2User principal, @Valid @RequestBody SyncRequest request) {
         return vocabulary.sync(currentUsers.requireUser(principal), request);
     }
 
@@ -81,13 +82,13 @@ public class VocabularyController {
 
     @PostMapping("/admin/sample-words")
     SyncResponse importSampleWords(@AuthenticationPrincipal OAuth2User principal) {
-        return vocabulary.importStarterWords(currentUsers.requireUser(principal));
+        return vocabulary.importStarterWords(currentUsers.requireAdmin(principal));
     }
 
     @PostMapping("/quiz-results")
     SyncResponse quizResult(
             @AuthenticationPrincipal OAuth2User principal,
-            @RequestBody QuizResultRequest request
+            @Valid @RequestBody QuizResultRequest request
     ) {
         return vocabulary.recordQuizResult(currentUsers.requireUser(principal), request);
     }

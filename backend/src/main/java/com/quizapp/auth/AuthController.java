@@ -5,6 +5,7 @@ import com.quizapp.user.CurrentUserService;
 import com.quizapp.user.ProfileDto;
 import com.quizapp.user.ProfileRequest;
 import com.quizapp.user.AppUser;
+import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -34,7 +35,7 @@ public class AuthController {
     @Transactional
     ProfileDto updateProfile(
             @AuthenticationPrincipal OAuth2User principal,
-            @RequestBody ProfileRequest request
+            @Valid @RequestBody ProfileRequest request
     ) {
         AppUser user = currentUsers.requireUser(principal);
         if (request.name() != null && !request.name().isBlank()) user.setDisplayName(request.name().trim());

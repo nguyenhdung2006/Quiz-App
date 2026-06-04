@@ -2,6 +2,7 @@ package com.quizapp.user;
 
 import java.time.LocalDate;
 import java.util.Optional;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,15 @@ public class CurrentUserService {
         if (isBlank(user.getAvatarUrl())) user.setAvatarUrl(safe(principal.getAttribute("picture")));
         user.setLastActiveDate(LocalDate.now());
         return users.save(user);
+    }
+
+    @Transactional
+    public AppUser requireAdmin(OAuth2User principal) {
+        AppUser user = requireUser(principal);
+        if (!"ADMIN".equalsIgnoreCase(safe(user.getRole()))) {
+            throw new AccessDeniedException("Admin role is required.");
+        }
+        return user;
     }
 
     private String safe(Object value) {

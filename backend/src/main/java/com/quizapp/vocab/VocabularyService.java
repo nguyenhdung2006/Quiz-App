@@ -3,7 +3,6 @@ package com.quizapp.vocab;
 import com.quizapp.user.AppUser;
 import com.quizapp.user.ProfileDto;
 import com.quizapp.user.ProfileRequest;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -14,8 +13,8 @@ public class VocabularyService {
     private final VocabularyRepository words;
     private final WrongBankRepository wrongBank;
     private final QuizHistoryRepository quizHistory;
-    private final AchievementRepository achievements;
-    private final UserAchievementRepository userAchievements;
+    private final AchievementService achievements;
+    private final LearningProgressService progress;
 
     private static final List<WordRequest> STARTER_WORDS = List.of(
             starter("resilient", "kien cuong", "adj", "mindset"),
@@ -34,14 +33,14 @@ public class VocabularyService {
             VocabularyRepository words,
             WrongBankRepository wrongBank,
             QuizHistoryRepository quizHistory,
-            AchievementRepository achievements,
-            UserAchievementRepository userAchievements
+            AchievementService achievements,
+            LearningProgressService progress
     ) {
         this.words = words;
         this.wrongBank = wrongBank;
         this.quizHistory = quizHistory;
         this.achievements = achievements;
-        this.userAchievements = userAchievements;
+        this.progress = progress;
     }
 
     @Transactional(readOnly = true)
@@ -63,7 +62,7 @@ public class VocabularyService {
         applyWordRequest(word, request);
         WordDto created = WordDto.from(words.save(word));
         if (words.findByUserOrderByCreatedAtDesc(user).size() == 1) {
-            unlock(user, "FIRST_WORD");
+            achievements.unlock(user, "FIRST_WORD");
         }
         return created;
     }
@@ -88,7 +87,7 @@ public class VocabularyService {
         for (WordRequest word : STARTER_WORDS) {
             upsertByEnglish(user, word);
         }
-        unlock(user, "FIRST_WORD");
+        achievements.unlock(user, "FIRST_WORD");
         return snapshot(user);
     }
 
@@ -165,7 +164,7 @@ public class VocabularyService {
                     stats.setMasteryLevel(5);
                 }
 
-                stats.setNextReview(nextReview(stats, answer.correct()));
+                stats.setNextReview(progress.nextReview(stats, answer.correct()));
 
                 QuizHistoryAnswer savedAnswer = new QuizHistoryAnswer();
                 savedAnswer.setWord(word);
@@ -185,15 +184,15 @@ public class VocabularyService {
         user.setLevel(Math.max(1, user.getXp() / 250 + 1));
         user.setBestStreak(Math.max(user.getBestStreak(), request.maxCombo()));
 
-        unlock(user, "FIRST_QUIZ");
+        achievements.unlock(user, "FIRST_QUIZ");
         if (request.totalQuestions() > 0 && request.correctAnswers() == request.totalQuestions()) {
-            unlock(user, "PERFECT_ROUND");
+            achievements.unlock(user, "PERFECT_ROUND");
         }
         if (request.maxCombo() >= 10) {
-            unlock(user, "COMBO_10");
+            achievements.unlock(user, "COMBO_10");
         }
         if ("daily".equalsIgnoreCase(defaultText(request.quizMode(), ""))) {
-            unlock(user, "DAILY_CHALLENGE");
+            achievements.unlock(user, "DAILY_CHALLENGE");
         }
 
         return snapshot(user);
@@ -201,7 +200,7 @@ public class VocabularyService {
 
     @Transactional(readOnly = true)
     public SyncResponse snapshot(AppUser user) {
-        List<UserAchievement> unlocked = userAchievements.findByUserOrderByUnlockedAtDesc(user);
+        List<UserAchievement> unlocked = achievements.listUnlocked(user);
         List<QuizHistoryDto> recentHistory = quizHistory.findTop10ByUserOrderByCreatedAtDesc(user).stream()
                 .map(QuizHistoryDto::from)
                 .toList();
@@ -209,7 +208,7 @@ public class VocabularyService {
                 ProfileDto.from(user),
                 listWords(user),
                 listWrongWords(user),
-                progress(user, unlocked.size()),
+                progress.progress(user, unlocked.size()),
                 unlocked.stream().map(AchievementDto::from).toList(),
                 recentHistory
         );
@@ -272,60 +271,6 @@ public class VocabularyService {
         return stats;
     }
 
-    private ProgressSummaryDto progress(AppUser user, int unlockedAchievementCount) {
-        Instant weekStart = Instant.now().minus(Duration.ofDays(7));
-        List<QuizHistory> weekly = quizHistory.findByUserAndCreatedAtAfterOrderByCreatedAtDesc(user, weekStart);
-        int weeklyCorrect = weekly.stream().mapToInt(QuizHistory::getCorrectAnswers).sum();
-        double weeklyAverage = weekly.isEmpty()
-                ? 0
-                : weekly.stream().mapToDouble(QuizHistory::getScore).average().orElse(0);
-        long dueToday = words.findByUserOrderByCreatedAtDesc(user).stream()
-                .map(VocabularyWord::getStats)
-                .filter(stats -> stats != null && stats.getNextReview() != null)
-                .filter(stats -> !stats.getNextReview().isAfter(Instant.now()))
-                .count();
-
-        return new ProgressSummaryDto(
-                quizHistory.countByUser(user),
-                weekly.size(),
-                weeklyCorrect,
-                Math.round(weeklyAverage * 100.0) / 100.0,
-                dueToday,
-                unlockedAchievementCount
-        );
-    }
-
-    private void unlock(AppUser user, String code) {
-        Achievement achievement = achievements.findByCode(code)
-                .orElseGet(() -> achievements.save(defaultAchievement(code)));
-        UserAchievementId id = new UserAchievementId(user.getId(), achievement.getId());
-        if (userAchievements.existsById(id)) return;
-
-        UserAchievement unlocked = new UserAchievement();
-        unlocked.setId(id);
-        unlocked.setUser(user);
-        unlocked.setAchievement(achievement);
-        userAchievements.save(unlocked);
-        user.setXp(user.getXp() + achievement.getXpReward());
-        user.setLevel(Math.max(1, user.getXp() / 250 + 1));
-    }
-
-    private Instant nextReview(WordStats stats, boolean correct) {
-        int days;
-        if (!correct) {
-            days = 1;
-        } else {
-            days = switch (Math.min(stats.getCurrentStreak(), 5)) {
-                case 0, 1 -> 1;
-                case 2 -> 3;
-                case 3 -> 7;
-                case 4 -> 14;
-                default -> 30;
-            };
-        }
-        return Instant.now().plus(Duration.ofDays(days));
-    }
-
     private static WordRequest starter(String eng, String vie, String pos, String tag) {
         String level = switch (tag) {
             case "exam" -> "B1";
@@ -379,44 +324,6 @@ public class VocabularyService {
             default -> "Check the example before using this word in writing.";
         };
         return new WordRequest(null, eng, vie, pos, tag, ipa, level, tag, example, "", collocation, "", "", commonMistake, "", false, false, null);
-    }
-
-    private Achievement defaultAchievement(String code) {
-        Achievement achievement = new Achievement();
-        achievement.setCode(code);
-        switch (code) {
-            case "FIRST_WORD" -> {
-                achievement.setName("First Word");
-                achievement.setDescription("Add your first vocabulary word.");
-                achievement.setXpReward(10);
-            }
-            case "FIRST_QUIZ" -> {
-                achievement.setName("First Quiz");
-                achievement.setDescription("Complete your first quiz round.");
-                achievement.setXpReward(20);
-            }
-            case "PERFECT_ROUND" -> {
-                achievement.setName("Perfect Round");
-                achievement.setDescription("Finish a quiz with every answer correct.");
-                achievement.setXpReward(50);
-            }
-            case "COMBO_10" -> {
-                achievement.setName("Combo 10");
-                achievement.setDescription("Reach a 10-answer combo.");
-                achievement.setXpReward(40);
-            }
-            case "DAILY_CHALLENGE" -> {
-                achievement.setName("Daily Challenger");
-                achievement.setDescription("Complete a daily challenge.");
-                achievement.setXpReward(30);
-            }
-            default -> {
-                achievement.setName(code);
-                achievement.setDescription("Unlocked through learning activity.");
-                achievement.setXpReward(0);
-            }
-        }
-        return achievement;
     }
 
     private void applyProfile(AppUser user, ProfileRequest profile) {
