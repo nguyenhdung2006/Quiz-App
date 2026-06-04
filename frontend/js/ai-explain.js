@@ -1,5 +1,5 @@
 (function () {
-const AI_API_ORIGIN = "http://localhost:8080";
+const AI_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 
 function ensurePanel(card) {
 let panel = card.querySelector(".aiExplainPanel");

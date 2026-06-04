@@ -1,5 +1,5 @@
 (function () {
-const REVIEW_API_ORIGIN = "http://localhost:8080";
+const REVIEW_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 
 let reviewQueue = [];
 let reviewSource = "Local";

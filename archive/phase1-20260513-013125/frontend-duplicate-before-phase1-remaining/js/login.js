@@ -1,6 +1,6 @@
 const users = [
-    { username: "dung", password: "mph13nhd" },
-    { username: "mit", password: "mph13nhd" }
+    { username: "demo-user", password: "demo-password" },
+    { username: "demo-admin", password: "demo-password" }
 ];
 
 const usernameInput = document.getElementById("username");

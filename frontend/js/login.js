@@ -1,5 +1,5 @@
 const AUTH_CONFIG = {
-    apiOrigin: "http://localhost:8080"
+    apiOrigin: window.quizApiOrigin ? window.quizApiOrigin() : ""
 };
 
 AUTH_CONFIG.googleOAuthStartPath = `${AUTH_CONFIG.apiOrigin}/oauth2/authorization/google`;

@@ -1,6 +1,8 @@
 # Quiz App
 
-Vocabulary Quiz is a local-first vocabulary trainer with Google-login cloud sync. It helps learners add words, play quick quiz rounds, review mistakes, practice due words, and build progress without making study feel heavy.
+Quiz App is an AI Vocabulary Learning Platform with local-first vocabulary study,
+Google-login cloud sync, analytics, spaced repetition, and optional AI
+explanations for wrong answers.
 
 ## Features
 
@@ -9,7 +11,15 @@ Vocabulary Quiz is a local-first vocabulary trainer with Google-login cloud sync
 - Quiz modes: English to Vietnamese, Vietnamese to English, mixed, favorites, wrong words, daily challenge, and timed challenge.
 - Answer review, wrong bank, combo feedback, sound effects, pronunciation, and JSON backup.
 - Profile, XP, level, achievements, weekly progress, due reviews, starter sample words, topic decks, and CSV import templates.
-- Spring Boot backend with Google OAuth, PostgreSQL/H2, vocabulary CRUD, sync, quiz history, achievements, and spaced repetition.
+- Spring Boot backend with Google OAuth, PostgreSQL/H2, vocabulary CRUD, sync, quiz history, achievements, analytics, spaced repetition, and optional OpenAI-powered explanations with fallback.
+
+## Tech Stack
+
+- Backend: Spring Boot, Spring Security OAuth2, Spring Data JPA, Bean Validation.
+- Database: H2 for local quick start, PostgreSQL for production.
+- Frontend: static HTML, CSS, and JavaScript.
+- AI: OpenAI Responses API through backend only; `OPENAI_API_KEY` is optional.
+- Build: Maven wrapper for backend.
 
 ## Project Structure
 
@@ -25,6 +35,8 @@ archive/    Old project snapshots kept for reference
 
 Open `frontend/login.html` or serve the repo with a static server such as Live Server on port `5500`.
 
+Frontend backend URL defaults to `http://localhost:8080` in `frontend/js/config.js`.
+
 ## Run Backend
 
 ```powershell
@@ -33,6 +45,8 @@ cd backend
 ```
 
 By default the backend uses H2 memory storage. For PostgreSQL, see `docs/backend-postgres.md`.
+
+Copy `.env.example` to `.env` for local secrets. Do not commit `.env`.
 
 ## Google Login
 
@@ -43,6 +57,12 @@ http://localhost:8080/login/oauth2/code/google
 ```
 
 More detail is in `docs/oauth-google.md`.
+
+## Deploy
+
+See `docs/deploy.md` for production environment variables, Render backend setup,
+frontend static hosting, Google OAuth production URLs, health checks, and AI cost
+notes.
 
 ## Verify
 
