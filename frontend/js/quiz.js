@@ -516,6 +516,28 @@ note.textContent = "Note: " + word.note;
 card.appendChild(note);
 }
 
+if (!isCorrect) {
+let explainButton = document.createElement("button");
+explainButton.type = "button";
+explainButton.className = "aiExplainButton";
+explainButton.textContent = "Explain";
+explainButton.addEventListener("click", () => {
+if (window.aiExplainWrongAnswer) {
+window.aiExplainWrongAnswer.open({
+word: word.eng,
+userAnswer: picked,
+correctAnswer: correct,
+questionMode: item.mode,
+tag: word.tag,
+level: word.level,
+example: word.example,
+note: word.note
+}, card, explainButton);
+}
+});
+card.appendChild(explainButton);
+}
+
 list.appendChild(card);
 });
 }

@@ -30,3 +30,9 @@ app:
   oauth2:
     success-redirect-uri: http://localhost:5500/frontend/index.html
     logout-redirect-uri: http://localhost:5500/frontend/login.html?loggedOut=true
+
+ai:
+  model: ${AI_MODEL:gpt-4.1-mini}
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    responses-url: https://api.openai.com/v1/responses
