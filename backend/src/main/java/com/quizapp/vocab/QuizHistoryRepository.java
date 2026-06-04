@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface QuizHistoryRepository extends JpaRepository<QuizHistory, Long> {
     long countByUser(AppUser user);
+    List<QuizHistory> findByUserOrderByCreatedAtDesc(AppUser user);
     List<QuizHistory> findTop10ByUserOrderByCreatedAtDesc(AppUser user);
     List<QuizHistory> findByUserAndCreatedAtAfterOrderByCreatedAtDesc(AppUser user, Instant createdAt);
 }

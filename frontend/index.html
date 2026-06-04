@@ -51,6 +51,7 @@
 <button class="utilityBtn" id="importBtn" type="button">Import</button>
 <button class="utilityBtn" id="sampleImportBtn" type="button">Samples</button>
 <button class="utilityBtn" id="studioBtn" type="button">Studio</button>
+<button class="utilityBtn" id="analyticsBtn" type="button">Analytics</button>
 <input id="importFile" type="file" accept="application/json,.json" hidden>
 <input id="csvImportFile" type="file" accept=".csv,text/csv" hidden>
 </div>
@@ -124,6 +125,66 @@
 <span>Review</span>
 </div>
 <ol class="leaderboardList" id="leaderboardList"></ol>
+</article>
+</section>
+
+<section class="analyticsDashboard" id="analyticsDashboard" aria-label="Learning analytics">
+<div class="sectionHeader sectionHeader--analytics">
+<span class="heroEyebrow">Analytics</span>
+<h2>Learning Dashboard</h2>
+</div>
+
+<div class="analyticsOverviewGrid">
+<article class="analyticsMetric"><span>Total Words</span><strong id="analyticsTotalWords">0</strong></article>
+<article class="analyticsMetric"><span>Mastered</span><strong id="analyticsMasteredWords">0</strong></article>
+<article class="analyticsMetric"><span>Learning</span><strong id="analyticsLearningWords">0</strong></article>
+<article class="analyticsMetric"><span>Struggling</span><strong id="analyticsStrugglingWords">0</strong></article>
+<article class="analyticsMetric"><span>Due Today</span><strong id="analyticsDueToday">0</strong></article>
+<article class="analyticsMetric"><span>Avg Accuracy</span><strong id="analyticsAverageAccuracy">0%</strong></article>
+<article class="analyticsMetric"><span>Quiz Sessions</span><strong id="analyticsQuizSessions">0</strong></article>
+<article class="analyticsMetric"><span>Current Streak</span><strong id="analyticsCurrentStreak">0</strong></article>
+<article class="analyticsMetric"><span>XP</span><strong id="analyticsXp">0</strong></article>
+<article class="analyticsMetric"><span>Weekly XP</span><strong id="analyticsWeeklyXp">0</strong></article>
+</div>
+
+<div class="analyticsMainGrid">
+<article class="analyticsPanel analyticsPanel--trend">
+<div class="analyticsPanelHead">
+<h3>Accuracy Trend</h3>
+<span id="analyticsSource">Local</span>
+</div>
+<canvas id="accuracyTrendChart" width="900" height="260"></canvas>
+</article>
+
+<article class="analyticsPanel">
+<div class="analyticsPanelHead">
+<h3>Review Pressure</h3>
+</div>
+<div class="pressureBars" id="reviewPressureBars"></div>
+</article>
+</div>
+
+<div class="analyticsMainGrid analyticsMainGrid--lower">
+<article class="analyticsPanel">
+<div class="analyticsPanelHead">
+<h3>Weak Words</h3>
+</div>
+<div class="weakWordsList" id="weakWordsList"></div>
+</article>
+
+<article class="analyticsPanel">
+<div class="analyticsPanelHead">
+<h3>Insights</h3>
+</div>
+<div class="insightGrid" id="insightGrid"></div>
+</article>
+</div>
+
+<article class="analyticsPanel analyticsPanel--wide">
+<div class="analyticsPanelHead">
+<h3>Tag Performance</h3>
+</div>
+<div class="performanceGrid" id="tagPerformanceGrid"></div>
 </article>
 </section>
 
@@ -785,6 +846,7 @@ Hmm... choose one before moving on!
 <script src="js/main.js"></script>
 <script src="js/app.js"></script>
 <script src="js/learning-studio.js"></script>
+<script src="js/analytics-dashboard.js"></script>
 
 </body>
 </html>

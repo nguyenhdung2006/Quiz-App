@@ -740,6 +740,192 @@ body::before {
   font-weight: 950;
 }
 
+.analyticsDashboard {
+  display: grid;
+  width: min(1180px, 100%);
+  gap: 16px;
+  margin: 0 auto;
+}
+
+.sectionHeader--analytics {
+  margin-bottom: 0;
+}
+
+.analyticsOverviewGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.analyticsMetric,
+.analyticsPanel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.035)),
+    rgba(9, 14, 30, 0.88);
+  color: var(--text);
+  text-align: left;
+  backdrop-filter: blur(18px) saturate(1.15);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    var(--shadow-soft),
+    var(--glow-low);
+}
+
+.analyticsMetric {
+  min-height: 104px;
+  padding: 18px;
+}
+
+.analyticsMetric span,
+.analyticsPanelHead span,
+.pressureLabel,
+.weakWordMeta,
+.performanceMeta,
+.insightCard span {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.analyticsMetric strong {
+  display: block;
+  margin-top: 9px;
+  color: white;
+  font-size: 2rem;
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(24, 233, 255, 0.34);
+}
+
+.analyticsMainGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 16px;
+}
+
+.analyticsMainGrid--lower {
+  grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
+}
+
+.analyticsPanel {
+  min-width: 0;
+  padding: 18px;
+}
+
+.analyticsPanel--wide {
+  width: 100%;
+}
+
+.analyticsPanelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.analyticsPanelHead h3 {
+  margin: 0;
+  color: white;
+  font-size: 1.25rem;
+}
+
+#accuracyTrendChart {
+  width: 100%;
+  height: 260px;
+  border: 1px solid rgba(158, 241, 255, 0.16);
+  border-radius: var(--radius);
+  background: rgba(3, 10, 28, 0.42);
+}
+
+.pressureBars,
+.weakWordsList,
+.insightGrid,
+.performanceGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.pressureItem {
+  display: grid;
+  gap: 7px;
+}
+
+.pressureTop,
+.weakWordRow,
+.performanceRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pressureTrack {
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(158, 241, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(2, 8, 22, 0.64);
+}
+
+.pressureTrack span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--green), var(--cyan), var(--pink));
+  transition: width 240ms ease;
+}
+
+.weakWordRow,
+.performanceRow,
+.insightCard {
+  min-height: 58px;
+  padding: 12px;
+  border: 1px solid rgba(158, 241, 255, 0.18);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.weakWordRow strong,
+.performanceRow strong,
+.insightCard strong {
+  display: block;
+  color: white;
+}
+
+.weakWordStats,
+.performanceScore {
+  color: var(--yellow);
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.insightGrid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.insightCard {
+  display: grid;
+  gap: 7px;
+}
+
+.performanceGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.performanceGroup {
+  display: grid;
+  gap: 9px;
+}
+
+.performanceGroup h4 {
+  margin: 0;
+  color: white;
+}
+
 .learningStudioStrip {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -2590,7 +2776,10 @@ thead th:last-child {
 @media (max-width: 1180px) {
   .playerHub,
   .studioGrid--profile,
-  .quizOptions {
+  .quizOptions,
+  .analyticsMainGrid,
+  .analyticsMainGrid--lower,
+  .performanceGrid {
     grid-template-columns: 1fr;
   }
 
@@ -2628,6 +2817,7 @@ thead th:last-child {
   .dashboardPanel,
   .playerHub,
   .learningStudioStrip,
+  .analyticsDashboard,
   .sectionHeader,
   .addWordBox,
   .tableTools,
@@ -2709,6 +2899,7 @@ thead th:last-child {
   .dashboardPanel,
   .playerHub,
   .learningStudioStrip,
+  .analyticsDashboard,
   .addWordBox,
   .learningDetailsGrid,
   .profileEditorHeader,
