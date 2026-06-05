@@ -3,27 +3,102 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Login</title>
+<title>WordArena - Learn vocabulary like a game</title>
+<script src="js/theme.js"></script>
 <link rel="stylesheet" href="css/login.css">
 <link rel="icon" href="./favicon1_io/favicon-32x32.png?v=2">
 </head>
 <body>
 
-<div class="login-box">
-    <span class="login-eyebrow">Private Vocabulary Trainer</span>
-    <h2>Welcome Back</h2>
-    <p class="login-copy">Sign in with Google to enter your private vocabulary workspace.</p>
+<button class="themeToggle landingThemeToggle" type="button" data-theme-toggle aria-pressed="true">
+    <span aria-hidden="true">Theme</span>
+    <strong data-theme-label>Dark</strong>
+</button>
 
-    <a
-        href="#"
-        id="googleLoginBtn"
-        class="google-login"
-        aria-label="Continue with Google"
-    >
-        <span class="google-mark" aria-hidden="true">G</span>
-        <span>Continue with Google</span>
-    </a>
-</div>
+<main class="landingPage">
+    <section class="landingHero" aria-labelledby="landingTitle">
+        <div class="landingHeroInner">
+            <div class="login-box landingCopy">
+                <span class="login-eyebrow">Vocabulary trainer for focused learners</span>
+                <h1 id="landingTitle">WordArena</h1>
+                <p class="landingTagline">Learn vocabulary like a game.</p>
+                <p class="login-copy">Train with quizzes, review weak words, earn XP, and turn mistakes into clear explanations.</p>
+
+                <div class="landingActions">
+                    <a
+                        href="#"
+                        id="googleLoginBtn"
+                        class="google-login"
+                        aria-label="Continue with Google"
+                    >
+                        <span class="google-mark" aria-hidden="true">G</span>
+                        <span>Continue with Google</span>
+                    </a>
+                    <a class="secondaryCta" href="#features">Explore features</a>
+                </div>
+            </div>
+
+            <div class="heroStats" aria-label="WordArena learning highlights">
+                <article>
+                    <span>Accuracy</span>
+                    <strong>82%</strong>
+                </article>
+                <article>
+                    <span>XP streak</span>
+                    <strong>7 days</strong>
+                </article>
+                <article>
+                    <span>Due reviews</span>
+                    <strong>24</strong>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="featuresSection" id="features" aria-labelledby="featuresTitle">
+        <div class="sectionIntro">
+            <span class="login-eyebrow">Key features</span>
+            <h2 id="featuresTitle">A sharper loop for every word</h2>
+        </div>
+
+        <div class="featureGrid">
+            <article class="featureCard">
+                <span class="featureIcon" aria-hidden="true">?</span>
+                <h3>AI explains wrong answers</h3>
+                <p>When an answer goes wrong, WordArena gives a short Vietnamese-first explanation with English examples.</p>
+            </article>
+
+            <article class="featureCard">
+                <span class="featureIcon" aria-hidden="true">R</span>
+                <h3>Spaced repetition</h3>
+                <p>Review queues surface words at the right time, so practice feels focused instead of random.</p>
+            </article>
+
+            <article class="featureCard">
+                <span class="featureIcon" aria-hidden="true">!</span>
+                <h3>Weak word analytics</h3>
+                <p>Spot low-accuracy words, struggling tags, and review pressure before they slow your progress.</p>
+            </article>
+
+            <article class="featureCard">
+                <span class="featureIcon" aria-hidden="true">XP</span>
+                <h3>XP and progress dashboard</h3>
+                <p>Track streaks, mastery, weekly XP, due reviews, and progress through a clean learning dashboard.</p>
+            </article>
+        </div>
+    </section>
+
+    <section class="ctaSection" aria-label="Start learning">
+        <div>
+            <span class="login-eyebrow">Ready to play your next review?</span>
+            <h2>Start your WordArena session.</h2>
+        </div>
+        <a class="google-login ctaLogin" href="#" data-login-cta aria-label="Continue with Google">
+            <span class="google-mark" aria-hidden="true">G</span>
+            <span>Start with Google</span>
+        </a>
+    </section>
+</main>
 
 <div id="butterfly-container"></div>
 <script src="js/config.js"></script>

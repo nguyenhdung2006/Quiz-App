@@ -5,6 +5,7 @@ const AUTH_CONFIG = {
 AUTH_CONFIG.googleOAuthStartPath = `${AUTH_CONFIG.apiOrigin}/oauth2/authorization/google`;
 
 const googleLoginBtn = document.getElementById("googleLoginBtn");
+const extraLoginCtas = document.querySelectorAll("[data-login-cta]");
 
 async function showCurrentGoogleSession() {
     if (!googleLoginBtn) return;
@@ -50,6 +51,11 @@ function continueWithGoogle() {
 if (googleLoginBtn) {
     googleLoginBtn.href = AUTH_CONFIG.googleOAuthStartPath;
 }
+
+extraLoginCtas.forEach(button => {
+    button.href = AUTH_CONFIG.googleOAuthStartPath;
+    button.addEventListener("click", continueWithGoogle);
+});
 
 googleLoginBtn?.addEventListener("click", continueWithGoogle);
 

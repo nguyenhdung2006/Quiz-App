@@ -84,6 +84,9 @@ let node = document.getElementById(id);
 if (node) node.textContent = value;
 }
 
+let generatedAiDeckWords = [];
+const AI_DECK_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
+
 function toastStudio(message, kind = "ok") {
 let host = document.querySelector(".toastHost") || document.body.appendChild(Object.assign(document.createElement("div"), { className: "toastHost" }));
 let el = document.createElement("div");
@@ -290,6 +293,165 @@ grid.appendChild(card);
 });
 }
 
+function setAiDeckStatus(message, kind = "info") {
+let status = document.getElementById("aiDeckStatus");
+if (!status) return;
+status.textContent = message;
+status.className = `apiStateMessage apiStateMessage--${kind}`;
+}
+
+function setAiDeckSource(value) {
+setText("aiDeckSource", value || "Ready");
+}
+
+function generatedToWord(item, source) {
+return normalizeWord({
+eng: item.english || item.eng,
+vie: item.vietnameseMeaning || item.vie || item.meaning,
+pos: item.partOfSpeech || item.pos || "n",
+tag: item.tag || source || "ai-deck",
+level: item.level || "A2",
+context: "AI Deck",
+example: item.exampleSentence || item.example || "",
+note: `AI Deck source: ${item.source || source || "generated"}`
+});
+}
+
+async function requestAiDeck(text) {
+let response = await fetch(`${AI_DECK_API_ORIGIN}/api/ai/generate-deck`, {
+method: "POST",
+credentials: "include",
+headers: { "Content-Type": "application/json" },
+body: JSON.stringify({ text })
+});
+
+if (!response.ok) {
+throw new Error("Deck generation request failed.");
+}
+
+return response.json();
+}
+
+function renderAiDeckList() {
+let host = document.getElementById("aiDeckList");
+let saveBtn = document.getElementById("aiDeckSaveBtn");
+if (!host) return;
+host.innerHTML = "";
+
+if (!generatedAiDeckWords.length) {
+let empty = document.createElement("p");
+empty.className = "emptyStudio";
+empty.textContent = "No generated words yet.";
+host.appendChild(empty);
+if (saveBtn) saveBtn.disabled = true;
+return;
+}
+
+generatedAiDeckWords.forEach((word, index) => {
+let row = document.createElement("article");
+row.className = "aiDeckItem";
+
+let checkbox = document.createElement("input");
+checkbox.type = "checkbox";
+checkbox.checked = true;
+checkbox.dataset.aiDeckIndex = String(index);
+checkbox.addEventListener("change", updateAiDeckSaveState);
+
+let main = document.createElement("div");
+let title = document.createElement("strong");
+title.textContent = `${word.eng} / ${word.vie}`;
+let meta = document.createElement("span");
+meta.textContent = `${word.pos || "n"} - ${word.level || "A2"} - ${word.tag || "ai-deck"}`;
+let example = document.createElement("p");
+example.textContent = word.example || "No example sentence.";
+main.append(title, meta, example);
+
+row.append(checkbox, main);
+host.appendChild(row);
+});
+
+updateAiDeckSaveState();
+}
+
+function selectedAiDeckWords() {
+return [...document.querySelectorAll("[data-ai-deck-index]:checked")]
+.map(input => generatedAiDeckWords[Number(input.dataset.aiDeckIndex)])
+.filter(Boolean);
+}
+
+function updateAiDeckSaveState() {
+let saveBtn = document.getElementById("aiDeckSaveBtn");
+if (saveBtn) saveBtn.disabled = selectedAiDeckWords().length === 0;
+}
+
+async function generateAiDeck() {
+let textarea = document.getElementById("aiDeckText");
+let text = textarea?.value.trim() || "";
+if (!text) {
+setAiDeckStatus("Paste English text before generating a deck.", "warn");
+return;
+}
+if (text.length > 8000) {
+setAiDeckStatus("Text must be 8000 characters or less.", "warn");
+return;
+}
+
+generatedAiDeckWords = [];
+renderAiDeckList();
+setAiDeckSource("Loading");
+setAiDeckStatus("Generating vocabulary deck...", "loading");
+
+try {
+let payload = await requestAiDeck(text);
+let source = payload?.source || "generated";
+generatedAiDeckWords = Array.isArray(payload?.items)
+? payload.items.map(item => generatedToWord(item, source)).filter(word => word.eng && word.vie)
+: [];
+setAiDeckSource(source === "openai" ? "OpenAI" : "Fallback");
+renderAiDeckList();
+setAiDeckStatus(
+generatedAiDeckWords.length ? `Generated ${generatedAiDeckWords.length} vocabulary items.` : "No useful vocabulary items found.",
+generatedAiDeckWords.length ? "ok" : "warn"
+);
+} catch (error) {
+setAiDeckSource("Unavailable");
+setAiDeckStatus("AI deck generation is unavailable. Please try again later.", "warn");
+generatedAiDeckWords = [];
+renderAiDeckList();
+}
+}
+
+function clearAiDeck() {
+let textarea = document.getElementById("aiDeckText");
+if (textarea) textarea.value = "";
+generatedAiDeckWords = [];
+setAiDeckSource("Ready");
+setAiDeckStatus("Generated words will appear below.", "info");
+renderAiDeckList();
+}
+
+function saveSelectedAiDeckWords() {
+let selected = selectedAiDeckWords();
+if (!selected.length) {
+setAiDeckStatus("Select at least one generated word to save.", "warn");
+return;
+}
+
+let before = getWords().length;
+vocab = mergeByEnglishLocal(getWords(), selected);
+let added = getWords().length - before;
+localStorage.setItem(accountStorageKey("deckImported"), "true");
+save();
+renderTable();
+renderStudio();
+window.quizCloud?.syncNow?.();
+setAiDeckStatus(
+added ? `Saved ${added} selected words to your vocabulary.` : "Selected words are already in your vocabulary.",
+added ? "ok" : "warn"
+);
+toastStudio(added ? `Saved ${added} AI deck words.` : "No new AI deck words to save.", added ? "ok" : "warn");
+}
+
 function mergeByEnglishLocal(base, incoming) {
 let merged = [...base];
 let existing = new Set(base.map(word => String(word.eng || "").toLowerCase()));
@@ -410,6 +572,7 @@ URL.revokeObjectURL(url);
 
 function initStudio() {
 document.getElementById("studioBtn")?.addEventListener("click", () => openStudio("profile"));
+document.getElementById("aiDeckBtn")?.addEventListener("click", () => openStudio("aiDeck"));
 document.getElementById("studioCloseBtn")?.addEventListener("click", closeStudio);
 document.getElementById("studioSyncBtn")?.addEventListener("click", () => {
 window.quizCloud?.syncNow?.();
@@ -423,6 +586,9 @@ document.querySelectorAll(".studioTab").forEach(button => {
 button.addEventListener("click", () => switchStudioTab(button.dataset.studioTab));
 });
 document.getElementById("startFocusBtn")?.addEventListener("click", startFocus);
+document.getElementById("aiDeckGenerateBtn")?.addEventListener("click", generateAiDeck);
+document.getElementById("aiDeckClearBtn")?.addEventListener("click", clearAiDeck);
+document.getElementById("aiDeckSaveBtn")?.addEventListener("click", saveSelectedAiDeckWords);
 document.getElementById("csvPickBtn")?.addEventListener("click", () => document.getElementById("csvImportFile")?.click());
 document.getElementById("csvTemplateBtn")?.addEventListener("click", downloadCsvTemplate);
 document.getElementById("csvImportFile")?.addEventListener("change", event => {

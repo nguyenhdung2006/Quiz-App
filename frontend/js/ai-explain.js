@@ -57,6 +57,14 @@ panel.innerHTML = "";
 
 let title = document.createElement("h4");
 title.textContent = "Why this answer was wrong";
+panel.appendChild(title);
+
+if (data.source === "local-fallback") {
+let warning = document.createElement("p");
+warning.className = "apiStateMessage apiStateMessage--warn";
+warning.textContent = "AI explanation API is unavailable. Showing a local fallback.";
+panel.appendChild(warning);
+}
 
 let meaning = line("Short meaning", data.shortMeaning);
 let why = line("Why wrong", data.whyWrong);
@@ -65,7 +73,7 @@ let example = line("Example", data.example);
 let tip = line("Memory tip", data.memoryTip);
 let mistake = line("Common mistake", data.commonMistake);
 
-panel.append(title, meaning, why, usage, example, tip, mistake);
+panel.append(meaning, why, usage, example, tip, mistake);
 
 if (Array.isArray(data.collocations) && data.collocations.length) {
 let chips = document.createElement("div");
@@ -98,7 +106,11 @@ return String(value).trim();
 window.aiExplainWrongAnswer = {
 async open(request, card, button) {
 let panel = ensurePanel(card);
-panel.textContent = "Generating explanation...";
+panel.innerHTML = "";
+let loading = document.createElement("p");
+loading.className = "apiStateMessage apiStateMessage--loading";
+loading.textContent = "Generating explanation...";
+panel.appendChild(loading);
 setLoading(button, true);
 let explanation = await requestExplanation(request);
 render(panel, explanation);

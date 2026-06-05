@@ -2,6 +2,7 @@
 const ANALYTICS_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 
 let latestAnalytics = null;
+let cloudAnalyticsError = "";
 
 function getWords() {
 return typeof vocab !== "undefined" && Array.isArray(vocab) ? vocab : [];
@@ -207,14 +208,19 @@ try {
 let response = await fetch(`${ANALYTICS_API_ORIGIN}${path}`, {
 credentials: "include"
 });
-if (!response.ok) return null;
+if (!response.ok) {
+cloudAnalyticsError = `Cloud analytics request failed (${response.status}). Showing local data.`;
+return null;
+}
 return response.json();
 } catch (error) {
+cloudAnalyticsError = "Cloud analytics is unavailable. Showing local data.";
 return null;
 }
 }
 
 async function loadCloudAnalytics() {
+cloudAnalyticsError = "";
 let [overview, trend, weakWords, pressure, performance] = await Promise.all([
 fetchJson("/api/analytics/overview"),
 fetchJson("/api/analytics/accuracy-trend"),
@@ -236,6 +242,29 @@ pressure: buildLocalPressure(),
 performance: buildLocalPerformance(),
 source: "Local"
 };
+}
+
+function ensureAnalyticsStatus() {
+let dashboard = document.getElementById("analyticsDashboard");
+if (!dashboard) return null;
+let status = document.getElementById("analyticsStatus");
+if (!status) {
+status = document.createElement("p");
+status.id = "analyticsStatus";
+status.className = "apiStateMessage";
+let header = dashboard.querySelector(".sectionHeader--analytics");
+if (header) header.appendChild(status);
+else dashboard.prepend(status);
+}
+return status;
+}
+
+function setAnalyticsStatus(message, kind = "info") {
+let status = ensureAnalyticsStatus();
+if (!status) return;
+status.textContent = message || "";
+status.className = `apiStateMessage apiStateMessage--${kind}`;
+status.hidden = !message;
 }
 
 function setText(id, value) {
@@ -445,8 +474,16 @@ return node;
 
 async function refresh() {
 render(localAnalytics());
+setAnalyticsStatus("Loading cloud analytics...", "loading");
 let cloud = await loadCloudAnalytics();
-if (cloud) render(cloud);
+if (cloud) {
+render(cloud);
+setAnalyticsStatus("Cloud analytics loaded.", "ok");
+} else if (cloudAnalyticsError) {
+setAnalyticsStatus(cloudAnalyticsError, "warn");
+} else {
+setAnalyticsStatus("", "info");
+}
 }
 
 function init() {

@@ -3,6 +3,7 @@ const REVIEW_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 
 let reviewQueue = [];
 let reviewSource = "Local";
+let reviewApiError = "";
 
 function getWords() {
 return typeof vocab !== "undefined" && Array.isArray(vocab) ? vocab : [];
@@ -82,11 +83,15 @@ try {
 let response = await fetch(`${REVIEW_API_ORIGIN}/api/review/queue?limit=8`, {
 credentials: "include"
 });
-if (!response.ok) return null;
+if (!response.ok) {
+return { items: null, error: `Cloud review queue failed (${response.status}). Showing local queue.` };
+}
 let payload = await response.json();
-return Array.isArray(payload) ? payload : null;
+return Array.isArray(payload)
+? { items: payload, error: "" }
+: { items: null, error: "Cloud review queue returned an unexpected response. Showing local queue." };
 } catch (error) {
-return null;
+return { items: null, error: "Cloud review queue is unavailable. Showing local queue." };
 }
 }
 
@@ -103,9 +108,13 @@ correct,
 mode: "review"
 })
 });
-if (!response.ok) return null;
+if (!response.ok) {
+reviewApiError = `Cloud review update failed (${response.status}). Saved locally for now.`;
+return null;
+}
 return response.json();
 } catch (error) {
+reviewApiError = "Cloud review update is unavailable. Saved locally for now.";
 return null;
 }
 }
@@ -175,7 +184,14 @@ let node = document.getElementById(id);
 if (node) node.textContent = String(value);
 }
 
-function renderFeedback(response, correct) {
+function stateLine(text, kind = "info") {
+let line = document.createElement("p");
+line.className = `apiStateMessage apiStateMessage--${kind}`;
+line.textContent = text;
+return line;
+}
+
+function renderFeedback(response, correct, fallbackMessage = "") {
 let host = document.getElementById("reviewTodayBody");
 if (!host) return;
 let feedback = document.createElement("div");
@@ -183,10 +199,18 @@ feedback.className = "reviewFeedback";
 let title = document.createElement("strong");
 title.textContent = correct ? "Correct" : "Needs another pass";
 let detail = document.createElement("span");
-detail.textContent = response?.message || (correct ? "Good job. Review again later." : "Review this word again tomorrow.");
+detail.textContent = fallbackMessage || response?.message || (correct ? "Good job. Review again later." : "Review this word again tomorrow.");
 feedback.append(title, detail);
 host.prepend(feedback);
 setTimeout(() => feedback.remove(), 3200);
+}
+
+function renderLoading() {
+let host = document.getElementById("reviewTodayBody");
+if (!host) return;
+host.innerHTML = "";
+host.appendChild(stateLine("Loading review queue...", "loading"));
+setText("reviewTodayMeta", "Checking due words...");
 }
 
 function renderQueue() {
@@ -195,10 +219,16 @@ if (!host) return;
 host.innerHTML = "";
 setText("reviewTodayMeta", `${reviewQueue.length} words due today - ${reviewSource}`);
 
+if (reviewApiError) {
+host.appendChild(stateLine(reviewApiError, "warn"));
+}
+
 if (!reviewQueue.length) {
 let empty = document.createElement("p");
 empty.className = "emptyStudio";
-empty.textContent = "Due words will appear here when their next review time arrives.";
+empty.textContent = reviewSource === "Cloud"
+? "No cloud review words are due right now."
+: "Due words will appear here when their next review time arrives.";
 host.appendChild(empty);
 return;
 }
@@ -240,19 +270,24 @@ host.appendChild(row);
 }
 
 async function answerItem(item, correct) {
+reviewApiError = "";
 let response = reviewSource === "Cloud" ? await postAnswer(item, correct) : null;
 applyLocalAnswer(item, correct, response);
-renderFeedback(response, correct);
+renderFeedback(response, correct, reviewApiError);
 await refresh();
 }
 
 async function refresh() {
-let cloudQueue = await fetchQueue();
+renderLoading();
+reviewApiError = "";
+let cloud = await fetchQueue();
+let cloudQueue = cloud?.items;
 if (cloudQueue) {
 reviewSource = "Cloud";
 reviewQueue = cloudQueue;
 } else {
 reviewSource = "Local";
+reviewApiError = cloud?.error || "";
 reviewQueue = localQueue();
 }
 renderQueue();

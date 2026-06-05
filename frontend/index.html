@@ -7,6 +7,8 @@
 
 <title>Vocabulary Quiz</title>
 
+<script src="js/theme.js"></script>
+
 <link rel="apple-touch-icon" sizes="180x180" href="favicon_io/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon_io/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon_io/favicon-16x16.png">
@@ -51,7 +53,12 @@
 <button class="utilityBtn" id="importBtn" type="button">Import</button>
 <button class="utilityBtn" id="sampleImportBtn" type="button">Samples</button>
 <button class="utilityBtn" id="studioBtn" type="button">Studio</button>
+<button class="utilityBtn" id="aiDeckBtn" type="button">AI Deck</button>
 <button class="utilityBtn" id="analyticsBtn" type="button">Analytics</button>
+<button class="utilityBtn themeToggle" type="button" data-theme-toggle aria-pressed="true">
+<span aria-hidden="true">Theme</span>
+<strong data-theme-label>Dark</strong>
+</button>
 <input id="importFile" type="file" accept="application/json,.json" hidden>
 <input id="csvImportFile" type="file" accept=".csv,text/csv" hidden>
 </div>
@@ -149,16 +156,16 @@
 </div>
 
 <div class="analyticsOverviewGrid">
-<article class="analyticsMetric"><span>Total Words</span><strong id="analyticsTotalWords">0</strong></article>
-<article class="analyticsMetric"><span>Mastered</span><strong id="analyticsMasteredWords">0</strong></article>
-<article class="analyticsMetric"><span>Learning</span><strong id="analyticsLearningWords">0</strong></article>
-<article class="analyticsMetric"><span>Struggling</span><strong id="analyticsStrugglingWords">0</strong></article>
-<article class="analyticsMetric"><span>Due Today</span><strong id="analyticsDueToday">0</strong></article>
-<article class="analyticsMetric"><span>Avg Accuracy</span><strong id="analyticsAverageAccuracy">0%</strong></article>
-<article class="analyticsMetric"><span>Quiz Sessions</span><strong id="analyticsQuizSessions">0</strong></article>
-<article class="analyticsMetric"><span>Current Streak</span><strong id="analyticsCurrentStreak">0</strong></article>
-<article class="analyticsMetric"><span>XP</span><strong id="analyticsXp">0</strong></article>
-<article class="analyticsMetric"><span>Weekly XP</span><strong id="analyticsWeeklyXp">0</strong></article>
+<article class="analyticsMetric analyticsMetric--words"><span>Total Words</span><strong id="analyticsTotalWords">0</strong></article>
+<article class="analyticsMetric analyticsMetric--mastery"><span>Mastered</span><strong id="analyticsMasteredWords">0</strong></article>
+<article class="analyticsMetric analyticsMetric--learning"><span>Learning</span><strong id="analyticsLearningWords">0</strong></article>
+<article class="analyticsMetric analyticsMetric--weak"><span>Struggling</span><strong id="analyticsStrugglingWords">0</strong></article>
+<article class="analyticsMetric analyticsMetric--feature analyticsMetric--due"><span>Due Today</span><strong id="analyticsDueToday">0</strong></article>
+<article class="analyticsMetric analyticsMetric--feature analyticsMetric--accuracy"><span>Avg Accuracy</span><strong id="analyticsAverageAccuracy">0%</strong></article>
+<article class="analyticsMetric analyticsMetric--sessions"><span>Quiz Sessions</span><strong id="analyticsQuizSessions">0</strong></article>
+<article class="analyticsMetric analyticsMetric--feature analyticsMetric--streak"><span>Current Streak</span><strong id="analyticsCurrentStreak">0</strong></article>
+<article class="analyticsMetric analyticsMetric--feature analyticsMetric--xp"><span>XP</span><strong id="analyticsXp">0</strong></article>
+<article class="analyticsMetric analyticsMetric--weekly"><span>Weekly XP</span><strong id="analyticsWeeklyXp">0</strong></article>
 </div>
 
 <div class="analyticsMainGrid">
@@ -170,7 +177,7 @@
 <canvas id="accuracyTrendChart" width="900" height="260"></canvas>
 </article>
 
-<article class="analyticsPanel">
+<article class="analyticsPanel analyticsPanel--pressure">
 <div class="analyticsPanelHead">
 <h3>Review Pressure</h3>
 </div>
@@ -179,14 +186,14 @@
 </div>
 
 <div class="analyticsMainGrid analyticsMainGrid--lower">
-<article class="analyticsPanel">
+<article class="analyticsPanel analyticsPanel--weak">
 <div class="analyticsPanelHead">
 <h3>Weak Words</h3>
 </div>
 <div class="weakWordsList" id="weakWordsList"></div>
 </article>
 
-<article class="analyticsPanel">
+<article class="analyticsPanel analyticsPanel--insights">
 <div class="analyticsPanelHead">
 <h3>Insights</h3>
 </div>
@@ -194,7 +201,7 @@
 </article>
 </div>
 
-<article class="analyticsPanel analyticsPanel--wide">
+<article class="analyticsPanel analyticsPanel--wide analyticsPanel--performance">
 <div class="analyticsPanelHead">
 <h3>Tag Performance</h3>
 </div>
@@ -751,6 +758,7 @@ Hmm... choose one before moving on!
 <button class="studioTab" type="button" data-studio-tab="badges">Badges</button>
 <button class="studioTab" type="button" data-studio-tab="focus">Focus</button>
 <button class="studioTab" type="button" data-studio-tab="decks">Decks</button>
+<button class="studioTab" type="button" data-studio-tab="aiDeck">AI Deck</button>
 <button class="studioTab" type="button" data-studio-tab="csv">CSV</button>
 </div>
 
@@ -824,6 +832,37 @@ Hmm... choose one before moving on!
 
 <section class="studioView" id="studioViewDecks">
 <div class="topicDeckGrid" id="topicDeckGrid"></div>
+</section>
+
+<section class="studioView" id="studioViewAiDeck">
+<div class="studioCard aiDeckCard">
+<div class="studioCardHead">
+<div>
+<h3>Generate Deck From Text</h3>
+<p>Paste English text, review the generated vocabulary, then save only the words you want.</p>
+</div>
+<span id="aiDeckSource">Ready</span>
+</div>
+<label class="aiDeckInput">
+<span>English text</span>
+<textarea id="aiDeckText" maxlength="8000" placeholder="Paste an article, paragraph, lesson note, or transcript here"></textarea>
+</label>
+<div class="aiDeckActions">
+<button class="utilityBtn" id="aiDeckGenerateBtn" type="button">Generate</button>
+<button class="miniBtn" id="aiDeckClearBtn" type="button">Clear</button>
+</div>
+<p class="apiStateMessage" id="aiDeckStatus">Generated words will appear below.</p>
+</div>
+
+<div class="studioCard aiDeckReviewCard">
+<div class="studioCardHead">
+<h3>Review Generated Words</h3>
+<button class="utilityBtn" id="aiDeckSaveBtn" type="button" disabled>Save Selected</button>
+</div>
+<div class="aiDeckList" id="aiDeckList">
+<p class="emptyStudio">No generated words yet.</p>
+</div>
+</div>
 </section>
 
 <section class="studioView" id="studioViewCsv">
