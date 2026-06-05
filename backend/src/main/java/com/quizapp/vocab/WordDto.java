@@ -1,5 +1,7 @@
 package com.quizapp.vocab;
 
+import java.time.Instant;
+
 public record WordDto(
         Long id,
         String eng,
@@ -18,7 +20,8 @@ public record WordDto(
         String note,
         boolean favorite,
         boolean mastered,
-        WordStatsDto stats
+        WordStatsDto stats,
+        Instant updatedAt
 ) {
     public static WordDto from(VocabularyWord word) {
         return new WordDto(
@@ -39,7 +42,8 @@ public record WordDto(
                 word.getNote(),
                 word.isFavorite(),
                 word.isMastered(),
-                WordStatsDto.from(word.getStats())
+                WordStatsDto.from(word.getStats()),
+                word.getUpdatedAt()
         );
     }
 }

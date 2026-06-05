@@ -7,6 +7,7 @@ let cloudSyncTimer = null;
 let applyingCloudSnapshot = false;
 let latestProgressSummary = null;
 let latestAchievements = [];
+let cloudSnapshotPulled = false;
 
 const STARTER_WORDS = [
 { eng: "resilient", vie: "kien cuong", pos: "adj", tag: "mindset", ipa: "/ri-ZIL-yuhnt/", level: "B1", context: "learning after difficulty", example: "She stayed resilient after the hard exam.", exampleMeaning: "Co ay van kien cuong sau bai kiem tra kho.", collocation: "resilient learner, remain resilient", synonyms: "strong, tough", antonyms: "fragile", commonMistake: "Do not use resilient for every kind of strong object.", note: "Useful for school and life." },
@@ -36,6 +37,28 @@ save();
 renderTable();
 renderMistakeTable();
 updateStats();
+}
+
+function ensureSyncStatus() {
+let existing = document.getElementById("cloudSyncStatus");
+if (existing) return existing;
+
+let utilityBar = document.querySelector(".utilityBar");
+if (!utilityBar) return null;
+
+let status = document.createElement("span");
+status.id = "cloudSyncStatus";
+status.className = "syncStatus syncStatus--local";
+status.textContent = "Offline/local mode";
+utilityBar.appendChild(status);
+return status;
+}
+
+function setSyncStatus(message, tone = "local") {
+let status = ensureSyncStatus();
+if (!status) return;
+status.textContent = message;
+status.className = `syncStatus syncStatus--${tone}`;
 }
 
 function toServerWord(word) {
@@ -85,8 +108,85 @@ commonMistake: word?.commonMistake,
 note: word?.note,
 favorite: word?.favorite,
 mastered: word?.mastered,
+updatedAt: word?.updatedAt,
 stats: word?.stats
 });
+}
+
+function wordMergeKey(word) {
+let eng = String(word?.eng || "").trim().toLowerCase();
+let id = word?.id ? `id:${word.id}` : "";
+return eng ? `eng:${eng}` : id;
+}
+
+function wordUpdatedTime(word) {
+let candidates = [
+word?.updatedAt,
+word?.updated_at,
+word?.stats?.lastReviewed,
+word?.stats?.nextReview
+];
+
+for (let value of candidates) {
+let time = Date.parse(value || "");
+if (!Number.isNaN(time)) return time;
+}
+
+return 0;
+}
+
+function mergeWordFields(primary, secondary) {
+let merged = {
+...(secondary || {}),
+...(primary || {}),
+stats: {
+...(secondary?.stats || {}),
+...(primary?.stats || {})
+}
+};
+
+for (let key of ["eng", "vie", "pos", "tag", "ipa", "level", "context", "example", "exampleMeaning", "collocation", "synonyms", "antonyms", "commonMistake", "note", "updatedAt"]) {
+if (!merged[key] && secondary?.[key]) merged[key] = secondary[key];
+}
+
+return normalizeWord(merged);
+}
+
+function chooseMergedWord(localWord, cloudWord) {
+if (!localWord) return normalizeWord(cloudWord);
+if (!cloudWord) return normalizeWord(localWord);
+
+let localTime = wordUpdatedTime(localWord);
+let cloudTime = wordUpdatedTime(cloudWord);
+
+if (localTime && cloudTime) {
+return cloudTime >= localTime
+? mergeWordFields(cloudWord, localWord)
+: mergeWordFields(localWord, cloudWord);
+}
+
+if (cloudTime && !localTime) return mergeWordFields(cloudWord, localWord);
+if (localTime && !cloudTime) return mergeWordFields(localWord, cloudWord);
+return mergeWordFields(cloudWord, localWord);
+}
+
+function mergeWordLists(localList, cloudList) {
+let merged = new Map();
+
+for (let word of Array.isArray(localList) ? localList : []) {
+let clean = normalizeWord(word);
+let key = wordMergeKey(clean);
+if (key && clean.eng && clean.vie) merged.set(key, clean);
+}
+
+for (let word of Array.isArray(cloudList) ? cloudList : []) {
+let clean = fromServerWord(word);
+let key = wordMergeKey(clean);
+if (!key || !clean.eng || !clean.vie) continue;
+merged.set(key, chooseMergedWord(merged.get(key), clean));
+}
+
+return Array.from(merged.values());
 }
 
 function profilePayload() {
@@ -107,8 +207,8 @@ if (!snapshot) return;
 applyingCloudSnapshot = true;
 try {
 if (snapshot.profile) applyProfile(snapshot.profile);
-if (Array.isArray(snapshot.vocab)) vocab = snapshot.vocab.map(fromServerWord).filter(w => w.eng && w.vie);
-if (Array.isArray(snapshot.wrongWords)) wrongWords = snapshot.wrongWords.map(fromServerWord).filter(w => w.eng && w.vie);
+if (Array.isArray(snapshot.vocab)) vocab = mergeWordLists(getVocab(), snapshot.vocab);
+if (Array.isArray(snapshot.wrongWords)) wrongWords = mergeWordLists(getWrongWords(), snapshot.wrongWords);
 if (snapshot.progress) latestProgressSummary = snapshot.progress;
 if (Array.isArray(snapshot.achievements)) latestAchievements = snapshot.achievements;
 save();
@@ -118,10 +218,36 @@ applyingCloudSnapshot = false;
 }
 }
 
+async function pullCloudSnapshot() {
+if (!cloudSyncReady || applyingCloudSnapshot) return false;
+
+setSyncStatus("Syncing...", "syncing");
+
+try {
+let response = await fetch(`${AUTH_API_ORIGIN}/api/snapshot`, {
+credentials: "include"
+});
+
+if (!response.ok) {
+setSyncStatus("Cloud unavailable", "warn");
+return false;
+}
+
+applyServerSnapshot(await response.json());
+cloudSnapshotPulled = true;
+setSyncStatus("Synced", "ok");
+return true;
+} catch (error) {
+setSyncStatus("Offline/local mode", "local");
+return false;
+}
+}
+
 async function syncCloudNow() {
 if (!cloudSyncReady || applyingCloudSnapshot) return;
 
 try {
+setSyncStatus("Syncing...", "syncing");
 let response = await fetch(`${AUTH_API_ORIGIN}/api/sync`, {
 method: "POST",
 credentials: "include",
@@ -133,15 +259,27 @@ wrongWords: getWrongWords().map(toServerWord)
 })
 });
 
-if (!response.ok) return;
+if (!response.ok) {
+setSyncStatus("Cloud unavailable", "warn");
+return;
+}
 applyServerSnapshot(await response.json());
+cloudSnapshotPulled = true;
+setSyncStatus("Synced", "ok");
 } catch (error) {
 // Local mode stays usable when the backend is offline.
+setSyncStatus("Offline/local mode", "local");
 }
 }
 
 function scheduleCloudSync() {
 if (!cloudSyncReady || applyingCloudSnapshot) return;
+if (!cloudSnapshotPulled) {
+pullCloudSnapshot().then(pulled => {
+if (pulled) syncCloudNow();
+});
+return;
+}
 clearTimeout(cloudSyncTimer);
 cloudSyncTimer = setTimeout(syncCloudNow, 700);
 }
@@ -187,7 +325,9 @@ async function deleteCloudWord(word) {
 let id = word?.id;
 if (!id) return null;
 
-return requestJson(`/api/vocab/${id}`, { method: "DELETE" });
+let result = await requestJson(`/api/vocab/${id}`, { method: "DELETE" });
+if (result) setSyncStatus("Synced", "ok");
+return result;
 }
 
 async function importCloudSamples() {
@@ -203,6 +343,7 @@ updateWord: updateCloudWord,
 deleteWord: deleteCloudWord,
 importSamples: importCloudSamples,
 syncNow: syncCloudNow,
+pullNow: pullCloudSnapshot,
 isReady: () => cloudSyncReady
 };
 
@@ -494,7 +635,8 @@ if (profile?.authenticated) {
 applyProfile(profile);
 refreshAccountData();
 cloudSyncReady = true;
-syncCloudNow();
+let pulled = await pullCloudSnapshot();
+if (pulled) syncCloudNow();
 } else if (REQUIRE_AUTH) {
 redirectToLogin();
 }
@@ -507,6 +649,7 @@ if (sessionStorage.getItem("backendLoginWarned") !== "true") {
 toast("Backend login sync is offline. Local profile and words still work.", "warn", 3200);
 sessionStorage.setItem("backendLoginWarned", "true");
 }
+setSyncStatus("Offline/local mode", "local");
 }
 }
 
@@ -888,6 +1031,7 @@ initImportExport();
 initPreview();
 initProfileEditor();
 initProfileMenu();
+ensureSyncStatus();
 loadAuthenticatedProfile();
 updateStats();
 

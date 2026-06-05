@@ -32,6 +32,7 @@ commonMistake: cleanText(word?.commonMistake || word?.common_mistake),
 note: cleanText(word?.note),
 favorite: Boolean(word?.favorite),
 mastered: Boolean(word?.mastered),
+updatedAt: cleanText(word?.updatedAt || word?.updated_at),
 stats: {
 seen: Number(stats.seen || 0),
 correct: Number(stats.correct || 0),

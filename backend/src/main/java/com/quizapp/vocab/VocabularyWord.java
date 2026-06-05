@@ -129,6 +129,7 @@ public class VocabularyWord {
     public boolean isMastered() { return mastered; }
     public void setMastered(boolean mastered) { this.mastered = mastered; }
     public WordStats getStats() { return stats; }
+    public Instant getUpdatedAt() { return updatedAt; }
     public void setStats(WordStats stats) {
         this.stats = stats;
         if (stats != null) stats.setWord(this);

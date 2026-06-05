@@ -563,6 +563,35 @@ body::before {
   font-size: 0.78rem;
 }
 
+.syncStatus {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.syncStatus--syncing {
+  color: var(--cyan);
+  border-color: rgba(24, 233, 255, 0.38);
+}
+
+.syncStatus--ok {
+  color: var(--green);
+  border-color: rgba(85, 255, 178, 0.34);
+}
+
+.syncStatus--warn,
+.syncStatus--local {
+  color: var(--yellow);
+  border-color: rgba(255, 204, 102, 0.34);
+}
+
 #home {
   display: grid;
   gap: 22px;
