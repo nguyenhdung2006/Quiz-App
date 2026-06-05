@@ -3096,10 +3096,10 @@ thead th:last-child {
 
 .previewPanel {
   position: relative;
-  width: min(980px, 100%);
+  width: min(1040px, 100%);
   max-height: min(820px, calc(100vh - 40px));
   overflow: auto;
-  padding: 24px;
+  padding: 22px;
   text-align: left;
 }
 
@@ -3121,16 +3121,17 @@ thead th:last-child {
 
 .previewHeader {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.75fr);
+  gap: 18px;
   align-items: end;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .previewHeader h2 {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: white;
-  font-size: 2.8rem;
+  font-size: clamp(2rem, 4vw, 2.7rem);
+  line-height: 1;
 }
 
 .previewHeader p,
@@ -3141,43 +3142,111 @@ thead th:last-child {
 
 .previewGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .previewCard,
 .previewNotes p {
-  padding: 16px;
+  padding: 14px;
   border: 1px solid rgba(158, 241, 255, 0.18);
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.07);
 }
 
+.previewCard {
+  position: relative;
+  grid-column: span 2;
+  min-height: 178px;
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, rgba(24, 233, 255, 0.1), rgba(255, 106, 213, 0.055)),
+    rgba(3, 10, 28, 0.5);
+}
+
+.previewCard--wide {
+  grid-column: span 4;
+}
+
+.previewCard::after {
+  content: "";
+  position: absolute;
+  inset: auto -20px -30px auto;
+  width: 94px;
+  height: 94px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(24, 233, 255, 0.2), transparent 68%);
+  pointer-events: none;
+}
+
+.previewStep {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 24px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(158, 241, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(24, 233, 255, 0.12);
+  color: #d8feff;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
 .previewCard h3 {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   color: white;
+  font-size: 1.02rem;
+  line-height: 1.2;
+}
+
+.previewCard p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.previewFeatureList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.previewFeatureList li {
+  padding: 5px 8px;
+  border: 1px solid rgba(158, 241, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(235, 248, 255, 0.86);
+  font-size: 0.74rem;
+  font-weight: 800;
 }
 
 .previewFlow {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 18px 0;
+  gap: 8px;
+  margin: 14px 0;
   overflow-x: auto;
   padding-bottom: 4px;
 }
 
 .previewFlow span {
   flex: 0 0 auto;
-  padding: 10px 13px;
+  padding: 8px 11px;
   border-radius: 999px;
   background: rgba(24, 233, 255, 0.16);
   color: #d8feff;
+  font-size: 0.84rem;
   font-weight: 900;
 }
 
 .previewFlow b {
-  flex: 0 0 34px;
+  flex: 0 0 24px;
   height: 2px;
   background: rgba(255, 255, 255, 0.24);
 }
@@ -3185,7 +3254,12 @@ thead th:last-child {
 .previewNotes {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 10px;
+}
+
+.previewNotes p {
+  margin: 0;
+  line-height: 1.45;
 }
 
 .toastHost {
@@ -3564,6 +3638,11 @@ html[data-theme="light"] .selected {
     grid-column: auto;
   }
 
+  .previewCard,
+  .previewCard--wide {
+    grid-column: auto;
+  }
+
   .formField--primary,
   .formField--tag,
   .formField--compact,
@@ -3616,6 +3695,18 @@ html[data-theme="light"] .selected {
 
   .heroPanel p {
     font-size: 0.9rem;
+  }
+
+  .previewPanel {
+    max-height: calc(100vh - 24px);
+  }
+
+  .previewCard {
+    min-height: auto;
+  }
+
+  .previewFlow {
+    margin: 10px 0;
   }
 
   .dashboardPanel,
