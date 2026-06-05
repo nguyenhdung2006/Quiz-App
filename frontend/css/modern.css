@@ -3,8 +3,8 @@
   --surface: rgba(12, 18, 34, 0.72);
   --surface-strong: rgba(15, 24, 45, 0.9);
   --surface-soft: rgba(255, 255, 255, 0.08);
-  --line: rgba(158, 241, 255, 0.18);
-  --line-strong: rgba(158, 241, 255, 0.34);
+  --line: rgba(158, 241, 255, 0.14);
+  --line-strong: rgba(158, 241, 255, 0.26);
   --text: #f7fbff;
   --text-muted: rgba(224, 240, 255, 0.74);
   --cyan: #18e9ff;
@@ -14,19 +14,19 @@
   --yellow: #ffe36e;
   --danger: #ff5f7e;
   --radius: 8px;
-  --shadow: 0 20px 54px rgba(0, 0, 0, 0.42);
-  --shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.28);
-  --glow-cyan: 0 0 18px rgba(24, 233, 255, 0.14);
-  --glow-pink: 0 0 16px rgba(255, 106, 213, 0.12);
+  --shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
+  --shadow-soft: 0 8px 22px rgba(0, 0, 0, 0.24);
+  --glow-cyan: 0 0 14px rgba(24, 233, 255, 0.1);
+  --glow-pink: 0 0 12px rgba(255, 106, 213, 0.09);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
-  --glow-low: 0 0 12px rgba(24, 233, 255, 0.1);
-  --glow-mid: 0 0 18px rgba(24, 233, 255, 0.14);
-  --glow-high: 0 0 24px rgba(24, 233, 255, 0.2);
+  --glow-low: 0 0 10px rgba(24, 233, 255, 0.08);
+  --glow-mid: 0 0 14px rgba(24, 233, 255, 0.1);
+  --glow-high: 0 0 20px rgba(24, 233, 255, 0.14);
 }
 
 html[data-theme="light"] {
@@ -70,8 +70,8 @@ body {
   padding: 10px 18px 40px;
   color: var(--text);
   background:
-    linear-gradient(180deg, rgba(5, 7, 19, 0.92), rgba(5, 7, 19, 0.72) 44%, rgba(5, 7, 19, 0.96)),
-    linear-gradient(115deg, rgba(24, 233, 255, 0.055), transparent 34%, rgba(255, 106, 213, 0.045) 70%, rgba(93, 242, 162, 0.035)),
+    linear-gradient(180deg, rgba(5, 7, 19, 0.96), rgba(5, 7, 19, 0.84) 44%, rgba(5, 7, 19, 0.98)),
+    linear-gradient(115deg, rgba(24, 233, 255, 0.035), transparent 34%, rgba(255, 106, 213, 0.03) 70%, rgba(93, 242, 162, 0.025)),
     url("../images/quiz.jpg") center top / cover fixed no-repeat;
   font-family: "Segoe UI", Arial, sans-serif;
   text-align: center;
@@ -85,11 +85,11 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
-    linear-gradient(110deg, transparent 0%, rgba(24, 233, 255, 0.07) 46%, rgba(255, 255, 255, 0.07) 50%, transparent 58%);
+    linear-gradient(rgba(255, 255, 255, 0.014) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.014) 1px, transparent 1px),
+    linear-gradient(110deg, transparent 0%, rgba(24, 233, 255, 0.045) 46%, rgba(255, 255, 255, 0.045) 50%, transparent 58%);
   background-size: 56px 56px, 56px 56px, 100% 100%;
-  opacity: 0.24;
+  opacity: 0.16;
   animation: ambientSweep 18s ease-in-out infinite alternate;
 }
 
@@ -137,8 +137,8 @@ body::before {
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background:
-    linear-gradient(135deg, rgba(24, 233, 255, 0.12), rgba(255, 106, 213, 0.09) 54%, rgba(93, 242, 162, 0.06)),
-    rgba(8, 16, 36, 0.72);
+    linear-gradient(135deg, rgba(24, 233, 255, 0.08), rgba(255, 106, 213, 0.06) 54%, rgba(93, 242, 162, 0.04)),
+    rgba(8, 16, 36, 0.8);
   backdrop-filter: blur(16px) saturate(1.1);
   box-shadow: var(--shadow-soft), var(--glow-low);
 }
@@ -166,8 +166,8 @@ body::before {
   line-height: 1;
   letter-spacing: 0;
   text-shadow:
-    0 0 16px rgba(24, 233, 255, 0.76),
-    0 0 42px rgba(255, 106, 213, 0.34),
+    0 0 12px rgba(24, 233, 255, 0.5),
+    0 0 28px rgba(255, 106, 213, 0.22),
     0 14px 34px rgba(0, 0, 0, 0.52);
 }
 
@@ -184,15 +184,15 @@ body::before {
   align-items: center;
   min-height: 24px;
   padding: 4px 9px;
-  border: 1px solid rgba(158, 241, 255, 0.38);
+  border: 1px solid rgba(158, 241, 255, 0.26);
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(24, 233, 255, 0.2), rgba(255, 106, 213, 0.15));
+  background: linear-gradient(135deg, rgba(24, 233, 255, 0.13), rgba(255, 106, 213, 0.09));
   color: #f2feff;
   font-size: 0.72rem;
   font-weight: 850;
   letter-spacing: 0;
   text-transform: uppercase;
-  box-shadow: 0 0 14px rgba(24, 233, 255, 0.16);
+  box-shadow: none;
 }
 
 .homeBtn,
@@ -608,7 +608,7 @@ body::before {
   margin: 0;
   padding: 12px;
   border-radius: 14px;
-  background: rgba(7, 12, 26, 0.86);
+  background: rgba(7, 12, 26, 0.9);
   box-shadow: var(--shadow-soft);
 }
 
@@ -668,20 +668,20 @@ body::before {
   width: 100%;
   min-width: 0;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.045);
   box-shadow: none;
 }
 
 .appSidebar .utilityBtn:hover,
 .appSidebar .miniBtn:hover,
 .appSidebar .appNavBtn.is-active {
-  border-color: rgba(24, 233, 255, 0.42);
-  background: linear-gradient(135deg, rgba(24, 233, 255, 0.18), rgba(255, 106, 213, 0.11));
+  border-color: rgba(24, 233, 255, 0.28);
+  background: linear-gradient(135deg, rgba(24, 233, 255, 0.1), rgba(255, 106, 213, 0.065));
   transform: translateY(-1px);
 }
 
 .appSidebar .appNavBtn.is-active {
-  box-shadow: inset 3px 0 0 rgba(24, 233, 255, 0.68);
+  box-shadow: inset 3px 0 0 rgba(24, 233, 255, 0.48);
 }
 
 .appTopbar {
@@ -781,25 +781,35 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 }
 
 .todayFocusPanel {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
   align-items: center;
-  padding: 18px;
-  border: 1px solid rgba(158, 241, 255, 0.2);
+  overflow: hidden;
+  padding: 20px;
+  border: 1px solid rgba(158, 241, 255, 0.18);
   border-radius: 14px;
   background:
-    linear-gradient(135deg, rgba(24, 233, 255, 0.12), rgba(255, 106, 213, 0.07)),
-    rgba(8, 14, 29, 0.88);
+    linear-gradient(135deg, rgba(24, 233, 255, 0.12), rgba(93, 242, 162, 0.055) 58%, rgba(255, 106, 213, 0.045)),
+    rgba(8, 14, 29, 0.94);
   color: var(--text);
   text-align: left;
   box-shadow: var(--shadow-soft);
 }
 
+.todayFocusPanel::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(var(--green), var(--cyan));
+}
+
 .todayFocusPanel h2 {
   margin: 8px 0 6px;
   color: white;
-  font-size: clamp(1.65rem, 3vw, 2.2rem);
+  font-size: clamp(1.85rem, 3vw, 2.35rem);
   line-height: 1;
 }
 
@@ -849,8 +859,8 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 }
 
 .dashCard {
-  min-height: 86px;
-  padding: 16px;
+  min-height: 78px;
+  padding: 14px;
   text-align: left;
 }
 
@@ -866,19 +876,27 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .dashLabel,
 .formField span,
 .searchBox {
-  font-size: 0.76rem;
-  font-weight: 900;
+  font-size: 0.72rem;
+  font-weight: 800;
   letter-spacing: 0;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .dashCard strong {
   display: block;
   margin-top: 8px;
   color: #ffffff;
-  font-size: 1.75rem;
+  font-size: 1.58rem;
   line-height: 1.1;
-  text-shadow: 0 0 22px rgba(24, 233, 255, 0.44);
+  text-shadow: none;
+}
+
+.dashboardPanel .dashCard:first-child,
+.dashboardPanel .dashCard:nth-child(4) {
+  border-color: rgba(93, 242, 162, 0.22);
+  background:
+    linear-gradient(145deg, rgba(93, 242, 162, 0.08), rgba(255, 255, 255, 0.025)),
+    rgba(9, 14, 30, 0.94);
 }
 
 .playerHub {
@@ -919,7 +937,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   color: #ffffff;
   font-size: 1.6rem;
   letter-spacing: 0;
-  text-shadow: 0 0 18px rgba(24, 233, 255, 0.35);
+  text-shadow: none;
 }
 
 .profilePanel p {
@@ -975,11 +993,15 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 
 .profileStats span,
 .leaderboardTabs span {
-  padding: 9px 11px;
-  border: 1px solid rgba(158, 241, 255, 0.18);
+  padding: 8px 10px;
+  border: 1px solid rgba(158, 241, 255, 0.12);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  font-weight: 850;
+  background: rgba(255, 255, 255, 0.045);
+  font-weight: 750;
+}
+
+.leaderboardPanel {
+  opacity: 0.92;
 }
 
 .leaderboardHead {
@@ -1124,11 +1146,11 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   display: grid;
   gap: 8px;
   padding: 16px 18px;
-  border: 1px solid rgba(158, 241, 255, 0.2);
+  border: 1px solid rgba(158, 241, 255, 0.16);
   border-radius: var(--radius);
   background:
-    linear-gradient(135deg, rgba(93, 242, 162, 0.1), rgba(24, 233, 255, 0.075), rgba(255, 106, 213, 0.055)),
-    rgba(8, 14, 29, 0.78);
+    linear-gradient(135deg, rgba(93, 242, 162, 0.08), rgba(24, 233, 255, 0.055), rgba(255, 106, 213, 0.035)),
+    rgba(8, 14, 29, 0.9);
   text-align: left;
   box-shadow: var(--shadow-soft);
 }
@@ -1160,13 +1182,13 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03)),
-    rgba(9, 14, 30, 0.9);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    rgba(9, 14, 30, 0.93);
   color: var(--text);
   text-align: left;
   backdrop-filter: blur(18px) saturate(1.15);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.065),
     var(--shadow-soft);
 }
 
@@ -1189,16 +1211,15 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   inset: 0 auto 0 0;
   width: 4px;
   background: var(--metric-accent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--metric-accent), transparent 40%);
+  box-shadow: none;
 }
 
 .analyticsMetric:hover {
   transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--metric-accent), white 18%);
+  border-color: color-mix(in srgb, var(--metric-accent), white 8%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 18px 42px rgba(0, 0, 0, 0.36),
-    0 0 22px color-mix(in srgb, var(--metric-accent), transparent 76%);
+    0 14px 28px rgba(0, 0, 0, 0.26);
 }
 
 .analyticsMetric--feature {
@@ -1241,8 +1262,8 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .insightCard span {
   color: var(--text-muted);
   font-size: 0.76rem;
-  font-weight: 900;
-  text-transform: uppercase;
+  font-weight: 800;
+  text-transform: none;
 }
 
 .analyticsMetric strong {
@@ -1250,12 +1271,12 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   color: white;
   font-size: clamp(1.5rem, 2.4vw, 2.05rem);
   line-height: 1;
-  text-shadow: 0 0 18px rgba(24, 233, 255, 0.34);
+  text-shadow: none;
 }
 
 .analyticsMetric--feature strong {
   font-size: clamp(1.8rem, 3.2vw, 2.55rem);
-  text-shadow: 0 0 22px color-mix(in srgb, var(--metric-accent), transparent 44%);
+  text-shadow: none;
 }
 
 .analyticsMainGrid {
@@ -1279,7 +1300,8 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 }
 
 .analyticsPanel--trend {
-  min-height: 306px;
+  min-height: 324px;
+  border-color: rgba(93, 242, 162, 0.18);
 }
 
 .analyticsPanel--pressure,
@@ -1287,8 +1309,8 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .analyticsPanel--insights,
 .analyticsPanel--performance {
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(93, 242, 162, 0.035)),
-    rgba(9, 14, 30, 0.9);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(93, 242, 162, 0.022)),
+    rgba(9, 14, 30, 0.92);
 }
 
 .analyticsPanelHead {
@@ -1308,8 +1330,8 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 
 #accuracyTrendChart {
   width: 100%;
-  height: 220px;
-  border: 1px solid rgba(158, 241, 255, 0.16);
+  height: 240px;
+  border: 1px solid rgba(158, 241, 255, 0.12);
   border-radius: var(--radius);
   background: rgba(3, 10, 28, 0.42);
 }
@@ -1364,11 +1386,11 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .insightCard {
   min-height: 58px;
   padding: 13px 14px;
-  border: 1px solid rgba(158, 241, 255, 0.18);
+  border: 1px solid rgba(158, 241, 255, 0.12);
   border-radius: var(--radius);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03)),
-    rgba(3, 10, 28, 0.44);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),
+    rgba(3, 10, 28, 0.38);
 }
 
 .weakWordRow strong,
@@ -1428,11 +1450,11 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   width: min(1180px, 100%);
   margin: 0 auto;
   padding: 18px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(158, 241, 255, 0.14);
   border-radius: var(--radius);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03)),
-    rgba(9, 14, 30, 0.9);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),
+    rgba(9, 14, 30, 0.93);
   color: var(--text);
   text-align: left;
   backdrop-filter: blur(18px) saturate(1.15);
@@ -1451,13 +1473,13 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 }
 
 .studioShortcut {
-  min-height: 68px;
+  min-height: 64px;
   padding: 12px;
-  border: 1px solid rgba(158, 241, 255, 0.22);
+  border: 1px solid rgba(158, 241, 255, 0.14);
   border-radius: var(--radius);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.045)),
-    rgba(8, 14, 29, 0.72);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025)),
+    rgba(8, 14, 29, 0.76);
   color: white;
   cursor: pointer;
   text-align: left;
@@ -1467,8 +1489,8 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 
 .studioShortcut:hover {
   transform: translateY(-2px);
-  border-color: var(--line-strong);
-  box-shadow: var(--shadow-soft), var(--glow-mid);
+  border-color: rgba(158, 241, 255, 0.28);
+  box-shadow: var(--shadow-soft);
 }
 
 .studioShortcut span {
@@ -1482,7 +1504,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   display: block;
   margin-top: 5px;
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   line-height: 1.35;
 }
 
@@ -1493,8 +1515,8 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(2, 6, 18, 0.78);
-  backdrop-filter: blur(14px);
+  background: rgba(2, 6, 18, 0.82);
+  backdrop-filter: blur(16px);
 }
 
 .studioOverlay.hidden {
@@ -1506,15 +1528,15 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   width: min(1120px, 100%);
   max-height: min(880px, calc(100vh - 40px));
   overflow: auto;
-  padding: 24px;
-  border: 1px solid var(--line);
+  padding: 22px;
+  border: 1px solid rgba(158, 241, 255, 0.16);
   border-radius: var(--radius);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.045)),
-    rgba(8, 14, 29, 0.96);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.028)),
+    rgba(8, 14, 29, 0.98);
   color: white;
   text-align: left;
-  box-shadow: var(--shadow), var(--glow-mid);
+  box-shadow: var(--shadow);
 }
 
 .studioClose {
@@ -1544,7 +1566,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .studioHeader h2 {
   margin: 10px 0 6px;
   color: white;
-  font-size: 2.5rem;
+  font-size: clamp(1.9rem, 3vw, 2.35rem);
   line-height: 1.05;
 }
 
@@ -1569,17 +1591,17 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   flex: 0 0 auto;
   min-height: 40px;
   padding: 8px 13px;
-  border: 1px solid rgba(158, 241, 255, 0.2);
+  border: 1px solid rgba(158, 241, 255, 0.14);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.045);
   color: var(--text-muted);
   cursor: pointer;
   font-weight: 900;
 }
 
 .studioTab.is-active {
-  border-color: var(--cyan);
-  background: linear-gradient(135deg, rgba(24, 233, 255, 0.22), rgba(255, 106, 213, 0.16));
+  border-color: rgba(24, 233, 255, 0.34);
+  background: linear-gradient(135deg, rgba(24, 233, 255, 0.13), rgba(255, 106, 213, 0.08));
   color: white;
 }
 
@@ -1606,9 +1628,9 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .topicDeckCard,
 .badgeCard,
 .historyItem {
-  border: 1px solid rgba(158, 241, 255, 0.18);
+  border: 1px solid rgba(158, 241, 255, 0.12);
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.045);
   box-shadow: var(--shadow-soft);
 }
 
@@ -1642,8 +1664,8 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .studioMetricLabel {
   color: var(--text-muted);
   font-size: 0.72rem;
-  font-weight: 900;
-  text-transform: uppercase;
+  font-weight: 800;
+  text-transform: none;
 }
 
 .studioCard > strong {
@@ -1651,7 +1673,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   margin-top: 8px;
   color: white;
   font-size: 2rem;
-  text-shadow: 0 0 18px rgba(24, 233, 255, 0.35);
+  text-shadow: none;
 }
 
 .studioCardHead {
@@ -1788,24 +1810,24 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .aiDeckInput span {
   color: var(--text-muted);
   font-size: 0.76rem;
-  font-weight: 900;
-  text-transform: uppercase;
+  font-weight: 800;
+  text-transform: none;
 }
 
 .aiDeckInput textarea {
   min-height: 170px;
   resize: vertical;
   padding: 14px;
-  border: 1px solid rgba(158, 241, 255, 0.2);
+  border: 1px solid rgba(158, 241, 255, 0.14);
   border-radius: var(--radius);
-  background: rgba(2, 8, 22, 0.58);
+  background: rgba(2, 8, 22, 0.48);
   color: var(--text);
   font: inherit;
   line-height: 1.55;
 }
 
 .aiDeckInput textarea:focus {
-  outline: 3px solid rgba(24, 233, 255, 0.2);
+  outline: 3px solid rgba(24, 233, 255, 0.12);
   border-color: var(--cyan);
 }
 
@@ -1833,11 +1855,11 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 12px;
   padding: 12px;
-  border: 1px solid rgba(158, 241, 255, 0.18);
+  border: 1px solid rgba(158, 241, 255, 0.12);
   border-radius: var(--radius);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03)),
-    rgba(3, 10, 28, 0.44);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),
+    rgba(3, 10, 28, 0.42);
 }
 
 .aiDeckItem--invalid {
@@ -1867,8 +1889,8 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .aiDeckField span {
   color: var(--text-muted);
   font-size: 0.68rem;
-  font-weight: 900;
-  text-transform: uppercase;
+  font-weight: 800;
+  text-transform: none;
 }
 
 .aiDeckField input,
@@ -1876,9 +1898,9 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   width: 100%;
   min-height: 36px;
   padding: 7px 9px;
-  border: 1px solid rgba(158, 241, 255, 0.24);
+  border: 1px solid rgba(158, 241, 255, 0.16);
   border-radius: var(--radius);
-  background: rgba(2, 8, 22, 0.56);
+  background: rgba(2, 8, 22, 0.48);
   color: var(--text);
   font: inherit;
 }
@@ -1890,7 +1912,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 
 .aiDeckField input:focus,
 .aiDeckField select:focus {
-  outline: 3px solid rgba(24, 233, 255, 0.16);
+  outline: 3px solid rgba(24, 233, 255, 0.1);
   border-color: var(--cyan);
 }
 
@@ -1910,9 +1932,9 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .csvExample {
   margin: 14px 0;
   padding: 14px;
-  border: 1px solid rgba(158, 241, 255, 0.18);
+  border: 1px solid rgba(158, 241, 255, 0.12);
   border-radius: var(--radius);
-  background: rgba(2, 8, 22, 0.62);
+  background: rgba(2, 8, 22, 0.5);
   color: #d8feff;
   font-family: Consolas, "Courier New", monospace;
   line-height: 1.55;
@@ -1935,9 +1957,9 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .apiStateMessage {
   margin: 10px 0 0;
   padding: 10px 12px;
-  border: 1px solid rgba(158, 241, 255, 0.18);
+  border: 1px solid rgba(158, 241, 255, 0.12);
   border-radius: 8px;
-  background: rgba(3, 10, 28, 0.38);
+  background: rgba(3, 10, 28, 0.32);
   color: var(--text-muted);
   font-weight: 800;
 }
@@ -1970,9 +1992,12 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .addWordBox {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 10px;
+  gap: 9px;
   align-items: end;
   padding: 14px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
+    rgba(9, 14, 30, 0.94);
 }
 
 .formField {
@@ -2010,23 +2035,23 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 #quizDifficulty,
 #challengeDifficulty {
   width: 100%;
-  min-height: 42px;
+  min-height: 40px;
   padding: 8px 12px;
-  border: 1px solid rgba(158, 241, 255, 0.32);
+  border: 1px solid rgba(158, 241, 255, 0.18);
   border-radius: var(--radius);
   outline: none;
-  background: rgba(2, 8, 22, 0.52);
+  background: rgba(2, 8, 22, 0.44);
   color: #ffffff;
   font-size: 1rem;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
   transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
 .learningDetails {
   grid-column: 1 / -1;
-  border: 1px solid rgba(158, 241, 255, 0.18);
+  border: 1px solid rgba(158, 241, 255, 0.12);
   border-radius: var(--radius);
-  background: rgba(2, 8, 22, 0.26);
+  background: rgba(2, 8, 22, 0.2);
   text-align: left;
 }
 
@@ -2103,8 +2128,8 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 #quizDifficulty:focus,
 #challengeDifficulty:focus {
   border-color: var(--cyan);
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 0 4px rgba(24, 233, 255, 0.14), 0 0 26px rgba(24, 233, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 3px rgba(24, 233, 255, 0.1);
 }
 
 .addBtn {
@@ -2117,7 +2142,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   cursor: pointer;
   font-size: 1.6rem;
   font-weight: 950;
-  box-shadow: 0 0 26px rgba(24, 233, 255, 0.36);
+  box-shadow: 0 10px 24px rgba(24, 233, 255, 0.18);
   transition: transform 160ms ease, filter 160ms ease, box-shadow 160ms ease;
 }
 
@@ -2130,7 +2155,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   margin-top: -4px;
   color: #ffffff;
   text-align: left;
-  text-shadow: 0 0 16px rgba(24, 233, 255, 0.35);
+  text-shadow: none;
 }
 
 .tableTools {
@@ -2139,6 +2164,9 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   gap: 8px;
   align-items: center;
   padding: 10px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018)),
+    rgba(9, 14, 30, 0.94);
 }
 
 .searchBox {
@@ -2184,7 +2212,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .filterCluster select {
   min-height: 40px;
   padding: 7px 10px;
-  border: 1px solid rgba(158, 241, 255, 0.32);
+  border: 1px solid rgba(158, 241, 255, 0.18);
   border-radius: var(--radius);
   background: rgba(2, 8, 22, 0.56);
   color: white;
@@ -2202,7 +2230,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   align-items: center;
   min-height: 40px;
   padding: 7px 10px;
-  border: 1px solid rgba(158, 241, 255, 0.2);
+  border: 1px solid rgba(158, 241, 255, 0.14);
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.07);
 }
@@ -2219,8 +2247,11 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   max-height: min(520px, 50vh);
   min-height: 0;
   overflow: auto;
-  scrollbar-color: var(--cyan) rgba(3, 10, 28, 0.72);
+  scrollbar-color: rgba(24, 233, 255, 0.5) rgba(3, 10, 28, 0.72);
   scrollbar-width: thin;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012)),
+    rgba(8, 13, 27, 0.94);
 }
 
 .table-container::-webkit-scrollbar {
@@ -2272,24 +2303,24 @@ thead th {
   z-index: 2;
   padding: 11px 14px;
   background:
-    linear-gradient(135deg, rgba(18, 74, 100, 0.92), rgba(50, 36, 76, 0.92)),
+    linear-gradient(135deg, rgba(18, 54, 74, 0.96), rgba(35, 34, 58, 0.96)),
     rgba(7, 14, 32, 0.98);
   color: white;
-  font-size: 0.82rem;
-  font-weight: 950;
+  font-size: 0.78rem;
+  font-weight: 850;
   letter-spacing: 0;
   text-align: left;
   text-transform: uppercase;
 }
 
 td {
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(158, 241, 255, 0.12);
+  padding: 9px 14px;
+  border-bottom: 1px solid rgba(158, 241, 255, 0.08);
   color: rgba(250, 253, 255, 0.94);
   font-size: 0.95rem;
   text-align: left;
   vertical-align: middle;
-  height: 60px;
+  height: 54px;
 }
 
 tr:nth-child(even) {
@@ -2297,13 +2328,13 @@ tr:nth-child(even) {
 }
 
 tbody tr {
-  background: rgba(5, 11, 26, 0.36);
+  background: rgba(5, 11, 26, 0.26);
   transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 tbody tr:hover {
-  background: rgba(24, 233, 255, 0.085);
-  box-shadow: inset 4px 0 0 rgba(24, 233, 255, 0.74);
+  background: rgba(24, 233, 255, 0.055);
+  box-shadow: inset 3px 0 0 rgba(24, 233, 255, 0.42);
 }
 
 thead th:first-child {
@@ -3906,6 +3937,7 @@ html[data-theme="light"] .selected {
     width: 100%;
     max-width: 100%;
     overflow-x: auto;
+    scrollbar-width: thin;
   }
 
   .sidebarBrand {
@@ -4024,6 +4056,7 @@ html[data-theme="light"] .selected {
 @media (max-width: 620px) {
   .appSidebar {
     align-items: stretch;
+    padding: 5px;
   }
 
   .sidebarGroup {
@@ -4050,6 +4083,12 @@ html[data-theme="light"] .selected {
     min-height: 32px;
     padding: 6px 9px;
     font-size: 0.8rem;
+  }
+
+  .appSidebar .utilityBtn,
+  .appSidebar .miniBtn {
+    min-height: 30px;
+    padding: 6px 8px;
   }
 
   .heroPanel {
@@ -4123,6 +4162,10 @@ html[data-theme="light"] .selected {
     padding: 14px;
   }
 
+  .studioPanel {
+    max-height: calc(100vh - 24px);
+  }
+
   .studioHeader,
   .studioCardHead,
   .reviewTodayHead,
@@ -4146,6 +4189,11 @@ html[data-theme="light"] .selected {
 
   .aiDeckEditGrid {
     grid-template-columns: 1fr;
+  }
+
+  .aiDeckItem {
+    gap: 9px;
+    padding: 10px;
   }
 
   .weakWordStats,
