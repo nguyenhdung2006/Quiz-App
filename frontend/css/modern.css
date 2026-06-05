@@ -1545,6 +1545,13 @@ body::before {
   margin-top: 12px;
 }
 
+.aiDeckBulkActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .aiDeckList {
   display: grid;
   gap: 10px;
@@ -1554,7 +1561,7 @@ body::before {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 12px;
-  padding: 13px 14px;
+  padding: 12px;
   border: 1px solid rgba(158, 241, 255, 0.18);
   border-radius: var(--radius);
   background:
@@ -1562,30 +1569,71 @@ body::before {
     rgba(3, 10, 28, 0.44);
 }
 
-.aiDeckItem input {
+.aiDeckItem--invalid {
+  border-color: rgba(255, 95, 126, 0.58);
+  box-shadow: inset 3px 0 0 rgba(255, 95, 126, 0.7);
+}
+
+.aiDeckItem > input {
   width: 18px;
   height: 18px;
   margin-top: 3px;
   accent-color: var(--cyan);
 }
 
-.aiDeckItem strong {
-  display: block;
-  color: white;
-  line-height: 1.25;
+.aiDeckEditGrid {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.2fr) minmax(150px, 1.2fr) minmax(86px, 0.55fr) minmax(110px, 0.8fr) minmax(96px, 0.65fr);
+  gap: 8px;
+  align-items: end;
 }
 
-.aiDeckItem span {
-  display: block;
-  margin-top: 5px;
+.aiDeckField {
+  display: grid;
+  gap: 5px;
+}
+
+.aiDeckField span {
   color: var(--text-muted);
-  font-size: 0.82rem;
-  font-weight: 850;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.aiDeckField input,
+.aiDeckField select {
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid rgba(158, 241, 255, 0.24);
+  border-radius: var(--radius);
+  background: rgba(2, 8, 22, 0.56);
+  color: var(--text);
+  font: inherit;
+}
+
+.aiDeckField select option {
+  background: #ffffff;
+  color: #111827;
+}
+
+.aiDeckField input:focus,
+.aiDeckField select:focus {
+  outline: 3px solid rgba(24, 233, 255, 0.16);
+  border-color: var(--cyan);
+}
+
+.aiDeckRowActions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
 }
 
 .aiDeckItem p {
-  margin: 8px 0 0;
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
   color: var(--text-muted);
+  font-size: 0.86rem;
 }
 
 .csvExample {
@@ -3321,6 +3369,13 @@ html[data-theme="light"] .aiDeckInput textarea {
   color: var(--text);
 }
 
+html[data-theme="light"] .aiDeckField input,
+html[data-theme="light"] .aiDeckField select {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text);
+}
+
 html[data-theme="light"] .aiDeckItem strong {
   color: var(--text);
 }
@@ -3603,7 +3658,6 @@ html[data-theme="light"] .selected {
   .reviewQueueItem,
   .weakWordRow,
   .performanceRow,
-  .aiDeckItem,
   .historyItem {
     align-items: flex-start;
     flex-direction: column;
@@ -3611,9 +3665,16 @@ html[data-theme="light"] .selected {
 
   .reviewQueueItem,
   .weakWordRow,
-  .performanceRow,
-  .aiDeckItem {
+  .performanceRow {
     display: flex;
+  }
+
+  .aiDeckBulkActions {
+    justify-content: flex-start;
+  }
+
+  .aiDeckEditGrid {
+    grid-template-columns: 1fr;
   }
 
   .weakWordStats,

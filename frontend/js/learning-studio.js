@@ -86,6 +86,8 @@ if (node) node.textContent = value;
 
 let generatedAiDeckWords = [];
 const AI_DECK_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
+const AI_DECK_POS_OPTIONS = ["n", "v", "adj", "adv", "idiom", "phrase"];
+const AI_DECK_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2", "IELTS 5.0", "IELTS 6.0", "IELTS 7.0", "IELTS 8.0+"];
 
 function toastStudio(message, kind = "ok") {
 let host = document.querySelector(".toastHost") || document.body.appendChild(Object.assign(document.createElement("div"), { className: "toastHost" }));
@@ -305,7 +307,8 @@ setText("aiDeckSource", value || "Ready");
 }
 
 function generatedToWord(item, source) {
-return normalizeWord({
+return {
+...normalizeWord({
 eng: item.english || item.eng,
 vie: item.vietnameseMeaning || item.vie || item.meaning,
 pos: item.partOfSpeech || item.pos || "n",
@@ -314,7 +317,9 @@ level: item.level || "A2",
 context: "AI Deck",
 example: item.exampleSentence || item.example || "",
 note: `AI Deck source: ${item.source || source || "generated"}`
-});
+}),
+selected: true
+};
 }
 
 async function requestAiDeck(text) {
@@ -335,6 +340,8 @@ return response.json();
 function renderAiDeckList() {
 let host = document.getElementById("aiDeckList");
 let saveBtn = document.getElementById("aiDeckSaveBtn");
+let selectAllBtn = document.getElementById("aiDeckSelectAllBtn");
+let deselectAllBtn = document.getElementById("aiDeckDeselectAllBtn");
 if (!host) return;
 host.innerHTML = "";
 
@@ -344,27 +351,47 @@ empty.className = "emptyStudio";
 empty.textContent = "No generated words yet.";
 host.appendChild(empty);
 if (saveBtn) saveBtn.disabled = true;
+if (selectAllBtn) selectAllBtn.disabled = true;
+if (deselectAllBtn) deselectAllBtn.disabled = true;
 return;
 }
 
 generatedAiDeckWords.forEach((word, index) => {
 let row = document.createElement("article");
 row.className = "aiDeckItem";
+row.dataset.aiDeckRow = String(index);
 
 let checkbox = document.createElement("input");
 checkbox.type = "checkbox";
-checkbox.checked = true;
+checkbox.checked = word.selected !== false;
 checkbox.dataset.aiDeckIndex = String(index);
-checkbox.addEventListener("change", updateAiDeckSaveState);
+checkbox.addEventListener("change", () => {
+generatedAiDeckWords[index].selected = checkbox.checked;
+updateAiDeckSaveState();
+});
 
 let main = document.createElement("div");
-let title = document.createElement("strong");
-title.textContent = `${word.eng} / ${word.vie}`;
-let meta = document.createElement("span");
-meta.textContent = `${word.pos || "n"} - ${word.level || "A2"} - ${word.tag || "ai-deck"}`;
+main.className = "aiDeckEditGrid";
+main.append(
+createAiDeckTextField(index, "eng", "English", word.eng, true),
+createAiDeckTextField(index, "vie", "Vietnamese", word.vie, true),
+createAiDeckSelectField(index, "pos", "POS", word.pos || "n", AI_DECK_POS_OPTIONS),
+createAiDeckTextField(index, "tag", "Tag", word.tag || "ai-deck"),
+createAiDeckSelectField(index, "level", "Level", word.level || "A2", AI_DECK_LEVEL_OPTIONS)
+);
+
+let actions = document.createElement("div");
+actions.className = "aiDeckRowActions";
+let removeBtn = document.createElement("button");
+removeBtn.className = "miniBtn";
+removeBtn.type = "button";
+removeBtn.textContent = "Remove";
+removeBtn.addEventListener("click", () => removeGeneratedAiDeckWord(index));
+actions.appendChild(removeBtn);
+
 let example = document.createElement("p");
 example.textContent = word.example || "No example sentence.";
-main.append(title, meta, example);
+main.append(actions, example);
 
 row.append(checkbox, main);
 host.appendChild(row);
@@ -373,15 +400,113 @@ host.appendChild(row);
 updateAiDeckSaveState();
 }
 
+function cleanAiDeckValue(value) {
+return String(value || "").trim();
+}
+
+function createAiDeckTextField(index, field, label, value, required = false) {
+let wrapper = document.createElement("label");
+wrapper.className = `aiDeckField aiDeckField--${field}`;
+let labelText = document.createElement("span");
+labelText.textContent = label;
+let input = document.createElement("input");
+input.type = "text";
+input.value = value || "";
+input.required = required;
+input.addEventListener("input", () => updateGeneratedAiDeckWord(index, field, input.value));
+wrapper.append(labelText, input);
+return wrapper;
+}
+
+function createAiDeckSelectField(index, field, label, value, options) {
+let wrapper = document.createElement("label");
+wrapper.className = `aiDeckField aiDeckField--${field}`;
+let labelText = document.createElement("span");
+labelText.textContent = label;
+let select = document.createElement("select");
+for (let optionValue of options) {
+let option = document.createElement("option");
+option.value = optionValue;
+option.textContent = optionValue;
+select.appendChild(option);
+}
+if (value && !options.includes(value)) {
+let option = document.createElement("option");
+option.value = value;
+option.textContent = value;
+select.appendChild(option);
+}
+select.value = value || options[0] || "";
+select.addEventListener("change", () => updateGeneratedAiDeckWord(index, field, select.value));
+wrapper.append(labelText, select);
+return wrapper;
+}
+
+function updateGeneratedAiDeckWord(index, field, value) {
+let word = generatedAiDeckWords[index];
+if (!word) return;
+word[field] = value;
+if (field === "eng" || field === "vie") updateAiDeckRowValidity(index);
+updateAiDeckSaveState();
+}
+
+function updateAiDeckRowValidity(index) {
+let row = document.querySelector(`[data-ai-deck-row="${index}"]`);
+let word = generatedAiDeckWords[index];
+if (!row || !word) return;
+row.classList.toggle("aiDeckItem--invalid", word.selected !== false && (!cleanAiDeckValue(word.eng) || !cleanAiDeckValue(word.vie)));
+}
+
+function removeGeneratedAiDeckWord(index) {
+generatedAiDeckWords.splice(index, 1);
+renderAiDeckList();
+setAiDeckStatus(generatedAiDeckWords.length ? `${generatedAiDeckWords.length} generated words ready to review.` : "No generated words yet.", generatedAiDeckWords.length ? "info" : "warn");
+}
+
 function selectedAiDeckWords() {
-return [...document.querySelectorAll("[data-ai-deck-index]:checked")]
-.map(input => generatedAiDeckWords[Number(input.dataset.aiDeckIndex)])
+return generatedAiDeckWords
+.filter(word => word?.selected !== false)
+.map(word => normalizeWord({
+...word,
+eng: cleanAiDeckValue(word.eng),
+vie: cleanAiDeckValue(word.vie),
+pos: cleanAiDeckValue(word.pos) || "n",
+tag: cleanAiDeckValue(word.tag) || "ai-deck",
+level: cleanAiDeckValue(word.level) || "A2"
+}))
 .filter(Boolean);
 }
 
 function updateAiDeckSaveState() {
 let saveBtn = document.getElementById("aiDeckSaveBtn");
-if (saveBtn) saveBtn.disabled = selectedAiDeckWords().length === 0;
+let selectAllBtn = document.getElementById("aiDeckSelectAllBtn");
+let deselectAllBtn = document.getElementById("aiDeckDeselectAllBtn");
+let hasRows = generatedAiDeckWords.length > 0;
+let selectedCount = generatedAiDeckWords.filter(word => word?.selected !== false).length;
+generatedAiDeckWords.forEach((_, index) => updateAiDeckRowValidity(index));
+if (saveBtn) saveBtn.disabled = selectedCount === 0;
+if (selectAllBtn) selectAllBtn.disabled = !hasRows || selectedCount === generatedAiDeckWords.length;
+if (deselectAllBtn) deselectAllBtn.disabled = !hasRows || selectedCount === 0;
+}
+
+function setAiDeckSelection(selected) {
+generatedAiDeckWords = generatedAiDeckWords.map(word => ({ ...word, selected }));
+renderAiDeckList();
+setAiDeckStatus(selected ? "All generated words selected." : "All generated words deselected.", "info");
+}
+
+function validateAiDeckSelection() {
+let selected = selectedAiDeckWords();
+if (!selected.length) {
+return { words: [], message: "Select at least one generated word to save." };
+}
+
+let invalid = selected.find(word => !word.eng || !word.vie);
+if (invalid) {
+return { words: [], message: "English and Vietnamese meaning are required for every selected word." };
+}
+
+return { words: selected, message: "" };
 }
 
 async function generateAiDeck() {
@@ -431,9 +556,10 @@ renderAiDeckList();
 }
 
 function saveSelectedAiDeckWords() {
-let selected = selectedAiDeckWords();
+let validation = validateAiDeckSelection();
+let selected = validation.words;
 if (!selected.length) {
-setAiDeckStatus("Select at least one generated word to save.", "warn");
+setAiDeckStatus(validation.message || "Select at least one generated word to save.", "warn");
 return;
 }
 
@@ -589,6 +715,8 @@ document.getElementById("startFocusBtn")?.addEventListener("click", startFocus);
 document.getElementById("aiDeckGenerateBtn")?.addEventListener("click", generateAiDeck);
 document.getElementById("aiDeckClearBtn")?.addEventListener("click", clearAiDeck);
 document.getElementById("aiDeckSaveBtn")?.addEventListener("click", saveSelectedAiDeckWords);
+document.getElementById("aiDeckSelectAllBtn")?.addEventListener("click", () => setAiDeckSelection(true));
+document.getElementById("aiDeckDeselectAllBtn")?.addEventListener("click", () => setAiDeckSelection(false));
 document.getElementById("csvPickBtn")?.addEventListener("click", () => document.getElementById("csvImportFile")?.click());
 document.getElementById("csvTemplateBtn")?.addEventListener("click", downloadCsvTemplate);
 document.getElementById("csvImportFile")?.addEventListener("change", event => {
