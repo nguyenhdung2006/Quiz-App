@@ -55,6 +55,9 @@ variables in the hosting platform.
 | `CORS_ALLOWED_ORIGINS` | Optional | Comma-separated frontend origins. Defaults to `FRONTEND_URL` or local origins. |
 | `OAUTH_SUCCESS_REDIRECT_URI` | Optional | Override success redirect if needed. |
 | `OAUTH_LOGOUT_REDIRECT_URI` | Optional | Override logout redirect if needed. |
+| `SESSION_COOKIE_SAME_SITE` | Production yes | Use `none` for Vercel frontend + Render backend. Local default is `lax`. |
+| `SESSION_COOKIE_SECURE` | Production yes | Use `true` for HTTPS production. Local default is `false`. |
+| `SESSION_COOKIE_PATH` | Optional | Defaults to `/`. |
 | `OPENAI_API_KEY` | Optional | If missing, AI explain uses rule-based fallback. |
 | `AI_MODEL` | Optional | Defaults to `gpt-4.1-mini`. |
 
@@ -84,6 +87,9 @@ Set the backend environment variables:
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 FRONTEND_URL=https://YOUR_FRONTEND_DOMAIN
+CORS_ALLOWED_ORIGINS=https://YOUR_FRONTEND_DOMAIN
+SESSION_COOKIE_SAME_SITE=none
+SESSION_COOKIE_SECURE=true
 ```
 
 ## PostgreSQL Setup

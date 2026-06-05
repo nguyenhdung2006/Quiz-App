@@ -24,6 +24,14 @@ spring:
             user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
             user-name-attribute: sub
 
+server:
+  servlet:
+    session:
+      cookie:
+        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
+        secure: ${SESSION_COOKIE_SECURE:false}
+        path: ${SESSION_COOKIE_PATH:/}
+
 app:
   frontend:
     base-url: ${FRONTEND_URL:http://localhost:5500/frontend}
