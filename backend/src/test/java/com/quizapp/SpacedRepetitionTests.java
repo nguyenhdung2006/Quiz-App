@@ -92,6 +92,15 @@ class SpacedRepetitionTests {
     }
 
     @Test
+    void queueEndpointReturnsOkForLoggedInUserWithoutDueWords() throws Exception {
+        mockMvc.perform(get("/api/review/queue")
+                        .param("limit", "8")
+                        .with(oauthUser("review-empty@example.com")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()", is(0)));
+    }
+
+    @Test
     void answerEndpointUpdatesWordStats() throws Exception {
         long wordId = createWord("review-answer@example.com", "focus", "tap trung", Instant.now().minus(Duration.ofDays(1)));
 
