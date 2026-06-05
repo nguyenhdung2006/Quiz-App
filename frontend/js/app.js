@@ -1,6 +1,7 @@
 // App polish layer: preview guide, search, backup, and small UX helpers.
 (function () {
 const AUTH_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
+const REQUIRE_AUTH = window.quizIsProductionFrontend ? window.quizIsProductionFrontend() : false;
 let cloudSyncReady = false;
 let cloudSyncTimer = null;
 let applyingCloudSnapshot = false;
@@ -406,6 +407,11 @@ localStorage.setItem("quizUserProfile", JSON.stringify(profile));
 return profile;
 }
 
+function redirectToLogin() {
+let target = new URL("login.html", window.location.href);
+window.location.replace(target.href);
+}
+
 function setText(id, value) {
 let element = document.getElementById(id);
 if (element) element.textContent = value;
@@ -464,7 +470,7 @@ let profileEditorPendingAvatar = "";
 
 async function loadAuthenticatedProfile() {
 let cached = getCurrentPlayer();
-if (cached.name || cached.email || cached.avatar) {
+if (!REQUIRE_AUTH && (cached.name || cached.email || cached.avatar)) {
 applyProfile(cached);
 }
 
@@ -474,11 +480,14 @@ credentials: "include"
 });
 
 if (response.status === 401 || response.status === 403) {
-window.location.href = `${AUTH_API_ORIGIN}/oauth2/authorization/google`;
+if (REQUIRE_AUTH) redirectToLogin();
 return;
 }
 
-if (!response.ok) return;
+if (!response.ok) {
+if (REQUIRE_AUTH) redirectToLogin();
+return;
+}
 
 let profile = await response.json();
 if (profile?.authenticated) {
@@ -486,8 +495,14 @@ applyProfile(profile);
 refreshAccountData();
 cloudSyncReady = true;
 syncCloudNow();
+} else if (REQUIRE_AUTH) {
+redirectToLogin();
 }
 } catch (error) {
+if (REQUIRE_AUTH) {
+redirectToLogin();
+return;
+}
 if (sessionStorage.getItem("backendLoginWarned") !== "true") {
 toast("Backend login sync is offline. Local profile and words still work.", "warn", 3200);
 sessionStorage.setItem("backendLoginWarned", "true");
