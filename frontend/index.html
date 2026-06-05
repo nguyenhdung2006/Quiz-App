@@ -21,7 +21,7 @@
 <link rel="stylesheet" href="css/typography.css">
 <link rel="stylesheet" href="css/quiz.css">
 <link rel="stylesheet" href="css/effects.css">
-<link rel="stylesheet" href="css/modern.css?v=20260605-compact-polish">
+<link rel="stylesheet" href="css/modern.css?v=20260606-app-shell">
 
 </head>
 
@@ -47,32 +47,72 @@
 <button id="profileLogoutBtn" class="profileMenuItem profileMenuItem--danger" type="button" role="menuitem">Logout</button>
 </div>
 </div>
-<div class="utilityBar">
-<button class="utilityBtn" id="previewBtn" type="button">Preview</button>
-<button class="utilityBtn" id="exportBtn" type="button">Export</button>
-<button class="utilityBtn" id="importBtn" type="button">Import</button>
-<button class="utilityBtn" id="sampleImportBtn" type="button">Samples</button>
-<button class="utilityBtn" id="studioBtn" type="button">Studio</button>
-<button class="utilityBtn" id="aiDeckBtn" type="button">AI Deck</button>
-<button class="utilityBtn" id="analyticsBtn" type="button">Analytics</button>
+<aside class="utilityBar appSidebar" aria-label="WordArena navigation">
+<div class="sidebarBrand">
+<span class="brandMark">WA</span>
+<div>
+<strong>WordArena</strong>
+<small>AI vocabulary lab</small>
+</div>
+</div>
+<div class="sidebarGroup">
+<span class="sidebarLabel">Workspace</span>
+<button class="utilityBtn appNavBtn is-active" type="button" data-app-page="dashboard">Dashboard</button>
+<button class="utilityBtn appNavBtn" type="button" data-app-page="vocabulary">Vocabulary</button>
+<button class="utilityBtn appNavBtn" type="button" data-app-page="review">Review</button>
+<button class="utilityBtn appNavBtn" type="button" data-app-page="aiDeck">AI Deck</button>
+<button class="utilityBtn appNavBtn" id="analyticsBtn" type="button" data-app-page="analytics">Analytics</button>
+<button class="utilityBtn appNavBtn" type="button" data-app-page="studio">Studio</button>
+</div>
+<div class="sidebarGroup sidebarGroup--actions">
+<span class="sidebarLabel">Tools</span>
+<button class="miniBtn" id="previewBtn" type="button">How it works</button>
+<button class="miniBtn" id="exportBtn" type="button">Export Backup</button>
+<button class="miniBtn" id="importBtn" type="button">Import JSON</button>
+<button class="miniBtn" id="sampleImportBtn" type="button">Starter Samples</button>
 <button class="utilityBtn themeToggle" type="button" data-theme-toggle aria-pressed="true">
 <span aria-hidden="true">Theme</span>
 <strong data-theme-label>Dark</strong>
 </button>
+</div>
 <input id="importFile" type="file" accept="application/json,.json" hidden>
 <input id="csvImportFile" type="file" accept=".csv,text/csv" hidden>
-</div>
+</aside>
 
-<header class="heroPanel">
+<header class="appTopbar">
+<div class="appTopbarTitle">
+<span id="appPageEyebrow">Workspace</span>
+<strong id="appPageTitle">Dashboard</strong>
+</div>
+<div class="appTopbarStatus" aria-live="polite"></div>
+</header>
+
+<main class="appMain">
+
+<header class="heroPanel" data-app-page-panel="dashboard">
 <div class="heroEyebrow">Private vocabulary trainer</div>
-<h1>Vocabulary Quiz</h1>
-<p>Build your word list, play fast quiz rounds, and turn mistakes into mastery.</p>
+<h1>WordArena</h1>
+<p>Generate decks, quiz smarter, review on schedule, and sync your vocabulary system across devices.</p>
 </header>
 
 <!-- HOME SCREEN -->
 <div id="home">
 
-<section class="dashboardPanel">
+<section class="todayFocusPanel" data-app-page-panel="dashboard" aria-label="Today focus">
+<div>
+<span class="heroEyebrow">Today</span>
+<h2>Continue Learning</h2>
+<p>Start with due reviews, then add a small deck or run a quick mixed quiz.</p>
+</div>
+<div class="todayFocusActions">
+<button class="utilityBtn appQuickAction" type="button" data-app-page="review">Review Due Words</button>
+<button class="miniBtn appQuickAction" type="button" data-app-page="aiDeck">Generate AI Deck</button>
+<button class="miniBtn appQuickAction" type="button" data-app-page="vocabulary">Add Vocabulary</button>
+<button class="miniBtn appQuickAction" type="button" onclick="startQuiz()">Start Quiz</button>
+</div>
+</section>
+
+<section class="dashboardPanel" data-app-page-panel="dashboard">
 <div class="dashCard">
 <span class="dashLabel">Words</span>
 <strong id="totalWordsTop">0</strong>
@@ -95,7 +135,7 @@
 </div>
 </section>
 
-<section class="playerHub" aria-label="Profile and leaderboard">
+<section class="playerHub" aria-label="Profile and leaderboard" data-app-page-panel="dashboard">
 <article class="profilePanel">
 <div class="profileTop">
 <img id="profileAvatarLarge" src="images/icon.png" alt="" class="profileAvatar">
@@ -122,8 +162,8 @@
 
 <article class="leaderboardPanel">
 <div class="leaderboardHead">
-<span class="heroEyebrow">Leaderboard</span>
-<h2>Weekly Progress</h2>
+<span class="heroEyebrow">Snapshot</span>
+<h2>Weekly Momentum</h2>
 </div>
 <div class="leaderboardTabs" aria-label="Leaderboard categories">
 <span>XP</span>
@@ -135,7 +175,7 @@
 </article>
 </section>
 
-<section class="reviewTodayPanel" id="reviewTodayPanel" aria-label="Review today">
+<section class="reviewTodayPanel" id="reviewTodayPanel" aria-label="Review today" data-app-page-panel="review">
 <div class="reviewTodayHead">
 <div>
 <span class="heroEyebrow">Spaced Repetition</span>
@@ -145,14 +185,21 @@
 <button class="utilityBtn" id="reviewTodayStartBtn" type="button">Start Review</button>
 </div>
 <div class="reviewTodayBody" id="reviewTodayBody">
-<p class="emptyStudio">Due words will appear here when their next review time arrives.</p>
+<p class="emptyStudio">You're fully reviewed today. Khi có từ đến lịch ôn, chúng sẽ xuất hiện ở đây.</p>
 </div>
 </section>
 
-<section class="analyticsDashboard" id="analyticsDashboard" aria-label="Learning analytics">
+<section class="analyticsDashboard" id="analyticsDashboard" aria-label="Learning analytics" data-app-page-panel="analytics">
 <div class="sectionHeader sectionHeader--analytics">
 <span class="heroEyebrow">Analytics</span>
 <h2>Learning Dashboard</h2>
+<p>Scan weak words first, then use review pressure and accuracy trend to decide the next study block.</p>
+</div>
+
+<div class="analyticsHero">
+<span class="heroEyebrow">Priority</span>
+<h3>Use data to choose the next review, not to stare at charts.</h3>
+<p>Tap into weak words, due reviews, tag performance, and streak data to keep each study session focused.</p>
 </div>
 
 <div class="analyticsOverviewGrid">
@@ -209,7 +256,30 @@
 </article>
 </section>
 
-<section class="learningStudioStrip" aria-label="Learning studio shortcuts">
+<section class="aiDeckWorkspace" aria-label="AI Deck generator" data-app-page-panel="aiDeck">
+<div class="sectionHeader">
+<span class="heroEyebrow">AI Deck</span>
+<h2>Generate, edit, and save vocabulary</h2>
+<p>Paste English text, let AI extract useful words, then edit each generated entry before saving it to your deck.</p>
+</div>
+<div class="aiDeckWorkspaceGrid">
+<article class="studioShortcut">
+<span>Paste English content</span>
+<strong>Articles, lesson notes, transcripts, or reading passages.</strong>
+</article>
+<article class="studioShortcut">
+<span>Edit before saving</span>
+<strong>Change English, Vietnamese, POS, tags, and CEFR level.</strong>
+</article>
+<article class="studioShortcut">
+<span>Sync after login</span>
+<strong>Saved words join your cloud vocabulary system.</strong>
+</article>
+</div>
+<button class="utilityBtn" id="aiDeckBtn" type="button">Open AI Deck Generator</button>
+</section>
+
+<section class="learningStudioStrip" aria-label="Learning studio shortcuts" data-app-page-panel="studio">
 <button class="studioShortcut" type="button" data-studio-tab="profile">
 <span>Profile</span>
 <strong>Calendar, goal, pace</strong>
@@ -236,13 +306,22 @@
 </button>
 </section>
 
+<section class="studioWorkspace" data-app-page-panel="studio">
 <div class="sectionHeader">
+<span class="heroEyebrow">Learning Tools</span>
+<h2>Profile, decks, history, and imports</h2>
+<p>Studio groups the supporting tools: profile progress, badges, focus mode, topic decks, CSV import, and history.</p>
+</div>
+<button class="utilityBtn" id="studioBtn" type="button">Open Learning Studio</button>
+</section>
+
+<div class="sectionHeader" data-app-page-panel="vocabulary">
 <span class="heroEyebrow">Vocabulary</span>
 <h2>Add Word</h2>
 <p>Capture vocabulary with context, tags, and notes in one fast flow.</p>
 </div>
 
-<div class="addWordBox">
+<div class="addWordBox" data-app-page-panel="vocabulary">
 
 <label class="formField formField--primary">
 <span>English</span>
@@ -354,14 +433,14 @@
 
 </div>
 
-<h3 class="wordCountLine">Total words: <span id="totalWords">0</span></h3>
+<h3 class="wordCountLine" data-app-page-panel="vocabulary">Total words: <span id="totalWords">0</span></h3>
 
-<div class="sectionHeader sectionHeader--table">
+<div class="sectionHeader sectionHeader--table" data-app-page-panel="vocabulary">
 <span class="heroEyebrow">Word Bank</span>
 <h2>Vocabulary Table</h2>
 </div>
 
-<div class="tableTools">
+<div class="tableTools" data-app-page-panel="vocabulary">
 <label class="searchBox" for="vocabSearch">
 <span>Search</span>
 <input id="vocabSearch" placeholder="Find word, meaning, topic, CEFR, IELTS, note">
@@ -401,7 +480,7 @@
 <button class="miniBtn" id="clearSearch" type="button">Clear</button>
 </div>
 
-<div class="table-container">
+<div class="table-container" data-app-page-panel="vocabulary">
 
 <table>
 
@@ -421,7 +500,7 @@
 
 </div>
 
-<div class="quizOptions">
+<div class="quizOptions" data-app-page-panel="dashboard">
 
 <div class="quizBlock">
 
@@ -470,7 +549,7 @@
 
 </div>
 
-<div class="practiceActions">
+<div class="practiceActions" data-app-page-panel="dashboard">
 
 <button class="bigBtn startBtn" onclick="startQuiz()">Start Quiz</button>
 <button class="bigBtn wrongBtn" onclick="openMistakeScreen()">Practice Wrong Words</button>
@@ -601,6 +680,8 @@
 
 </div>
 
+</main>
+
 <!-- THINK HELPER -->
 <div id="think-helper">
 
@@ -620,14 +701,14 @@ Hmm... choose one before moving on!
 <span class="heroEyebrow">Product Flow</span>
 <h2 id="previewTitle">How WordArena works</h2>
 </div>
-<p>From English content to a personal review system: AI deck generation, quiz practice, spaced repetition, analytics, and cloud sync.</p>
+<p>Từ một đoạn tiếng Anh thành hệ thống học từ cá nhân: AI Deck, quiz, AI Explain, spaced repetition, analytics, và cloud sync.</p>
 </div>
 
 <div class="previewGrid">
 <section class="previewCard previewCard--flow">
 <span class="previewStep">01</span>
 <h3>Paste or import English content</h3>
-<p>Dán bài đọc, lesson note, transcript, hoặc import deck. AI Deck extracts useful vocabulary for review.</p>
+<p>Dán bài đọc, lesson note, transcript, hoặc import deck. AI Deck sẽ tách các từ hữu ích để bạn xem lại trước khi lưu.</p>
 <ul class="previewFeatureList">
 <li>Paste text</li>
 <li>AI vocabulary extraction</li>
@@ -638,7 +719,7 @@ Hmm... choose one before moving on!
 <section class="previewCard previewCard--flow">
 <span class="previewStep">02</span>
 <h3>Learn with AI support</h3>
-<p>Quiz vocabulary, then use AI Explain when an answer is wrong. Get examples, memory tips, collocations, and common mistakes.</p>
+<p>Luyện quiz với từ vựng đã lưu. Khi sai, AI Explain giúp giải thích lý do, đưa ví dụ, memory tip, collocation, và lỗi thường gặp.</p>
 <ul class="previewFeatureList">
 <li>Quiz modes</li>
 <li>Wrong-answer explanation</li>
@@ -649,7 +730,7 @@ Hmm... choose one before moving on!
 <section class="previewCard previewCard--flow">
 <span class="previewStep">03</span>
 <h3>Review at the right time</h3>
-<p>Spaced repetition keeps the due-today queue clear. Review words with Again / Got It actions.</p>
+<p>Spaced repetition đưa từ vào hàng đợi đúng thời điểm. Bạn chỉ cần xử lý Review Today với Again hoặc Got It.</p>
 <ul class="previewFeatureList">
 <li>Due Today</li>
 <li>Review queue</li>
@@ -660,7 +741,7 @@ Hmm... choose one before moving on!
 <section class="previewCard previewCard--flow">
 <span class="previewStep">04</span>
 <h3>Track progress</h3>
-<p>See accuracy, XP, streak, mastery, weak words, weak tags, and review pressure in one learning dashboard.</p>
+<p>Theo dõi accuracy, XP, streak, mastery, weak words, weak tags, và review pressure để biết nên học gì tiếp theo.</p>
 <ul class="previewFeatureList">
 <li>Accuracy trend</li>
 <li>XP and streak</li>
@@ -671,7 +752,7 @@ Hmm... choose one before moving on!
 <section class="previewCard previewCard--flow previewCard--wide">
 <span class="previewStep">05</span>
 <h3>Build your own vocabulary system</h3>
-<p>Save words, edit AI-generated entries, organize tags/levels, and sync across localhost, Vercel, and devices after Google login.</p>
+<p>Lưu từ, sửa các từ AI tạo ra, gắn tag/level, và đồng bộ giữa localhost, Vercel, hoặc thiết bị khác sau khi login Google.</p>
 <ul class="previewFeatureList">
 <li>Edit generated words</li>
 <li>Personal word bank</li>
@@ -693,8 +774,8 @@ Hmm... choose one before moving on!
 </div>
 
 <div class="previewNotes">
-<p><strong>Designed for Vietnamese learners:</strong> English examples stay clear, while Vietnamese meaning and correction flow help you review faster.</p>
-<p><strong>Best daily loop:</strong> generate a small deck, edit the words, play a mixed quiz, then clear the Review Today queue.</p>
+<p><strong>Designed for Vietnamese learners:</strong> ví dụ tiếng Anh giữ ngắn gọn, phần nghĩa và giải thích bằng tiếng Việt để ôn nhanh hơn.</p>
+<p><strong>Best daily loop:</strong> tạo một deck nhỏ, sửa từ cần thiết, làm mixed quiz, rồi dọn hàng đợi Review Today.</p>
 </div>
 </div>
 </div>

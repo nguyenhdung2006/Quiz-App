@@ -227,8 +227,8 @@ if (!reviewQueue.length) {
 let empty = document.createElement("p");
 empty.className = "emptyStudio";
 empty.textContent = reviewSource === "Cloud"
-? "No cloud review words are due right now."
-: "Due words will appear here when their next review time arrives.";
+? "You're fully reviewed today. Khi có từ cloud đến lịch ôn, chúng sẽ xuất hiện ở đây."
+: "You're fully reviewed today. Khi có từ đến lịch ôn, chúng sẽ xuất hiện ở đây.";
 host.appendChild(empty);
 return;
 }

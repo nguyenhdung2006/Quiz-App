@@ -3,8 +3,8 @@
   --surface: rgba(12, 18, 34, 0.72);
   --surface-strong: rgba(15, 24, 45, 0.9);
   --surface-soft: rgba(255, 255, 255, 0.08);
-  --line: rgba(158, 241, 255, 0.26);
-  --line-strong: rgba(158, 241, 255, 0.48);
+  --line: rgba(158, 241, 255, 0.18);
+  --line-strong: rgba(158, 241, 255, 0.34);
   --text: #f7fbff;
   --text-muted: rgba(224, 240, 255, 0.74);
   --cyan: #18e9ff;
@@ -14,19 +14,19 @@
   --yellow: #ffe36e;
   --danger: #ff5f7e;
   --radius: 8px;
-  --shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
-  --shadow-soft: 0 14px 36px rgba(0, 0, 0, 0.34);
-  --glow-cyan: 0 0 28px rgba(24, 233, 255, 0.24);
-  --glow-pink: 0 0 26px rgba(255, 106, 213, 0.2);
+  --shadow: 0 20px 54px rgba(0, 0, 0, 0.42);
+  --shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.28);
+  --glow-cyan: 0 0 18px rgba(24, 233, 255, 0.14);
+  --glow-pink: 0 0 16px rgba(255, 106, 213, 0.12);
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
   --space-6: 32px;
-  --glow-low: 0 0 16px rgba(24, 233, 255, 0.14);
-  --glow-mid: 0 0 24px rgba(24, 233, 255, 0.22);
-  --glow-high: 0 0 34px rgba(24, 233, 255, 0.34);
+  --glow-low: 0 0 12px rgba(24, 233, 255, 0.1);
+  --glow-mid: 0 0 18px rgba(24, 233, 255, 0.14);
+  --glow-high: 0 0 24px rgba(24, 233, 255, 0.2);
 }
 
 html[data-theme="light"] {
@@ -70,8 +70,8 @@ body {
   padding: 10px 18px 40px;
   color: var(--text);
   background:
-    linear-gradient(180deg, rgba(5, 7, 19, 0.86), rgba(5, 7, 19, 0.62) 44%, rgba(5, 7, 19, 0.94)),
-    linear-gradient(115deg, rgba(24, 233, 255, 0.08), transparent 34%, rgba(255, 106, 213, 0.07) 70%, rgba(93, 242, 162, 0.05)),
+    linear-gradient(180deg, rgba(5, 7, 19, 0.92), rgba(5, 7, 19, 0.72) 44%, rgba(5, 7, 19, 0.96)),
+    linear-gradient(115deg, rgba(24, 233, 255, 0.055), transparent 34%, rgba(255, 106, 213, 0.045) 70%, rgba(93, 242, 162, 0.035)),
     url("../images/quiz.jpg") center top / cover fixed no-repeat;
   font-family: "Segoe UI", Arial, sans-serif;
   text-align: center;
@@ -89,7 +89,7 @@ body::before {
     linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
     linear-gradient(110deg, transparent 0%, rgba(24, 233, 255, 0.07) 46%, rgba(255, 255, 255, 0.07) 50%, transparent 58%);
   background-size: 56px 56px, 56px 56px, 100% 100%;
-  opacity: 0.38;
+  opacity: 0.24;
   animation: ambientSweep 18s ease-in-out infinite alternate;
 }
 
@@ -594,14 +594,175 @@ body::before {
   border-color: rgba(255, 204, 102, 0.34);
 }
 
+.appSidebar {
+  position: fixed;
+  top: 16px;
+  bottom: 16px;
+  left: 16px;
+  z-index: 8600;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 224px;
+  max-width: none;
+  margin: 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(7, 12, 26, 0.86);
+  box-shadow: var(--shadow-soft);
+}
+
+.sidebarBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 14px;
+  color: white;
+  text-align: left;
+}
+
+.brandMark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(158, 241, 255, 0.26);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(24, 233, 255, 0.22), rgba(255, 106, 213, 0.16));
+  color: #d8feff;
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.sidebarBrand strong,
+.sidebarBrand small {
+  display: block;
+}
+
+.sidebarBrand strong {
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.sidebarBrand small,
+.sidebarLabel {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.sidebarGroup {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(158, 241, 255, 0.12);
+}
+
+.sidebarGroup--actions {
+  margin-top: auto;
+}
+
+.appSidebar .utilityBtn,
+.appSidebar .miniBtn {
+  justify-content: flex-start;
+  width: 100%;
+  min-width: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+}
+
+.appSidebar .utilityBtn:hover,
+.appSidebar .miniBtn:hover,
+.appSidebar .appNavBtn.is-active {
+  border-color: rgba(24, 233, 255, 0.42);
+  background: linear-gradient(135deg, rgba(24, 233, 255, 0.18), rgba(255, 106, 213, 0.11));
+  transform: translateY(-1px);
+}
+
+.appSidebar .appNavBtn.is-active {
+  box-shadow: inset 3px 0 0 rgba(24, 233, 255, 0.68);
+}
+
+.appTopbar {
+  position: fixed;
+  top: 16px;
+  right: 220px;
+  left: 256px;
+  z-index: 8400;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 54px;
+  padding: 9px 14px;
+  border: 1px solid rgba(158, 241, 255, 0.18);
+  border-radius: 14px;
+  background: rgba(7, 12, 26, 0.76);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-soft);
+}
+
+.appTopbarTitle {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+.appTopbarTitle span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.appTopbarTitle strong {
+  color: white;
+  font-size: 1.12rem;
+}
+
+.appTopbarStatus {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.appMain {
+  width: min(1180px, calc(100vw - 292px));
+  margin-left: 248px;
+  padding-top: 68px;
+}
+
+.appMain #home,
+.appMain .heroPanel,
+.appMain #mistakeScreen,
+.appMain #reviewScreen,
+.appMain #quizScreen,
+.appMain #resultScreen {
+  width: min(1180px, 100%);
+}
+
+.homeBtn {
+  display: none;
+}
+
+body:not([data-app-page]) #home [data-app-page-panel]:not([data-app-page-panel="dashboard"]),
+body:not([data-app-page]) .heroPanel[data-app-page-panel]:not([data-app-page-panel="dashboard"]),
+body[data-app-page] #home [data-app-page-panel]:not(.is-active-page),
+body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
+  display: none !important;
+}
+
 #home {
   display: grid;
   gap: 16px;
 }
 
 .dashboardPanel,
+.todayFocusPanel,
 .playerHub,
 .learningStudioStrip,
+.aiDeckWorkspace,
+.studioWorkspace,
 .sectionHeader,
 .addWordBox,
 .tableTools,
@@ -619,6 +780,51 @@ body::before {
   gap: 12px;
 }
 
+.todayFocusPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 18px;
+  border: 1px solid rgba(158, 241, 255, 0.2);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(24, 233, 255, 0.12), rgba(255, 106, 213, 0.07)),
+    rgba(8, 14, 29, 0.88);
+  color: var(--text);
+  text-align: left;
+  box-shadow: var(--shadow-soft);
+}
+
+.todayFocusPanel h2 {
+  margin: 8px 0 6px;
+  color: white;
+  font-size: clamp(1.65rem, 3vw, 2.2rem);
+  line-height: 1;
+}
+
+.todayFocusPanel p {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 650;
+}
+
+.todayFocusActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.appQuickAction {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.todayFocusPanel .utilityBtn,
+.todayFocusPanel .miniBtn {
+  justify-content: center;
+}
+
 .dashCard,
 .profilePanel,
 .leaderboardPanel,
@@ -633,12 +839,12 @@ body::before {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03)),
-    rgba(9, 14, 30, 0.9);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.025)),
+    rgba(9, 14, 30, 0.92);
   color: var(--text);
   backdrop-filter: blur(18px) saturate(1.15);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.075),
     var(--shadow-soft);
 }
 
@@ -847,6 +1053,14 @@ body::before {
   gap: 10px;
 }
 
+.reviewTodayBody .emptyStudio {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed rgba(158, 241, 255, 0.22);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.045);
+}
+
 .reviewQueueItem {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -904,6 +1118,34 @@ body::before {
 .sectionHeader--analytics {
   margin-bottom: 0;
   padding-top: 2px;
+}
+
+.analyticsHero {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border: 1px solid rgba(158, 241, 255, 0.2);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(93, 242, 162, 0.1), rgba(24, 233, 255, 0.075), rgba(255, 106, 213, 0.055)),
+    rgba(8, 14, 29, 0.78);
+  text-align: left;
+  box-shadow: var(--shadow-soft);
+}
+
+.analyticsHero h3 {
+  margin: 0;
+  color: white;
+  font-size: clamp(1.22rem, 2vw, 1.55rem);
+  line-height: 1.15;
+}
+
+.analyticsHero p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .analyticsOverviewGrid {
@@ -1177,6 +1419,35 @@ body::before {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
+}
+
+.aiDeckWorkspace,
+.studioWorkspace {
+  display: grid;
+  gap: 14px;
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.03)),
+    rgba(9, 14, 30, 0.9);
+  color: var(--text);
+  text-align: left;
+  backdrop-filter: blur(18px) saturate(1.15);
+  box-shadow: var(--shadow-soft);
+}
+
+.aiDeckWorkspaceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.aiDeckWorkspace > .utilityBtn,
+.studioWorkspace > .utilityBtn {
+  width: fit-content;
 }
 
 .studioShortcut {
@@ -3317,6 +3588,7 @@ html[data-theme="light"] body::before {
 }
 
 html[data-theme="light"] .heroPanel,
+html[data-theme="light"] .todayFocusPanel,
 html[data-theme="light"] .dashCard,
 html[data-theme="light"] .profilePanel,
 html[data-theme="light"] .leaderboardPanel,
@@ -3331,6 +3603,9 @@ html[data-theme="light"] .reviewCard,
 html[data-theme="light"] .reviewTodayPanel,
 html[data-theme="light"] .analyticsMetric,
 html[data-theme="light"] .analyticsPanel,
+html[data-theme="light"] .analyticsHero,
+html[data-theme="light"] .aiDeckWorkspace,
+html[data-theme="light"] .studioWorkspace,
 html[data-theme="light"] .studioPanel,
 html[data-theme="light"] .profileEditorPanel,
 html[data-theme="light"] .previewPanel,
@@ -3347,6 +3622,8 @@ html[data-theme="light"] .profileMenu {
 
 html[data-theme="light"] .heroPanel h1,
 html[data-theme="light"] .heroPanel p,
+html[data-theme="light"] .todayFocusPanel h2,
+html[data-theme="light"] .analyticsHero h3,
 html[data-theme="light"] .dashCard strong,
 html[data-theme="light"] .profilePanel h2,
 html[data-theme="light"] .leaderboardPanel h2,
@@ -3363,6 +3640,8 @@ html[data-theme="light"] .reviewCard h3,
 html[data-theme="light"] .resultCard h2,
 html[data-theme="light"] .profileMenu strong,
 html[data-theme="light"] .profileMenuItem,
+html[data-theme="light"] .sidebarBrand strong,
+html[data-theme="light"] .appTopbarTitle strong,
 html[data-theme="light"] .studioPanel h2,
 html[data-theme="light"] .studioPanel h3,
 html[data-theme="light"] .studioPanel h4,
@@ -3386,11 +3665,15 @@ html[data-theme="light"] .insightCard span,
 html[data-theme="light"] .reviewQueueMeta,
 html[data-theme="light"] .reviewFeedback span,
 html[data-theme="light"] .emptyStudio,
+html[data-theme="light"] .todayFocusPanel p,
+html[data-theme="light"] .analyticsHero p,
 html[data-theme="light"] .profileMenu span {
   color: var(--text-muted);
 }
 
 html[data-theme="light"] .utilityBar,
+html[data-theme="light"] .appSidebar,
+html[data-theme="light"] .appTopbar,
 html[data-theme="light"] .authCluster,
 html[data-theme="light"] .profileTrigger,
 html[data-theme="light"] .utilityBtn,
@@ -3426,6 +3709,7 @@ html[data-theme="light"] .profileFormField textarea::placeholder {
 
 html[data-theme="light"] .leaderboardList li,
 html[data-theme="light"] .reviewQueueItem,
+html[data-theme="light"] .reviewTodayBody .emptyStudio,
 html[data-theme="light"] .weakWordRow,
 html[data-theme="light"] .performanceRow,
 html[data-theme="light"] .insightCard,
@@ -3479,6 +3763,7 @@ html[data-theme="light"] .selected {
 }
 
 @media (max-width: 1180px) {
+  .todayFocusPanel,
   .playerHub,
   .studioGrid--profile,
   .quizOptions,
@@ -3486,6 +3771,10 @@ html[data-theme="light"] .selected {
   .analyticsMainGrid--lower,
   .performanceGrid {
     grid-template-columns: 1fr;
+  }
+
+  .todayFocusActions {
+    width: 100%;
   }
 
   .analyticsOverviewGrid {
@@ -3607,6 +3896,60 @@ html[data-theme="light"] .selected {
     transform: none;
   }
 
+  .appSidebar {
+    position: sticky;
+    bottom: auto;
+    z-index: 8600;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .sidebarBrand {
+    display: none;
+  }
+
+  .sidebarGroup {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    border-top: 0;
+    padding: 0;
+  }
+
+  .sidebarGroup--actions {
+    margin-top: 0;
+    margin-left: auto;
+  }
+
+  .sidebarLabel {
+    display: none;
+  }
+
+  .appSidebar .utilityBtn,
+  .appSidebar .miniBtn {
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .appTopbar {
+    position: sticky;
+    top: 8px;
+    right: auto;
+    left: auto;
+    z-index: 8300;
+    margin: 8px 0 10px;
+  }
+
+  .appMain {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 0;
+  }
+
   .heroPanel {
     min-height: 154px;
     margin-top: 14px;
@@ -3619,10 +3962,13 @@ html[data-theme="light"] .selected {
   }
 
   .dashboardPanel,
+  .todayFocusPanel,
   .playerHub,
   .learningStudioStrip,
+  .aiDeckWorkspaceGrid,
   .reviewTodayPanel,
   .analyticsDashboard,
+  .analyticsHero,
   .analyticsOverviewGrid,
   .addWordBox,
   .learningDetailsGrid,
@@ -3676,6 +4022,28 @@ html[data-theme="light"] .selected {
 }
 
 @media (max-width: 620px) {
+  .appSidebar {
+    align-items: stretch;
+  }
+
+  .sidebarGroup {
+    gap: 5px;
+  }
+
+  .sidebarGroup--actions {
+    margin-left: 0;
+  }
+
+  .appTopbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .appTopbarStatus {
+    justify-content: flex-start;
+  }
+
   .utilityBtn,
   .miniBtn,
   .syncStatus {
@@ -3691,6 +4059,18 @@ html[data-theme="light"] .selected {
 
   .heroPanel h1 {
     font-size: 2.05rem;
+  }
+
+  .todayFocusPanel {
+    padding: 14px;
+  }
+
+  .todayFocusPanel h2 {
+    font-size: 1.55rem;
+  }
+
+  .todayFocusActions {
+    grid-template-columns: 1fr;
   }
 
   .heroPanel p {

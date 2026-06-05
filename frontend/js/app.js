@@ -43,14 +43,14 @@ function ensureSyncStatus() {
 let existing = document.getElementById("cloudSyncStatus");
 if (existing) return existing;
 
-let utilityBar = document.querySelector(".utilityBar");
-if (!utilityBar) return null;
+let host = document.querySelector(".appTopbarStatus") || document.querySelector(".utilityBar");
+if (!host) return null;
 
 let status = document.createElement("span");
 status.id = "cloudSyncStatus";
 status.className = "syncStatus syncStatus--local";
 status.textContent = "Offline/local mode";
-utilityBar.appendChild(status);
+host.appendChild(status);
 return status;
 }
 
@@ -553,6 +553,54 @@ let target = new URL("login.html", window.location.href);
 window.location.replace(target.href);
 }
 
+const APP_PAGE_LABELS = {
+dashboard: { eyebrow: "Workspace", title: "Dashboard" },
+vocabulary: { eyebrow: "Word Bank", title: "Vocabulary" },
+review: { eyebrow: "Spaced Repetition", title: "Review" },
+aiDeck: { eyebrow: "Generator", title: "AI Deck" },
+analytics: { eyebrow: "Insights", title: "Analytics" },
+studio: { eyebrow: "Learning Tools", title: "Studio" }
+};
+
+function showAppPage(page = "dashboard") {
+let nextPage = APP_PAGE_LABELS[page] ? page : "dashboard";
+document.body.dataset.appPage = nextPage;
+
+document.querySelectorAll("[data-app-page-panel]").forEach(panel => {
+panel.classList.toggle("is-active-page", panel.dataset.appPagePanel === nextPage);
+});
+
+document.querySelectorAll("[data-app-page]").forEach(button => {
+button.classList.toggle("is-active", button.dataset.appPage === nextPage);
+});
+
+let label = APP_PAGE_LABELS[nextPage];
+setText("appPageEyebrow", label.eyebrow);
+setText("appPageTitle", label.title);
+
+document.getElementById("home")?.classList.remove("hidden");
+document.getElementById("quizScreen")?.classList.add("hidden");
+document.getElementById("resultScreen")?.classList.add("hidden");
+document.getElementById("reviewScreen")?.classList.add("hidden");
+document.getElementById("mistakeScreen")?.classList.add("hidden");
+document.getElementById("challengeMenu")?.classList.add("hidden");
+document.getElementById("challengeMenu")?.classList.remove("show");
+document.querySelector(".heroPanel")?.classList.toggle("hidden", nextPage !== "dashboard");
+
+if (nextPage === "analytics") window.analyticsDashboard?.refresh?.();
+if (nextPage === "review") window.reviewToday?.refresh?.();
+window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function initAppShell() {
+document.querySelectorAll("[data-app-page]").forEach(button => {
+button.addEventListener("click", () => showAppPage(button.dataset.appPage));
+});
+showAppPage(document.body.dataset.appPage || "dashboard");
+}
+
+window.showAppPage = showAppPage;
+
 function setText(id, value) {
 let element = document.getElementById(id);
 if (element) element.textContent = value;
@@ -1026,6 +1074,7 @@ if (event.key === "Escape" && !overlay.classList.contains("hidden")) close();
 });
 }
 
+initAppShell();
 initSearch();
 initImportExport();
 initPreview();

@@ -8,6 +8,10 @@ speechSynthesis.speak(u);
 }
 
 function goHome() {
+if (typeof window.showAppPage === "function") {
+window.showAppPage("dashboard");
+return;
+}
 location.reload();
 }
 
