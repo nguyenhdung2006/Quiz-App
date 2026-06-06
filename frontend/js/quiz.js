@@ -277,10 +277,15 @@ let correctAnswer = currentMode === "eng" ? q.vie : q.eng;
 
 let questionEl = document.getElementById("question");
 let answersDiv = document.getElementById("answers");
+let feedbackEl = document.getElementById("questionFeedback");
 
 renderQuestionText(questionEl, q, index, quizData.length);
 
 answersDiv.innerHTML = "";
+if (feedbackEl) {
+feedbackEl.textContent = "";
+feedbackEl.className = "questionFeedback";
+}
 
 opts.forEach((o, i) => {
 let div = document.createElement("button");
@@ -292,12 +297,10 @@ div.innerText = (i + 1) + ". " + o;
 div.onclick = () => {
 if (answered[index]) return;
 
-document.querySelectorAll(".answer").forEach(a => a.classList.remove("selected"));
-
-div.classList.add("selected");
-
 answers[index] = o;
 selected = true;
+checkAnswer();
+loadQuestion();
 };
 
 if (answers[index] === o) {
@@ -320,6 +323,13 @@ div.classList.add("wrong");
 answersDiv.appendChild(div);
 });
 
+if (answered[index] && feedbackEl) {
+let picked = answers[index];
+let isCorrect = picked === correctAnswer;
+feedbackEl.textContent = isCorrect ? "Correct!" : `Wrong. Correct answer: ${correctAnswer}`;
+feedbackEl.classList.add(isCorrect ? "questionFeedback--correct" : "questionFeedback--wrong");
+}
+
 if (index === quizData.length - 1) {
 submitBtn.style.display = "inline-block";
 nextBtn.style.display = "none";
@@ -328,7 +338,7 @@ submitBtn.style.display = "none";
 nextBtn.style.display = "inline-block";
 }
 
-backBtn.style.display = index === 0 ? "none" : "inline-block";
+backBtn.style.display = index === 0 || isChallengeMode ? "none" : "inline-block";
 
 if (autoSpeak) {
 speak(q.eng);
@@ -342,6 +352,7 @@ startQuestionTimer();
 
 function checkAnswer() {
 if (answered[index]) return;
+if (isChallengeMode) clearInterval(questionTimer);
 
 let q = quizData[index].word;
 let selectedAnswer = answers[index];

@@ -25,7 +25,7 @@ window.WORD_ARENA_CURATED_DECKS = [
 { topic: "travel", eng: "departure", vie: "khởi hành", pos: "n", level: "A2", tag: "travel", example: "The departure time is seven thirty.", note: "Curated local Travel A2 seed" },
 { topic: "travel", eng: "destination", vie: "điểm đến", pos: "n", level: "A2", tag: "travel", example: "Da Nang is our next destination.", note: "Curated local Travel A2 seed" },
 { topic: "travel", eng: "luggage", vie: "hành lý", pos: "n", level: "A2", tag: "travel", example: "Please keep your luggage with you.", note: "Curated local Travel A2 seed" },
-{ topic: "travel", eng: "itinerary", vie: "lịch trình", pos: "n", level: "A2", tag: "travel", example: "The itinerary includes a museum visit.", note: "Curated local Travel A2 seed" },
+{ topic: "travel", eng: "suitcase", vie: "chiếc va li", pos: "n", level: "A2", tag: "travel", example: "My suitcase is too heavy for the bus.", note: "Curated local Travel A2 seed" },
 { topic: "travel", eng: "souvenir", vie: "quà lưu niệm", pos: "n", level: "A2", tag: "travel", example: "I bought a small souvenir at the market.", note: "Curated local Travel A2 seed" },
 { topic: "travel", eng: "passport", vie: "hộ chiếu", pos: "n", level: "A2", tag: "travel", example: "You need your passport at the airport.", note: "Curated local Travel A2 seed" },
 { topic: "travel", eng: "ticket", vie: "vé", pos: "n", level: "A2", tag: "travel", example: "She bought a train ticket online.", note: "Curated local Travel A2 seed" },

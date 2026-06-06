@@ -87,7 +87,7 @@ if (node) node.textContent = value;
 let generatedAiDeckWords = [];
 const AI_DECK_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 const AI_DECK_POS_OPTIONS = ["n", "v", "adj", "adv", "conj", "prep", "idiom", "phrase"];
-const AI_DECK_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2", "IELTS 5.0", "IELTS 6.0", "IELTS 7.0", "IELTS 8.0+"];
+const AI_DECK_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 const AI_DECK_COOLDOWN_MS = 8000;
 let aiDeckGenerating = false;
 let aiDeckCooldownUntil = 0;
@@ -350,12 +350,14 @@ return CURATED_TOPIC_ALIASES[clean] || clean.replace(/\s+/g, "-");
 function getCuratedDeckOptions() {
 let selectedTopic = document.getElementById("curatedTopicSelect")?.value || "ielts";
 let customTopic = document.getElementById("curatedCustomTopic")?.value || "";
-let topicKey = selectedTopic === "custom" ? normalizeCuratedTopic(customTopic) : selectedTopic;
+let customClean = customTopic.trim();
+let topicKey = customClean ? normalizeCuratedTopic(customClean) : selectedTopic;
 let targetLevel = document.getElementById("curatedLevelSelect")?.value || "Any";
 let count = Number(document.getElementById("curatedCountSelect")?.value || 20);
 return {
 topicKey,
-topicLabel: selectedTopic === "custom" ? (customTopic.trim() || "Custom topic") : curatedTopicLabel(topicKey),
+topicLabel: customClean || curatedTopicLabel(topicKey),
+isCustom: Boolean(customClean),
 targetLevel,
 count: [10, 20, 30, 50].includes(count) ? count : 20
 };
@@ -412,7 +414,10 @@ renderCuratedDeckList();
 
 let levelLabel = options.targetLevel === "Any" ? "" : `${options.targetLevel} `;
 if (!generatedCuratedDeckWords.length) {
-setCuratedDeckStatus(`No reliable ${levelLabel}${options.topicLabel} words found. Try another topic or level.`, "warn");
+let message = options.isCustom
+? `No curated local words found for custom topic ${options.topicLabel}. Try a built-in topic.`
+: `No reliable ${levelLabel}${options.topicLabel} words found. Try another topic or level.`;
+setCuratedDeckStatus(message, "warn");
 return;
 }
 
@@ -604,7 +609,7 @@ return;
 
 let options = getCuratedDeckOptions();
 let result = importWordsToVocabulary(selected);
-let feedback = importFeedback(result, `${options.topicLabel} ${options.targetLevel} curated deck`);
+let feedback = importFeedback(result, `${options.topicLabel} ${options.targetLevel} curated deck`, generatedCuratedDeckWords.length, "Generated");
 setCuratedDeckStatus(feedback, result.added ? "ok" : "warn");
 toastStudio(feedback, result.added ? "ok" : "warn");
 }
@@ -645,13 +650,14 @@ aiDeckCooldownTimer = setTimeout(() => setAiDeckGenerateButton(false), remaining
 }
 
 function generatedToWord(item, source) {
+let rawLevel = cleanAiDeckValue(item.level || item.cefr || item.wordLevel).toUpperCase();
 return {
 ...normalizeWord({
 eng: item.english || item.eng,
 vie: item.vietnameseMeaning || item.vie || item.meaning,
 pos: item.partOfSpeech || item.pos || "n",
 tag: item.tag || "general",
-level: item.level || "A2",
+level: VALID_CEFR_LEVELS.includes(rawLevel) ? rawLevel : "",
 context: "AI Deck",
 example: item.exampleSentence || item.example || "",
 note: `AI Deck source: ${item.source || source || "generated"}`
@@ -817,7 +823,7 @@ function updateGeneratedAiDeckWord(index, field, value) {
 let word = generatedAiDeckWords[index];
 if (!word) return;
 word[field] = value;
-if (field === "eng" || field === "vie") updateAiDeckRowValidity(index);
+if (field === "eng" || field === "vie" || field === "level") updateAiDeckRowValidity(index);
 updateAiDeckSaveState();
 }
 
@@ -825,7 +831,7 @@ function updateAiDeckRowValidity(index) {
 let row = document.querySelector(`[data-ai-deck-row="${index}"]`);
 let word = generatedAiDeckWords[index];
 if (!row || !word) return;
-row.classList.toggle("aiDeckItem--invalid", word.selected !== false && (!cleanAiDeckValue(word.eng) || !cleanAiDeckValue(word.vie)));
+row.classList.toggle("aiDeckItem--invalid", word.selected !== false && (!cleanAiDeckValue(word.eng) || !hasUsableAiDeckMeaning(word.vie) || !VALID_CEFR_LEVELS.includes(cleanAiDeckValue(word.level).toUpperCase())));
 }
 
 function removeGeneratedAiDeckWord(index) {
@@ -843,7 +849,7 @@ eng: cleanAiDeckValue(word.eng),
 vie: cleanAiDeckValue(word.vie),
 pos: cleanAiDeckValue(word.pos) || "n",
 tag: cleanAiDeckValue(word.tag) || "ai-deck",
-level: cleanAiDeckValue(word.level) || "A2"
+level: cleanAiDeckValue(word.level).toUpperCase()
 }))
 .filter(Boolean);
 }
@@ -880,9 +886,9 @@ if (!selected.length) {
 return { words: [], message: "Select at least one generated word to save." };
 }
 
-let invalid = selected.find(word => !word.eng || !word.vie);
+let invalid = selected.find(word => !word.eng || !word.vie || !VALID_CEFR_LEVELS.includes(word.level));
 if (invalid) {
-return { words: [], message: "English and Vietnamese meaning are required for every selected word." };
+return { words: [], message: "English, Vietnamese meaning, and valid CEFR level are required for every selected word." };
 }
 
 return { words: selected, message: "" };
@@ -929,7 +935,7 @@ let source = payload?.source || "generated";
 generatedAiDeckWords = Array.isArray(payload?.items)
 ? payload.items
 .map(item => generatedToWord(item, source))
-.filter(word => word.eng && hasUsableAiDeckMeaning(word.vie))
+.filter(word => word.eng && hasUsableAiDeckMeaning(word.vie) && VALID_CEFR_LEVELS.includes(word.level))
 : [];
 setAiDeckSource(source === "openai" ? "OpenAI" : "Fallback");
 renderAiDeckList();
@@ -1014,7 +1020,10 @@ window.quizCloud?.syncNow?.();
 return result;
 }
 
-function importFeedback(result, label) {
+function importFeedback(result, label, total = null, noun = "Generated") {
+if (Number.isFinite(total)) {
+return `${noun} ${total} words. Imported ${result.added} new words. Skipped ${result.skipped} duplicates.`;
+}
 if (result.added > 0) {
 return `Imported ${result.added} new words. Skipped ${result.skipped} duplicates.`;
 }
@@ -1037,7 +1046,7 @@ note: clean.note || `Topic deck: ${topic}`
 function importDeck(key) {
 let words = (TOPIC_DECKS[key] || []).map(word => enrichTopicWord(word, key));
 let result = importWordsToVocabulary(words);
-toastStudio(importFeedback(result, `${key.toUpperCase()} starter deck`), result.added ? "ok" : "warn");
+toastStudio(importFeedback(result, `${key.toUpperCase()} starter deck`, words.length, "Deck has"), result.added ? "ok" : "warn");
 }
 
 function parseCsv(text) {

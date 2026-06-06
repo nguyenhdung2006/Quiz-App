@@ -919,8 +919,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   box-shadow: var(--shadow-soft);
 }
 
-.weakWordsCenterHead,
-.weakFixCard {
+.weakWordsCenterHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -946,13 +945,18 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 }
 
 .weakFixCard {
-  padding: 11px 12px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 13px 14px;
   border: 1px solid rgba(158, 241, 255, 0.12);
   border-radius: var(--radius);
   background: rgba(2, 8, 22, 0.42);
 }
 
-.weakFixCard div {
+.weakFixMain {
+  display: grid;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -964,13 +968,21 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 
 .weakFixCard strong {
   color: #ffffff;
-  font-size: 1rem;
+  font-size: 1.04rem;
+  line-height: 1.2;
 }
 
-.weakFixCard span,
-.weakFixCard small {
+.weakFixMeaning {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.weakFixStats {
   color: var(--text-muted);
+  font-size: 0.76rem;
   font-weight: 700;
+  line-height: 1.35;
 }
 
 .playerHub {
@@ -3237,6 +3249,26 @@ thead th:last-child {
   border-color: var(--danger) !important;
   background: linear-gradient(135deg, #ffd0da, var(--danger)) !important;
   color: #330411 !important;
+}
+
+.answer.locked {
+  cursor: default;
+}
+
+.questionFeedback {
+  min-height: 24px;
+  margin: 12px auto 0;
+  color: var(--text-muted);
+  font-weight: 850;
+  text-align: center;
+}
+
+.questionFeedback--correct {
+  color: var(--green);
+}
+
+.questionFeedback--wrong {
+  color: #ff8aa2;
 }
 
 #quizScreen > br {

@@ -574,13 +574,17 @@ items.forEach(item => {
 let card = document.createElement("article");
 card.className = "weakFixCard";
 let main = document.createElement("div");
+main.className = "weakFixMain";
 let title = document.createElement("strong");
 title.textContent = item.word.eng;
 let meaning = document.createElement("span");
+meaning.className = "weakFixMeaning";
 meaning.textContent = item.word.vie;
 main.append(title, meaning);
 let meta = document.createElement("small");
-meta.textContent = `${item.accuracy}% accuracy · ${item.wrong} wrong · ${item.word.tag || "untagged"}`;
+meta.className = "weakFixStats";
+let dueText = item.overdue ? "overdue" : `${item.reviews} reviews`;
+meta.textContent = `${item.accuracy}% accuracy | ${item.wrong} wrong | ${dueText} | ${item.word.tag || "untagged"}`;
 card.append(main, meta);
 list.appendChild(card);
 });
