@@ -659,7 +659,7 @@ cell.colSpan = 5;
 cell.className = "emptyTableCell";
 cell.textContent = vocab.length
 ? "No words match these filters."
-: "Add 4 words with example sentences to unlock a useful quiz round.";
+: "No words yet. Add your first word or generate an AI Deck to start learning.";
 row.appendChild(cell);
 table.appendChild(row);
 }

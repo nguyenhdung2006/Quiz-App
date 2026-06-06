@@ -261,8 +261,8 @@ if (!reviewQueue.length) {
 let empty = document.createElement("p");
 empty.className = "emptyStudio";
 empty.textContent = reviewSource === "Cloud"
-? "You're fully reviewed today. Khi có từ cloud đến lịch ôn, chúng sẽ xuất hiện ở đây."
-: "You're fully reviewed today. Khi có từ đến lịch ôn, chúng sẽ xuất hiện ở đây.";
+? "No review words today. Cloud queue is clear. Come back tomorrow or practice weak words."
+: "No review words today. Add words with review dates or practice weak words.";
 host.appendChild(empty);
 return;
 }

@@ -439,7 +439,7 @@ host.innerHTML = "";
 if (!generatedCuratedDeckWords.length) {
 let empty = document.createElement("p");
 empty.className = "emptyStudio";
-empty.textContent = "No curated words generated yet.";
+empty.textContent = "No curated words generated yet. Choose a topic, level, and count, then generate a local deck.";
 host.appendChild(empty);
 if (importBtn) importBtn.disabled = true;
 if (selectAllBtn) selectAllBtn.disabled = true;
@@ -721,8 +721,10 @@ host.innerHTML = "";
 
 if (!generatedAiDeckWords.length) {
 let empty = document.createElement("p");
-empty.className = "emptyStudio";
-empty.textContent = "No generated words yet. Paste English text and generate a deck to review editable cards here.";
+empty.className = aiDeckGenerating ? "apiStateMessage apiStateMessage--loading" : "emptyStudio";
+empty.textContent = aiDeckGenerating
+? "Generating deck... Extracting useful vocabulary now."
+: "No generated words yet. Paste English text, click Generate, then edit and save selected words.";
 host.appendChild(empty);
 if (saveBtn) saveBtn.disabled = true;
 if (selectAllBtn) selectAllBtn.disabled = true;
@@ -952,7 +954,7 @@ generatedAiDeckWords.length ? "ok" : "warn"
 );
 } catch (error) {
 setAiDeckSource("Unavailable");
-setAiDeckStatus("AI deck generation is unavailable. Please try again later.", "warn");
+setAiDeckStatus("AI deck generation is unavailable. Try again later. Your current vocabulary is unchanged.", "warn");
 generatedAiDeckWords = [];
 renderAiDeckList();
 } finally {
