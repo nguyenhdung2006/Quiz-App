@@ -588,7 +588,7 @@ example: cleanAiDeckValue(word.example),
 note: cleanAiDeckValue(word.note) || "Curated local seed"
 }))
 .filter(word => {
-let key = word.eng.toLowerCase();
+let key = normalizeEnglishKey(word.eng);
 if (!key || seen.has(key)) return false;
 seen.add(key);
 return hasReliableVietnameseMeaning(word.vie, true) && VALID_CEFR_LEVELS.includes(word.level);
@@ -982,10 +982,10 @@ return;
 
 let result = importWordsToVocabulary(selected);
 setAiDeckStatus(
-result.added ? `Saved ${result.added} words to your deck. Skipped ${result.skipped} duplicates.` : "Selected words are already in your vocabulary.",
+result.added ? `Saved ${result.added} new words from AI Deck. Skipped ${result.skipped} duplicates.` : `No new words imported. ${result.skipped} duplicates already exist.`,
 result.added ? "ok" : "warn"
 );
-toastStudio(result.added ? `Saved ${result.added} words to your deck.` : "No new AI deck words to save.", result.added ? "ok" : "warn");
+toastStudio(result.added ? `Saved ${result.added} new AI Deck words.` : `No new words imported. ${result.skipped} duplicates already exist.`, result.added ? "ok" : "warn");
 }
 
 function mergeByEnglishLocal(base, incoming) {
@@ -994,12 +994,12 @@ return mergeWordsWithImportStats(base, incoming).merged;
 
 function mergeWordsWithImportStats(base, incoming) {
 let merged = [...base];
-let existing = new Set(base.map(word => String(word.eng || "").toLowerCase()));
+let existing = new Set(base.map(word => normalizeEnglishKey(word.eng)).filter(Boolean));
 let added = 0;
 let skipped = 0;
 incoming.forEach(word => {
 let clean = normalizeWord(word);
-let key = clean.eng.toLowerCase();
+let key = normalizeEnglishKey(clean.eng);
 if (!key || !clean.vie || existing.has(key)) {
 skipped++;
 return;
@@ -1024,12 +1024,14 @@ return result;
 
 function importFeedback(result, label, total = null, noun = "Generated") {
 if (Number.isFinite(total)) {
-return `${noun} ${total} words. Imported ${result.added} new words. Skipped ${result.skipped} duplicates.`;
+return result.added
+? `${noun} ${total} words. Imported ${result.added} new words. Skipped ${result.skipped} duplicates.`
+: `No new words imported. ${result.skipped} duplicates already exist.`;
 }
 if (result.added > 0) {
 return `Imported ${result.added} new words. Skipped ${result.skipped} duplicates.`;
 }
-return `All ${label} words already exist in your vocabulary.`;
+return `No new words imported. ${result.skipped} ${label} duplicates already exist.`;
 }
 
 function enrichTopicWord(word, topic) {
@@ -1106,15 +1108,10 @@ if (!words.length) {
 setText("csvImportResult", "No valid words found. Check headers: eng,vie,pos,tag,ipa,level,context,example,exampleMeaning,collocation,synonyms,antonyms,commonMistake,note.");
 return;
 }
-let before = getWords().length;
-vocab = mergeByEnglishLocal(getWords(), words);
-localStorage.setItem(accountStorageKey("deckImported"), "true");
-save();
-renderTable();
-renderStudio();
-window.quizCloud?.syncNow?.();
-setText("csvImportResult", `Imported ${getWords().length - before} new words from ${words.length} CSV rows.`);
-toastStudio("CSV import complete.");
+let result = importWordsToVocabulary(words);
+let message = importFeedback(result, "CSV", words.length, "CSV has");
+setText("csvImportResult", message);
+toastStudio(message, result.added ? "ok" : "warn");
 }
 
 function downloadCsvTemplate() {

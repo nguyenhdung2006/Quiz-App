@@ -11,6 +11,10 @@ function cleanText(value) {
 return String(value || "").trim();
 }
 
+function normalizeEnglishKey(value) {
+return cleanText(value).toLowerCase().replace(/\s+/g, " ");
+}
+
 function normalizeWord(word) {
 let stats = word?.stats || {};
 
@@ -260,7 +264,7 @@ word.example = buildExampleSentence(word.eng, word.pos, word.context, word.collo
 if (exampleInput) exampleInput.value = word.example;
 }
 
-if (vocab.some(w => String(w.eng).toLowerCase() === word.eng.toLowerCase())) {
+if (vocab.some(w => normalizeEnglishKey(w.eng) === normalizeEnglishKey(word.eng))) {
 alert("Word already exists!");
 return;
 }
@@ -710,7 +714,7 @@ return;
 }
 
 let duplicate = vocab.some((word, index) =>
-index !== i && String(word.eng || "").toLowerCase() === next.eng.toLowerCase()
+index !== i && normalizeEnglishKey(word.eng) === normalizeEnglishKey(next.eng)
 );
 if (duplicate) {
 alert("Word already exists!");

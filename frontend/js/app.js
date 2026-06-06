@@ -1144,17 +1144,27 @@ wrongWords: importedWrong.map(cleanWord).filter(Boolean)
 }
 
 function mergeByEnglish(base, incoming) {
+return mergeByEnglishWithStats(base, incoming).merged;
+}
+
+function mergeByEnglishWithStats(base, incoming) {
 let merged = [...base];
-let existing = new Set(base.map(w => String(w.eng || "").toLowerCase()));
+let existing = new Set(base.map(w => normalizeEnglishKey(w.eng)).filter(Boolean));
+let added = 0;
+let skipped = 0;
 
 incoming.forEach(w => {
-let key = String(w.eng || "").toLowerCase();
-if (!key || existing.has(key)) return;
+let key = normalizeEnglishKey(w.eng);
+if (!key || existing.has(key)) {
+skipped++;
+return;
+}
 existing.add(key);
 merged.push(w);
+added++;
 });
 
-return merged;
+return { merged, added, skipped };
 }
 
 async function importStarterWords() {
@@ -1164,10 +1174,12 @@ return;
 }
 
 let incoming = STARTER_WORDS.map(cleanWord).filter(Boolean);
-let before = getVocab().length;
-setData(mergeByEnglish(getVocab(), incoming), getWrongWords());
-let added = getVocab().length - before;
-toast(added ? `Imported ${added} starter words.` : "Starter words are already in this deck.", added ? "ok" : "warn");
+let result = mergeByEnglishWithStats(getVocab(), incoming);
+setData(result.merged, getWrongWords());
+toast(
+result.added ? `Imported ${result.added} starter words. Skipped ${result.skipped} duplicates.` : `No new starter words imported. ${result.skipped} duplicates already exist.`,
+result.added ? "ok" : "warn"
+);
 syncCloudNow();
 }
 
@@ -1201,14 +1213,16 @@ let replace = confirm(
 
 if (replace) {
 setData(normalized.vocab, normalized.wrongWords);
+toast(`Imported ${normalized.vocab.length} words by replacing current data.`, "ok");
 } else {
+let vocabResult = mergeByEnglishWithStats(getVocab(), normalized.vocab);
+let wrongResult = mergeByEnglishWithStats(getWrongWords(), normalized.wrongWords);
 setData(
-mergeByEnglish(getVocab(), normalized.vocab),
-mergeByEnglish(getWrongWords(), normalized.wrongWords)
+vocabResult.merged,
+wrongResult.merged
 );
+toast(`Imported ${vocabResult.added} words. Skipped ${vocabResult.skipped} duplicates.`, vocabResult.added ? "ok" : "warn");
 }
-
-toast("Imported successfully.", "ok");
 } catch (error) {
 toast("Import failed. Please use a valid JSON backup.", "err");
 }
