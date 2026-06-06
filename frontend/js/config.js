@@ -1,10 +1,16 @@
 (function () {
 const overrides = window.QUIZ_APP_CONFIG || {};
 const productionBackendUrl = "https://quiz-app-xd9m.onrender.com";
-const productionFrontendHost = "quiz-app-rust-iota-39.vercel.app";
 const host = window.location.hostname || "";
-const isVercel = host.includes("vercel.app");
-const isProductionFrontend = host === productionFrontendHost || isVercel;
+const productionFrontendHosts = new Set([
+"quiz-app-rust-iota-39.vercel.app",
+"wordarena.org",
+"www.wordarena.org"
+]);
+const localFrontendHosts = new Set(["", "localhost", "127.0.0.1", "::1"]);
+const isVercel = host.endsWith(".vercel.app");
+const isLocalFrontend = localFrontendHosts.has(host);
+const isProductionFrontend = productionFrontendHosts.has(host) || isVercel || !isLocalFrontend;
 const configuredOrigin = overrides.apiOrigin
 || overrides.backendUrl
 || (isProductionFrontend ? productionBackendUrl : "http://localhost:8080");
