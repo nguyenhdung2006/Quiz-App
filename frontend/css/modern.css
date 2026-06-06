@@ -899,6 +899,80 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
     rgba(9, 14, 30, 0.94);
 }
 
+.dashboardPanel .dashCard:nth-child(2),
+.dashboardPanel .dashCard:nth-child(3) {
+  border-color: rgba(24, 233, 255, 0.2);
+  background:
+    linear-gradient(145deg, rgba(24, 233, 255, 0.075), rgba(255, 255, 255, 0.02)),
+    rgba(9, 14, 30, 0.94);
+}
+
+.weakWordsCenter {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(255, 227, 110, 0.16);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(145deg, rgba(255, 227, 110, 0.06), rgba(24, 233, 255, 0.025)),
+    rgba(9, 14, 30, 0.88);
+  box-shadow: var(--shadow-soft);
+}
+
+.weakWordsCenterHead,
+.weakFixCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.weakWordsCenterHead h2 {
+  margin: 5px 0 3px;
+  color: #ffffff;
+  font-size: 1.18rem;
+}
+
+.weakWordsCenterHead p {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 650;
+}
+
+.weakWordsCenterList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.weakFixCard {
+  padding: 11px 12px;
+  border: 1px solid rgba(158, 241, 255, 0.12);
+  border-radius: var(--radius);
+  background: rgba(2, 8, 22, 0.42);
+}
+
+.weakFixCard div {
+  min-width: 0;
+}
+
+.weakFixCard strong,
+.weakFixCard span,
+.weakFixCard small {
+  display: block;
+}
+
+.weakFixCard strong {
+  color: #ffffff;
+  font-size: 1rem;
+}
+
+.weakFixCard span,
+.weakFixCard small {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
 .playerHub {
   display: grid;
   grid-template-columns: minmax(0, 1.18fr) minmax(340px, 0.82fr);
@@ -1086,13 +1160,59 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .reviewQueueItem {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
+  gap: 14px;
+  align-items: stretch;
   min-height: 64px;
-  padding: 12px;
-  border: 1px solid rgba(158, 241, 255, 0.18);
+  padding: 14px;
+  border: 1px solid rgba(158, 241, 255, 0.14);
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.07);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
+    rgba(2, 8, 22, 0.44);
+}
+
+.reviewQueueItem.is-revealed {
+  border-color: rgba(93, 242, 162, 0.26);
+  background:
+    linear-gradient(145deg, rgba(93, 242, 162, 0.075), rgba(24, 233, 255, 0.025)),
+    rgba(2, 8, 22, 0.48);
+}
+
+.reviewWordMain {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.reviewProgress {
+  color: var(--yellow);
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.reviewWordMain > strong {
+  font-size: 1.32rem;
+  line-height: 1.15;
+}
+
+.reviewAnswerDetails {
+  display: grid;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 10px;
+  border: 1px solid rgba(158, 241, 255, 0.1);
+  border-radius: var(--radius);
+  background: rgba(2, 8, 22, 0.35);
+}
+
+.reviewAnswerDetails p {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 650;
+}
+
+.reviewAnswerDetails strong {
+  color: var(--text);
 }
 
 .reviewQueueItem strong,
@@ -1120,6 +1240,13 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  align-content: center;
+  max-width: 320px;
+}
+
+.reviewActions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .reviewFeedback {
@@ -1797,6 +1924,47 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   max-width: 820px;
 }
 
+.curatedDeckCard,
+.curatedDeckReviewCard,
+.starterDecksCard {
+  max-width: 980px;
+}
+
+.curatedDeckControls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.curatedDeckControls label {
+  display: grid;
+  gap: 7px;
+}
+
+.curatedDeckControls span {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.curatedDeckControls input,
+.curatedDeckControls select {
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid rgba(158, 241, 255, 0.13);
+  border-radius: 12px;
+  background: rgba(2, 8, 22, 0.46);
+  color: var(--text);
+  font: inherit;
+}
+
+.curatedDeckControls input:focus,
+.curatedDeckControls select:focus {
+  outline: 3px solid rgba(24, 233, 255, 0.12);
+  border-color: var(--cyan);
+}
+
 .aiDeckCard,
 .aiDeckReviewCard {
   max-width: 920px;
@@ -1831,6 +1999,39 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   border-color: var(--cyan);
 }
 
+.aiDeckOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.aiDeckOptions label {
+  display: grid;
+  gap: 7px;
+}
+
+.aiDeckOptions span {
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.aiDeckOptions select {
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid rgba(158, 241, 255, 0.13);
+  border-radius: 12px;
+  background: rgba(2, 8, 22, 0.46);
+  color: var(--text);
+  font: inherit;
+}
+
+.aiDeckOptions select:focus {
+  outline: 3px solid rgba(24, 233, 255, 0.12);
+  border-color: var(--cyan);
+}
+
 .aiDeckActions {
   display: flex;
   gap: 10px;
@@ -1843,6 +2044,19 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.aiDeckCountPill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid rgba(158, 241, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(24, 233, 255, 0.08);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 900;
 }
 
 .aiDeckList {
@@ -1860,6 +2074,16 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),
     rgba(3, 10, 28, 0.42);
+}
+
+.aiDeckItem--selected {
+  border-color: rgba(93, 242, 162, 0.26);
+  box-shadow: inset 3px 0 0 rgba(93, 242, 162, 0.62);
+}
+
+.aiDeckItem--unselected {
+  opacity: 0.58;
+  border-style: dashed;
 }
 
 .aiDeckItem--invalid {
@@ -3632,6 +3856,7 @@ html[data-theme="light"] .resultCard,
 html[data-theme="light"] .reviewTools,
 html[data-theme="light"] .reviewCard,
 html[data-theme="light"] .reviewTodayPanel,
+html[data-theme="light"] .weakWordsCenter,
 html[data-theme="light"] .analyticsMetric,
 html[data-theme="light"] .analyticsPanel,
 html[data-theme="light"] .analyticsHero,
@@ -3663,6 +3888,9 @@ html[data-theme="light"] .reviewTodayHead h2,
 html[data-theme="light"] .analyticsPanelHead h3,
 html[data-theme="light"] .analyticsMetric strong,
 html[data-theme="light"] .weakWordRow strong,
+html[data-theme="light"] .weakWordsCenterHead h2,
+html[data-theme="light"] .weakFixCard strong,
+html[data-theme="light"] .reviewWordMain > strong,
 html[data-theme="light"] .performanceRow strong,
 html[data-theme="light"] .insightCard strong,
 html[data-theme="light"] .quizBlock h2,
@@ -3694,6 +3922,9 @@ html[data-theme="light"] .weakWordMeta,
 html[data-theme="light"] .performanceMeta,
 html[data-theme="light"] .insightCard span,
 html[data-theme="light"] .reviewQueueMeta,
+html[data-theme="light"] .reviewAnswerDetails p,
+html[data-theme="light"] .weakFixCard span,
+html[data-theme="light"] .weakFixCard small,
 html[data-theme="light"] .reviewFeedback span,
 html[data-theme="light"] .emptyStudio,
 html[data-theme="light"] .todayFocusPanel p,
@@ -3740,6 +3971,8 @@ html[data-theme="light"] .profileFormField textarea::placeholder {
 
 html[data-theme="light"] .leaderboardList li,
 html[data-theme="light"] .reviewQueueItem,
+html[data-theme="light"] .reviewAnswerDetails,
+html[data-theme="light"] .weakFixCard,
 html[data-theme="light"] .reviewTodayBody .emptyStudio,
 html[data-theme="light"] .weakWordRow,
 html[data-theme="light"] .performanceRow,
@@ -3753,6 +3986,19 @@ html[data-theme="light"] #accuracyTrendChart {
 }
 
 html[data-theme="light"] .aiDeckInput textarea {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text);
+}
+
+html[data-theme="light"] .aiDeckOptions select {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text);
+}
+
+html[data-theme="light"] .curatedDeckControls input,
+html[data-theme="light"] .curatedDeckControls select {
   border-color: var(--line);
   background: rgba(255, 255, 255, 0.88);
   color: var(--text);
@@ -3806,6 +4052,21 @@ html[data-theme="light"] .selected {
 
   .todayFocusActions {
     width: 100%;
+  }
+
+  .weakWordsCenterHead,
+  .reviewQueueItem {
+    grid-template-columns: 1fr;
+  }
+
+  .weakWordsCenterHead {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .reviewActions {
+    justify-content: flex-start;
+    max-width: none;
   }
 
   .analyticsOverviewGrid {
@@ -4185,6 +4446,14 @@ html[data-theme="light"] .selected {
 
   .aiDeckBulkActions {
     justify-content: flex-start;
+  }
+
+  .aiDeckOptions {
+    grid-template-columns: 1fr;
+  }
+
+  .curatedDeckControls {
+    grid-template-columns: 1fr;
   }
 
   .aiDeckEditGrid {

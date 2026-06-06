@@ -48,7 +48,7 @@ class AiExplanationFallbackTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.word", is("negotiate")))
                 .andExpect(jsonPath("$.source", is("fallback")))
-                .andExpect(jsonPath("$.whyWrong", containsString("dap an dung")));
+                .andExpect(jsonPath("$.whyWrong", containsString("đáp án đúng")));
     }
 
     private static RequestPostProcessor oauthUser(String email) {

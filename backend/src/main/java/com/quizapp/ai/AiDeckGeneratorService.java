@@ -20,7 +20,7 @@ public class AiDeckGeneratorService {
 
         try {
             List<GeneratedDeckWordDto> items = aiClient.generate(request);
-            if (items == null || items.isEmpty()) {
+            if (items == null) {
                 return fallback.generate(request);
             }
             return new GeneratedDeckResponse(items, "openai");

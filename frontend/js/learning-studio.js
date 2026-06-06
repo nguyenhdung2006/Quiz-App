@@ -1,36 +1,36 @@
 (function () {
 const TOPIC_DECKS = {
 school: [
-{ eng: "assignment", vie: "bai tap duoc giao", pos: "n", tag: "school", example: "The assignment is due tomorrow.", note: "School task" },
-{ eng: "attendance", vie: "su co mat", pos: "n", tag: "school", example: "Attendance is important in class.", note: "Being present" },
-{ eng: "deadline", vie: "han chot", pos: "n", tag: "school", example: "The deadline is Friday.", note: "Final time" },
-{ eng: "explain", vie: "giai thich", pos: "v", tag: "school", example: "Please explain your answer.", note: "Make clear" },
-{ eng: "subject", vie: "mon hoc", pos: "n", tag: "school", example: "Math is my favorite subject.", note: "Class topic" },
-{ eng: "submit", vie: "nop bai", pos: "v", tag: "school", example: "Submit your homework online.", note: "Hand in" }
+{ eng: "assignment", vie: "bài tập được giao", pos: "n", tag: "school", example: "The assignment is due tomorrow.", note: "School task" },
+{ eng: "attendance", vie: "sự có mặt", pos: "n", tag: "school", example: "Attendance is important in class.", note: "Being present" },
+{ eng: "deadline", vie: "hạn chót", pos: "n", tag: "school", example: "The deadline is Friday.", note: "Final time" },
+{ eng: "explain", vie: "giải thích", pos: "v", tag: "school", example: "Please explain your answer.", note: "Make clear" },
+{ eng: "subject", vie: "môn học", pos: "n", tag: "school", example: "Math is my favorite subject.", note: "Class topic" },
+{ eng: "submit", vie: "nộp bài", pos: "v", tag: "school", example: "Submit your homework online.", note: "Hand in" }
 ],
 ielts: [
-{ eng: "significant", vie: "dang ke", pos: "adj", tag: "IELTS", example: "There was a significant increase.", note: "Writing Task 1" },
-{ eng: "consequence", vie: "hau qua", pos: "n", tag: "IELTS", example: "Pollution has serious consequences.", note: "Cause-effect" },
-{ eng: "argue", vie: "lap luan", pos: "v", tag: "IELTS", example: "Some people argue that technology helps education.", note: "Essay verb" },
-{ eng: "beneficial", vie: "co loi", pos: "adj", tag: "IELTS", example: "Exercise is beneficial for health.", note: "Positive effect" },
-{ eng: "whereas", vie: "trong khi do", pos: "adv", tag: "IELTS", example: "Cities are crowded, whereas villages are quiet.", note: "Contrast" },
-{ eng: "evidence", vie: "bang chung", pos: "n", tag: "IELTS", example: "The evidence supports this view.", note: "Support idea" }
+{ eng: "significant", vie: "đáng kể", pos: "adj", tag: "IELTS", example: "There was a significant increase.", note: "Writing Task 1" },
+{ eng: "consequence", vie: "hậu quả", pos: "n", tag: "IELTS", example: "Pollution has serious consequences.", note: "Cause-effect" },
+{ eng: "argue", vie: "lập luận", pos: "v", tag: "IELTS", example: "Some people argue that technology helps education.", note: "Essay verb" },
+{ eng: "beneficial", vie: "có lợi", pos: "adj", tag: "IELTS", example: "Exercise is beneficial for health.", note: "Positive effect" },
+{ eng: "whereas", vie: "trong khi đó", pos: "adv", tag: "IELTS", example: "Cities are crowded, whereas villages are quiet.", note: "Contrast" },
+{ eng: "evidence", vie: "bằng chứng", pos: "n", tag: "IELTS", example: "The evidence supports this view.", note: "Support idea" }
 ],
 travel: [
-{ eng: "reservation", vie: "dat cho", pos: "n", tag: "travel", example: "I made a hotel reservation.", note: "Booking" },
-{ eng: "departure", vie: "khoi hanh", pos: "n", tag: "travel", example: "Departure time is 8 a.m.", note: "Leaving time" },
-{ eng: "destination", vie: "diem den", pos: "n", tag: "travel", example: "Da Nang is our destination.", note: "Place to go" },
-{ eng: "luggage", vie: "hanh ly", pos: "n", tag: "travel", example: "My luggage is heavy.", note: "Bags" },
-{ eng: "itinerary", vie: "lich trinh", pos: "n", tag: "travel", example: "The itinerary includes two museums.", note: "Travel plan" },
-{ eng: "souvenir", vie: "qua luu niem", pos: "n", tag: "travel", example: "I bought a souvenir.", note: "Gift from trip" }
+{ eng: "reservation", vie: "đặt chỗ", pos: "n", tag: "travel", example: "I made a hotel reservation.", note: "Booking" },
+{ eng: "departure", vie: "khởi hành", pos: "n", tag: "travel", example: "Departure time is 8 a.m.", note: "Leaving time" },
+{ eng: "destination", vie: "điểm đến", pos: "n", tag: "travel", example: "Da Nang is our destination.", note: "Place to go" },
+{ eng: "luggage", vie: "hành lý", pos: "n", tag: "travel", example: "My luggage is heavy.", note: "Bags" },
+{ eng: "itinerary", vie: "lịch trình", pos: "n", tag: "travel", example: "The itinerary includes two museums.", note: "Travel plan" },
+{ eng: "souvenir", vie: "quà lưu niệm", pos: "n", tag: "travel", example: "I bought a souvenir.", note: "Gift from trip" }
 ],
 it: [
-{ eng: "algorithm", vie: "thuat toan", pos: "n", tag: "IT", example: "This algorithm sorts numbers.", note: "Problem-solving steps" },
-{ eng: "database", vie: "co so du lieu", pos: "n", tag: "IT", example: "The database stores users.", note: "Data storage" },
-{ eng: "deploy", vie: "trien khai", pos: "v", tag: "IT", example: "Deploy the app after testing.", note: "Release software" },
-{ eng: "debug", vie: "go loi", pos: "v", tag: "IT", example: "Debug the code carefully.", note: "Find and fix bugs" },
-{ eng: "interface", vie: "giao dien", pos: "n", tag: "IT", example: "The interface is easy to use.", note: "UI/API surface" },
-{ eng: "repository", vie: "kho ma nguon", pos: "n", tag: "IT", example: "Push the commit to the repository.", note: "Git project" }
+{ eng: "algorithm", vie: "thuật toán", pos: "n", tag: "IT", example: "This algorithm sorts numbers.", note: "Problem-solving steps" },
+{ eng: "database", vie: "cơ sở dữ liệu", pos: "n", tag: "IT", example: "The database stores users.", note: "Data storage" },
+{ eng: "deploy", vie: "triển khai", pos: "v", tag: "IT", example: "Deploy the app after testing.", note: "Release software" },
+{ eng: "debug", vie: "gỡ lỗi", pos: "v", tag: "IT", example: "Debug the code carefully.", note: "Find and fix bugs" },
+{ eng: "interface", vie: "giao diện", pos: "n", tag: "IT", example: "The interface is easy to use.", note: "UI/API surface" },
+{ eng: "repository", vie: "kho mã nguồn", pos: "n", tag: "IT", example: "Push the commit to the repository.", note: "Git project" }
 ]
 };
 
@@ -86,8 +86,32 @@ if (node) node.textContent = value;
 
 let generatedAiDeckWords = [];
 const AI_DECK_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
-const AI_DECK_POS_OPTIONS = ["n", "v", "adj", "adv", "idiom", "phrase"];
+const AI_DECK_POS_OPTIONS = ["n", "v", "adj", "adv", "conj", "prep", "idiom", "phrase"];
 const AI_DECK_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2", "IELTS 5.0", "IELTS 6.0", "IELTS 7.0", "IELTS 8.0+"];
+const AI_DECK_COOLDOWN_MS = 8000;
+let aiDeckGenerating = false;
+let aiDeckCooldownUntil = 0;
+let aiDeckCooldownTimer = null;
+let generatedCuratedDeckWords = [];
+const CURATED_DECK_ITEMS = Array.isArray(window.WORD_ARENA_CURATED_DECKS) ? window.WORD_ARENA_CURATED_DECKS : [];
+const CURATED_TOPIC_ALIASES = {
+ielts: "ielts",
+travel: "travel",
+school: "school",
+technology: "technology",
+tech: "technology",
+it: "technology",
+business: "business",
+health: "health",
+environment: "environment",
+"daily life": "daily-life",
+"daily-life": "daily-life",
+academic: "academic",
+"academic english": "academic",
+work: "work"
+};
+const VALID_CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
+const VIETNAMESE_DIACRITIC_PATTERN = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
 
 function toastStudio(message, kind = "ok") {
 let host = document.querySelector(".toastHost") || document.body.appendChild(Object.assign(document.createElement("div"), { className: "toastHost" }));
@@ -295,6 +319,302 @@ grid.appendChild(card);
 });
 }
 
+function setCuratedDeckStatus(message, kind = "info") {
+let status = document.getElementById("curatedDeckStatus");
+if (!status) return;
+status.textContent = message;
+status.className = `apiStateMessage apiStateMessage--${kind}`;
+}
+
+function curatedTopicLabel(topicKey) {
+let labels = {
+ielts: "IELTS",
+travel: "Travel",
+school: "School",
+technology: "Technology",
+business: "Business",
+health: "Health",
+environment: "Environment",
+"daily-life": "Daily Life",
+academic: "Academic English",
+work: "Work"
+};
+return labels[topicKey] || topicKey || "Custom topic";
+}
+
+function normalizeCuratedTopic(value) {
+let clean = cleanAiDeckValue(value).toLowerCase().replace(/[_-]+/g, " ");
+return CURATED_TOPIC_ALIASES[clean] || clean.replace(/\s+/g, "-");
+}
+
+function getCuratedDeckOptions() {
+let selectedTopic = document.getElementById("curatedTopicSelect")?.value || "ielts";
+let customTopic = document.getElementById("curatedCustomTopic")?.value || "";
+let topicKey = selectedTopic === "custom" ? normalizeCuratedTopic(customTopic) : selectedTopic;
+let targetLevel = document.getElementById("curatedLevelSelect")?.value || "Any";
+let count = Number(document.getElementById("curatedCountSelect")?.value || 20);
+return {
+topicKey,
+topicLabel: selectedTopic === "custom" ? (customTopic.trim() || "Custom topic") : curatedTopicLabel(topicKey),
+targetLevel,
+count: [10, 20, 30, 50].includes(count) ? count : 20
+};
+}
+
+function isValidCuratedWord(item, options, seen) {
+let english = cleanAiDeckValue(item.eng || item.english);
+let meaning = cleanAiDeckValue(item.vie || item.vietnameseMeaning);
+let level = cleanAiDeckValue(item.level).toUpperCase();
+let key = english.toLowerCase();
+if (!english || !hasReliableVietnameseMeaning(meaning, true)) return false;
+if (!VALID_CEFR_LEVELS.includes(level)) return false;
+if (options.targetLevel !== "Any" && level !== options.targetLevel) return false;
+if (item.topic !== options.topicKey) return false;
+if (seen.has(key)) return false;
+seen.add(key);
+return true;
+}
+
+function toCuratedDeckWord(item) {
+return {
+...normalizeWord({
+eng: item.eng,
+vie: item.vie,
+pos: item.pos || "n",
+tag: item.tag || item.topic || "curated",
+level: item.level,
+context: "Curated Deck",
+example: item.example || "",
+note: item.note || "Curated local seed"
+}),
+selected: true,
+sourceType: "curated-local"
+};
+}
+
+function generateCuratedDeck() {
+let options = getCuratedDeckOptions();
+if (!options.topicKey || options.topicKey === "custom-topic") {
+setCuratedDeckStatus("Type a known custom topic such as IELTS, Travel, Technology, or Academic English.", "warn");
+return;
+}
+
+setCuratedDeckStatus("Generating curated deck...", "loading");
+let seen = new Set();
+let candidates = CURATED_DECK_ITEMS
+.filter(item => item.topic === options.topicKey)
+.filter(item => isValidCuratedWord(item, options, seen));
+
+generatedCuratedDeckWords = candidates
+.slice(0, options.count)
+.map(toCuratedDeckWord);
+renderCuratedDeckList();
+
+let levelLabel = options.targetLevel === "Any" ? "" : `${options.targetLevel} `;
+if (!generatedCuratedDeckWords.length) {
+setCuratedDeckStatus(`No reliable ${levelLabel}${options.topicLabel} words found. Try another topic or level.`, "warn");
+return;
+}
+
+let message = `Generated ${generatedCuratedDeckWords.length} reliable ${levelLabel}${options.topicLabel} words.`;
+if (generatedCuratedDeckWords.length < options.count) {
+message += " Local curated bank currently has fewer approved items than requested.";
+}
+setCuratedDeckStatus(message, generatedCuratedDeckWords.length < options.count ? "warn" : "ok");
+}
+
+function renderCuratedDeckList() {
+let host = document.getElementById("curatedDeckList");
+let importBtn = document.getElementById("curatedImportBtn");
+let selectAllBtn = document.getElementById("curatedSelectAllBtn");
+let deselectAllBtn = document.getElementById("curatedDeselectAllBtn");
+if (!host) return;
+host.innerHTML = "";
+
+if (!generatedCuratedDeckWords.length) {
+let empty = document.createElement("p");
+empty.className = "emptyStudio";
+empty.textContent = "No curated words generated yet.";
+host.appendChild(empty);
+if (importBtn) importBtn.disabled = true;
+if (selectAllBtn) selectAllBtn.disabled = true;
+if (deselectAllBtn) deselectAllBtn.disabled = true;
+updateCuratedDeckCount();
+return;
+}
+
+generatedCuratedDeckWords.forEach((word, index) => {
+let row = document.createElement("article");
+row.className = "aiDeckItem" + (word.selected === false ? " aiDeckItem--unselected" : " aiDeckItem--selected");
+row.dataset.curatedRow = String(index);
+
+let checkbox = document.createElement("input");
+checkbox.type = "checkbox";
+checkbox.checked = word.selected !== false;
+checkbox.addEventListener("change", () => {
+generatedCuratedDeckWords[index].selected = checkbox.checked;
+row.classList.toggle("aiDeckItem--selected", checkbox.checked);
+row.classList.toggle("aiDeckItem--unselected", !checkbox.checked);
+updateCuratedDeckSaveState();
+});
+
+let main = document.createElement("div");
+main.className = "aiDeckEditGrid curatedDeckEditGrid";
+main.append(
+createCuratedTextField(index, "eng", "English", word.eng, true),
+createCuratedTextField(index, "vie", "Vietnamese", word.vie, true),
+createCuratedSelectField(index, "pos", "POS", word.pos || "n", AI_DECK_POS_OPTIONS),
+createCuratedTextField(index, "tag", "Tag", word.tag || "curated"),
+createCuratedSelectField(index, "level", "Level", word.level || "B1", VALID_CEFR_LEVELS),
+createCuratedTextField(index, "example", "Example", word.example || "", true)
+);
+
+let actions = document.createElement("div");
+actions.className = "aiDeckRowActions";
+let removeBtn = document.createElement("button");
+removeBtn.className = "miniBtn";
+removeBtn.type = "button";
+removeBtn.textContent = "Remove";
+removeBtn.addEventListener("click", () => removeCuratedDeckWord(index));
+actions.appendChild(removeBtn);
+
+let note = document.createElement("p");
+note.textContent = `${word.note || "Curated local seed"} · ${word.sourceType || "curated-local"}`;
+main.append(actions, note);
+row.append(checkbox, main);
+host.appendChild(row);
+});
+
+updateCuratedDeckSaveState();
+}
+
+function createCuratedTextField(index, field, label, value, required = false) {
+let wrapper = document.createElement("label");
+wrapper.className = `aiDeckField aiDeckField--${field}`;
+let labelText = document.createElement("span");
+labelText.textContent = label;
+let input = document.createElement("input");
+input.type = "text";
+input.value = value || "";
+input.required = required;
+input.addEventListener("input", () => updateCuratedDeckWord(index, field, input.value));
+wrapper.append(labelText, input);
+return wrapper;
+}
+
+function createCuratedSelectField(index, field, label, value, options) {
+let wrapper = document.createElement("label");
+wrapper.className = `aiDeckField aiDeckField--${field}`;
+let labelText = document.createElement("span");
+labelText.textContent = label;
+let select = document.createElement("select");
+options.forEach(optionValue => {
+let option = document.createElement("option");
+option.value = optionValue;
+option.textContent = optionValue;
+select.appendChild(option);
+});
+select.value = value || options[0] || "";
+select.addEventListener("change", () => updateCuratedDeckWord(index, field, select.value));
+wrapper.append(labelText, select);
+return wrapper;
+}
+
+function updateCuratedDeckWord(index, field, value) {
+let word = generatedCuratedDeckWords[index];
+if (!word) return;
+word[field] = value;
+if (field === "eng" || field === "vie" || field === "level") updateCuratedRowValidity(index);
+updateCuratedDeckSaveState();
+}
+
+function updateCuratedRowValidity(index) {
+let row = document.querySelector(`[data-curated-row="${index}"]`);
+let word = generatedCuratedDeckWords[index];
+if (!row || !word) return;
+let invalid = word.selected !== false && (!cleanAiDeckValue(word.eng) || !hasReliableVietnameseMeaning(word.vie, true) || !VALID_CEFR_LEVELS.includes(cleanAiDeckValue(word.level).toUpperCase()));
+row.classList.toggle("aiDeckItem--invalid", invalid);
+}
+
+function removeCuratedDeckWord(index) {
+generatedCuratedDeckWords.splice(index, 1);
+renderCuratedDeckList();
+setCuratedDeckStatus(generatedCuratedDeckWords.length ? `${generatedCuratedDeckWords.length} curated words ready to review.` : "No curated words generated yet.", generatedCuratedDeckWords.length ? "info" : "warn");
+}
+
+function updateCuratedDeckSaveState() {
+let importBtn = document.getElementById("curatedImportBtn");
+let selectAllBtn = document.getElementById("curatedSelectAllBtn");
+let deselectAllBtn = document.getElementById("curatedDeselectAllBtn");
+let hasRows = generatedCuratedDeckWords.length > 0;
+let selectedCount = generatedCuratedDeckWords.filter(word => word?.selected !== false).length;
+generatedCuratedDeckWords.forEach((_, index) => updateCuratedRowValidity(index));
+if (importBtn) importBtn.disabled = selectedCount === 0;
+if (selectAllBtn) selectAllBtn.disabled = !hasRows || selectedCount === generatedCuratedDeckWords.length;
+if (deselectAllBtn) deselectAllBtn.disabled = !hasRows || selectedCount === 0;
+updateCuratedDeckCount();
+}
+
+function updateCuratedDeckCount() {
+let count = document.getElementById("curatedDeckCount");
+if (!count) return;
+let selectedCount = generatedCuratedDeckWords.filter(word => word?.selected !== false).length;
+count.textContent = `${generatedCuratedDeckWords.length} generated / ${selectedCount} selected`;
+}
+
+function setCuratedDeckSelection(selected) {
+generatedCuratedDeckWords = generatedCuratedDeckWords.map(word => ({ ...word, selected }));
+renderCuratedDeckList();
+setCuratedDeckStatus(selected ? "All curated words selected." : "All curated words deselected.", "info");
+}
+
+function selectedCuratedDeckWords() {
+let seen = new Set();
+return generatedCuratedDeckWords
+.filter(word => word?.selected !== false)
+.map(word => normalizeWord({
+...word,
+eng: cleanAiDeckValue(word.eng),
+vie: cleanAiDeckValue(word.vie),
+pos: cleanAiDeckValue(word.pos) || "n",
+tag: cleanAiDeckValue(word.tag) || "curated",
+level: cleanAiDeckValue(word.level).toUpperCase() || "B1",
+example: cleanAiDeckValue(word.example),
+note: cleanAiDeckValue(word.note) || "Curated local seed"
+}))
+.filter(word => {
+let key = word.eng.toLowerCase();
+if (!key || seen.has(key)) return false;
+seen.add(key);
+return hasReliableVietnameseMeaning(word.vie, true) && VALID_CEFR_LEVELS.includes(word.level);
+});
+}
+
+function importSelectedCuratedDeckWords() {
+let selectedCount = generatedCuratedDeckWords.filter(word => word?.selected !== false).length;
+let selected = selectedCuratedDeckWords();
+if (!selectedCount) {
+setCuratedDeckStatus("Select at least one curated word before importing.", "warn");
+return;
+}
+if (selected.length !== selectedCount) {
+setCuratedDeckStatus("Some selected words need a real English item, accented Vietnamese meaning, and valid CEFR level before import.", "warn");
+return;
+}
+
+let options = getCuratedDeckOptions();
+let result = importWordsToVocabulary(selected);
+let feedback = importFeedback(result, `${options.topicLabel} ${options.targetLevel} curated deck`);
+setCuratedDeckStatus(feedback, result.added ? "ok" : "warn");
+toastStudio(feedback, result.added ? "ok" : "warn");
+}
+
+function clearCuratedDeck() {
+generatedCuratedDeckWords = [];
+renderCuratedDeckList();
+setCuratedDeckStatus("Choose a topic, CEFR level, and word count to generate a reviewable deck.", "info");
+}
+
 function setAiDeckStatus(message, kind = "info") {
 let status = document.getElementById("aiDeckStatus");
 if (!status) return;
@@ -306,13 +626,31 @@ function setAiDeckSource(value) {
 setText("aiDeckSource", value || "Ready");
 }
 
+function setAiDeckGenerateButton(locked, label = "Generate") {
+let button = document.getElementById("aiDeckGenerateBtn");
+if (!button) return;
+button.disabled = locked;
+button.textContent = label;
+}
+
+function unlockAiDeckGenerateWhenReady() {
+clearTimeout(aiDeckCooldownTimer);
+let remaining = Math.max(0, aiDeckCooldownUntil - Date.now());
+if (remaining <= 0) {
+setAiDeckGenerateButton(false);
+return;
+}
+setAiDeckGenerateButton(true, `Wait ${Math.ceil(remaining / 1000)}s`);
+aiDeckCooldownTimer = setTimeout(() => setAiDeckGenerateButton(false), remaining);
+}
+
 function generatedToWord(item, source) {
 return {
 ...normalizeWord({
 eng: item.english || item.eng,
 vie: item.vietnameseMeaning || item.vie || item.meaning,
 pos: item.partOfSpeech || item.pos || "n",
-tag: item.tag || source || "ai-deck",
+tag: item.tag || "general",
 level: item.level || "A2",
 context: "AI Deck",
 example: item.exampleSentence || item.example || "",
@@ -322,12 +660,42 @@ selected: true
 };
 }
 
-async function requestAiDeck(text) {
+function hasUsableAiDeckMeaning(value) {
+return hasReliableVietnameseMeaning(value, false);
+}
+
+function hasReliableVietnameseMeaning(value, requireAccent = true) {
+let meaning = cleanAiDeckValue(value);
+let lower = meaning.toLowerCase();
+return Boolean(meaning)
+&& !lower.includes("cần bổ sung")
+&& !lower.includes("cáº§n bá»• sung")
+&& !lower.includes("unknown")
+&& !lower.includes("placeholder")
+&& lower !== "n/a"
+&& lower !== "na"
+&& (!requireAccent || VIETNAMESE_DIACRITIC_PATTERN.test(meaning));
+}
+
+function getAiDeckGenerationOptions() {
+let targetLevel = document.getElementById("aiDeckTargetLevel")?.value || "Any";
+let maxWords = Number(document.getElementById("aiDeckMaxWords")?.value || 20);
+return {
+targetLevel,
+maxWords: Number.isFinite(maxWords) ? maxWords : 20
+};
+}
+
+async function requestAiDeck(text, options = {}) {
 let response = await fetch(`${AI_DECK_API_ORIGIN}/api/ai/generate-deck`, {
 method: "POST",
 credentials: "include",
 headers: { "Content-Type": "application/json" },
-body: JSON.stringify({ text })
+body: JSON.stringify({
+text,
+targetLevel: options.targetLevel || "Any",
+maxWords: options.maxWords || 20
+})
 });
 
 if (!response.ok) {
@@ -348,17 +716,18 @@ host.innerHTML = "";
 if (!generatedAiDeckWords.length) {
 let empty = document.createElement("p");
 empty.className = "emptyStudio";
-empty.textContent = "No generated words yet.";
+empty.textContent = "No generated words yet. Paste English text and generate a deck to review editable cards here.";
 host.appendChild(empty);
 if (saveBtn) saveBtn.disabled = true;
 if (selectAllBtn) selectAllBtn.disabled = true;
 if (deselectAllBtn) deselectAllBtn.disabled = true;
+updateAiDeckReviewCount();
 return;
 }
 
 generatedAiDeckWords.forEach((word, index) => {
 let row = document.createElement("article");
-row.className = "aiDeckItem";
+row.className = "aiDeckItem" + (word.selected === false ? " aiDeckItem--unselected" : " aiDeckItem--selected");
 row.dataset.aiDeckRow = String(index);
 
 let checkbox = document.createElement("input");
@@ -367,6 +736,8 @@ checkbox.checked = word.selected !== false;
 checkbox.dataset.aiDeckIndex = String(index);
 checkbox.addEventListener("change", () => {
 generatedAiDeckWords[index].selected = checkbox.checked;
+row.classList.toggle("aiDeckItem--selected", checkbox.checked);
+row.classList.toggle("aiDeckItem--unselected", !checkbox.checked);
 updateAiDeckSaveState();
 });
 
@@ -487,6 +858,14 @@ generatedAiDeckWords.forEach((_, index) => updateAiDeckRowValidity(index));
 if (saveBtn) saveBtn.disabled = selectedCount === 0;
 if (selectAllBtn) selectAllBtn.disabled = !hasRows || selectedCount === generatedAiDeckWords.length;
 if (deselectAllBtn) deselectAllBtn.disabled = !hasRows || selectedCount === 0;
+updateAiDeckReviewCount();
+}
+
+function updateAiDeckReviewCount() {
+let count = document.getElementById("aiDeckReviewCount");
+if (!count) return;
+let selectedCount = generatedAiDeckWords.filter(word => word?.selected !== false).length;
+count.textContent = `${generatedAiDeckWords.length} generated / ${selectedCount} selected`;
 }
 
 function setAiDeckSelection(selected) {
@@ -510,8 +889,23 @@ return { words: selected, message: "" };
 }
 
 async function generateAiDeck() {
+if (aiDeckGenerating) {
+setAiDeckStatus("Deck generation is already running. Please wait a moment.", "loading");
+setAiDeckGenerateButton(true, "Generating...");
+return;
+}
+
+let now = Date.now();
+if (now < aiDeckCooldownUntil) {
+let wait = Math.ceil((aiDeckCooldownUntil - now) / 1000);
+setAiDeckStatus(`Please wait ${wait}s before generating another deck.`, "warn");
+unlockAiDeckGenerateWhenReady();
+return;
+}
+
 let textarea = document.getElementById("aiDeckText");
 let text = textarea?.value.trim() || "";
+let options = getAiDeckGenerationOptions();
 if (!text) {
 setAiDeckStatus("Paste English text before generating a deck.", "warn");
 return;
@@ -525,17 +919,29 @@ generatedAiDeckWords = [];
 renderAiDeckList();
 setAiDeckSource("Loading");
 setAiDeckStatus("Generating vocabulary deck...", "loading");
+aiDeckGenerating = true;
+aiDeckCooldownUntil = Date.now() + AI_DECK_COOLDOWN_MS;
+setAiDeckGenerateButton(true, "Generating...");
 
 try {
-let payload = await requestAiDeck(text);
+let payload = await requestAiDeck(text, options);
 let source = payload?.source || "generated";
 generatedAiDeckWords = Array.isArray(payload?.items)
-? payload.items.map(item => generatedToWord(item, source)).filter(word => word.eng && word.vie)
+? payload.items
+.map(item => generatedToWord(item, source))
+.filter(word => word.eng && hasUsableAiDeckMeaning(word.vie))
 : [];
 setAiDeckSource(source === "openai" ? "OpenAI" : "Fallback");
 renderAiDeckList();
+let levelLabel = options.targetLevel && options.targetLevel !== "Any" ? `${options.targetLevel} ` : "";
+let emptyMessage = source === "fallback"
+? `AI unavailable. No suitable ${levelLabel}vocabulary found by fallback.`
+: `No suitable ${levelLabel}vocabulary found in this text.`;
+let successMessage = source === "fallback"
+? `AI unavailable. Fallback generated ${generatedAiDeckWords.length} approximate ${levelLabel}items.`
+: `Generated ${generatedAiDeckWords.length} ${levelLabel}vocabulary items.`;
 setAiDeckStatus(
-generatedAiDeckWords.length ? `Generated ${generatedAiDeckWords.length} vocabulary items.` : "No useful vocabulary items found.",
+generatedAiDeckWords.length ? successMessage : emptyMessage,
 generatedAiDeckWords.length ? "ok" : "warn"
 );
 } catch (error) {
@@ -543,6 +949,9 @@ setAiDeckSource("Unavailable");
 setAiDeckStatus("AI deck generation is unavailable. Please try again later.", "warn");
 generatedAiDeckWords = [];
 renderAiDeckList();
+} finally {
+aiDeckGenerating = false;
+unlockAiDeckGenerateWhenReady();
 }
 }
 
@@ -559,36 +968,57 @@ function saveSelectedAiDeckWords() {
 let validation = validateAiDeckSelection();
 let selected = validation.words;
 if (!selected.length) {
-setAiDeckStatus(validation.message || "Select at least one generated word to save.", "warn");
+setAiDeckStatus(validation.message || "Pick at least one generated word before saving.", "warn");
 return;
 }
 
-let before = getWords().length;
-vocab = mergeByEnglishLocal(getWords(), selected);
-let added = getWords().length - before;
+let result = importWordsToVocabulary(selected);
+setAiDeckStatus(
+result.added ? `Saved ${result.added} words to your deck. Skipped ${result.skipped} duplicates.` : "Selected words are already in your vocabulary.",
+result.added ? "ok" : "warn"
+);
+toastStudio(result.added ? `Saved ${result.added} words to your deck.` : "No new AI deck words to save.", result.added ? "ok" : "warn");
+}
+
+function mergeByEnglishLocal(base, incoming) {
+return mergeWordsWithImportStats(base, incoming).merged;
+}
+
+function mergeWordsWithImportStats(base, incoming) {
+let merged = [...base];
+let existing = new Set(base.map(word => String(word.eng || "").toLowerCase()));
+let added = 0;
+let skipped = 0;
+incoming.forEach(word => {
+let clean = normalizeWord(word);
+let key = clean.eng.toLowerCase();
+if (!key || !clean.vie || existing.has(key)) {
+skipped++;
+return;
+}
+existing.add(key);
+merged.push(clean);
+added++;
+});
+return { merged, added, skipped };
+}
+
+function importWordsToVocabulary(words) {
+let result = mergeWordsWithImportStats(getWords(), words);
+vocab = result.merged;
 localStorage.setItem(accountStorageKey("deckImported"), "true");
 save();
 renderTable();
 renderStudio();
 window.quizCloud?.syncNow?.();
-setAiDeckStatus(
-added ? `Saved ${added} selected words to your vocabulary.` : "Selected words are already in your vocabulary.",
-added ? "ok" : "warn"
-);
-toastStudio(added ? `Saved ${added} AI deck words.` : "No new AI deck words to save.", added ? "ok" : "warn");
+return result;
 }
 
-function mergeByEnglishLocal(base, incoming) {
-let merged = [...base];
-let existing = new Set(base.map(word => String(word.eng || "").toLowerCase()));
-incoming.forEach(word => {
-let clean = normalizeWord(word);
-let key = clean.eng.toLowerCase();
-if (!key || !clean.vie || existing.has(key)) return;
-existing.add(key);
-merged.push(clean);
-});
-return merged;
+function importFeedback(result, label) {
+if (result.added > 0) {
+return `Imported ${result.added} new words. Skipped ${result.skipped} duplicates.`;
+}
+return `All ${label} words already exist in your vocabulary.`;
 }
 
 function enrichTopicWord(word, topic) {
@@ -606,14 +1036,8 @@ note: clean.note || `Topic deck: ${topic}`
 
 function importDeck(key) {
 let words = (TOPIC_DECKS[key] || []).map(word => enrichTopicWord(word, key));
-let before = getWords().length;
-vocab = mergeByEnglishLocal(getWords(), words);
-localStorage.setItem(accountStorageKey("deckImported"), "true");
-save();
-renderTable();
-renderStudio();
-window.quizCloud?.syncNow?.();
-toastStudio(`Imported ${getWords().length - before} words from ${key.toUpperCase()}.`);
+let result = importWordsToVocabulary(words);
+toastStudio(importFeedback(result, `${key.toUpperCase()} starter deck`), result.added ? "ok" : "warn");
 }
 
 function parseCsv(text) {
@@ -684,7 +1108,7 @@ toastStudio("CSV import complete.");
 
 function downloadCsvTemplate() {
 let headers = "eng,vie,pos,tag,ipa,level,context,example,exampleMeaning,collocation,synonyms,antonyms,commonMistake,note";
-let sample = "focus,tap trung,v,study,/FOH-kuhs/,A2,study action,Focus on one thing.,Tap trung vao mot viec.,focus on; stay focused,concentrate,distract,Use focus on not focus in,Daily learning";
+let sample = "focus,tập trung,v,study,/FOH-kuhs/,A2,study action,Focus on one thing.,Tập trung vào một việc.,focus on; stay focused,concentrate,distract,Use focus on not focus in,Daily learning";
 let blob = new Blob([`${headers}\n${sample}\n`], { type: "text/csv" });
 let url = URL.createObjectURL(blob);
 let a = document.createElement("a");
@@ -712,6 +1136,11 @@ document.querySelectorAll(".studioTab").forEach(button => {
 button.addEventListener("click", () => switchStudioTab(button.dataset.studioTab));
 });
 document.getElementById("startFocusBtn")?.addEventListener("click", startFocus);
+document.getElementById("curatedGenerateBtn")?.addEventListener("click", generateCuratedDeck);
+document.getElementById("curatedClearBtn")?.addEventListener("click", clearCuratedDeck);
+document.getElementById("curatedImportBtn")?.addEventListener("click", importSelectedCuratedDeckWords);
+document.getElementById("curatedSelectAllBtn")?.addEventListener("click", () => setCuratedDeckSelection(true));
+document.getElementById("curatedDeselectAllBtn")?.addEventListener("click", () => setCuratedDeckSelection(false));
 document.getElementById("aiDeckGenerateBtn")?.addEventListener("click", generateAiDeck);
 document.getElementById("aiDeckClearBtn")?.addEventListener("click", clearAiDeck);
 document.getElementById("aiDeckSaveBtn")?.addEventListener("click", saveSelectedAiDeckWords);

@@ -1,5 +1,7 @@
 (function () {
 const AI_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
+const AI_EXPLAIN_COOLDOWN_MS = 7000;
+const aiExplainCooldowns = new WeakMap();
 
 function ensurePanel(card) {
 let panel = card.querySelector(".aiExplainPanel");
@@ -24,12 +26,12 @@ let userAnswer = clean(request.userAnswer, "your answer");
 return {
 word,
 shortMeaning: correctAnswer,
-whyWrong: `Ban chon "${userAnswer}", nhung dap an dung la "${correctAnswer}". Hay kiem tra nghia chinh va ngu canh truoc khi chon.`,
-correctUsage: `Dung "${word}" khi ngu canh khop voi nghia "${correctAnswer}".`,
+whyWrong: `Bạn chọn "${userAnswer}", nhưng đáp án đúng là "${correctAnswer}". Hãy kiểm tra nghĩa chính và ngữ cảnh trước khi chọn.`,
+correctUsage: `Dùng "${word}" khi ngữ cảnh khớp với nghĩa "${correctAnswer}".`,
 example: clean(request.example, `Try using "${word}" in a short English sentence.`),
-memoryTip: `Gan "${word}" voi mot hinh anh hoac tinh huong quen thuoc, roi tu nhac lai nghia tieng Viet.`,
+memoryTip: `Gắn "${word}" với một hình ảnh hoặc tình huống quen thuộc, rồi tự nhắc lại nghĩa tiếng Việt.`,
 collocations: [`${word} in context`, `use ${word} correctly`],
-commonMistake: `De chon nham neu chi nhin tu gan nghia ma khong doc ky cau hoi.`,
+commonMistake: `Dễ chọn nhầm nếu chỉ nhìn từ gần nghĩa mà không đọc kỹ câu hỏi.`,
 source: "local-fallback"
 };
 }
@@ -92,7 +94,7 @@ let item = document.createElement("p");
 let strong = document.createElement("strong");
 strong.textContent = `${label}: `;
 item.appendChild(strong);
-item.appendChild(document.createTextNode(clean(value, "Chua co du lieu.")));
+item.appendChild(document.createTextNode(clean(value, "Chưa có dữ liệu.")));
 return item;
 }
 
@@ -106,15 +108,32 @@ return String(value).trim();
 window.aiExplainWrongAnswer = {
 async open(request, card, button) {
 let panel = ensurePanel(card);
+let cooldownKey = button || card;
+let now = Date.now();
+let availableAt = cooldownKey ? aiExplainCooldowns.get(cooldownKey) || 0 : 0;
+if (button?.disabled) return;
+if (cooldownKey && now < availableAt) {
+panel.innerHTML = "";
+let wait = Math.ceil((availableAt - now) / 1000);
+let message = document.createElement("p");
+message.className = "apiStateMessage apiStateMessage--warn";
+message.textContent = `Please wait ${wait}s before asking again.`;
+panel.appendChild(message);
+return;
+}
+if (cooldownKey) aiExplainCooldowns.set(cooldownKey, now + AI_EXPLAIN_COOLDOWN_MS);
 panel.innerHTML = "";
 let loading = document.createElement("p");
 loading.className = "apiStateMessage apiStateMessage--loading";
 loading.textContent = "Generating explanation...";
 panel.appendChild(loading);
 setLoading(button, true);
+try {
 let explanation = await requestExplanation(request);
 render(panel, explanation);
+} finally {
 setLoading(button, false);
+}
 }
 };
 })();

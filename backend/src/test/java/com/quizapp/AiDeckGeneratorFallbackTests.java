@@ -45,6 +45,39 @@ class AiDeckGeneratorFallbackTests {
                 .andExpect(jsonPath("$.items[0].vietnameseMeaning", is("bài tập được giao")));
     }
 
+    @Test
+    void fallbackRespectsTargetCefrLevel() throws Exception {
+        mockMvc.perform(post("/api/ai/generate-deck")
+                        .with(oauthUser("deck-b2@example.com"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "text", "Critical thinking improves concentration and reduces distraction during academic reading.",
+                                "targetLevel", "B2",
+                                "maxWords", 10
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.source", is("fallback")))
+                .andExpect(jsonPath("$.items.length()", greaterThan(0)))
+                .andExpect(jsonPath("$.items[0].english", is("critical thinking")))
+                .andExpect(jsonPath("$.items[0].vietnameseMeaning", is("tư duy phản biện")))
+                .andExpect(jsonPath("$.items[0].level", is("B2")));
+    }
+
+    @Test
+    void fallbackReturnsEmptyWhenNoWordsMatchTargetLevel() throws Exception {
+        mockMvc.perform(post("/api/ai/generate-deck")
+                        .with(oauthUser("deck-empty@example.com"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "text", "The assignment has a deadline and attendance is important.",
+                                "targetLevel", "C2",
+                                "maxWords", 10
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.source", is("fallback")))
+                .andExpect(jsonPath("$.items.length()", is(0)));
+    }
+
     private static RequestPostProcessor oauthUser(String email) {
         return oauth2Login().attributes(attributes -> {
             attributes.put("email", email);

@@ -11,7 +11,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -63,7 +66,7 @@ public class OpenAiDeckGeneratorClient implements AiDeckGeneratorClient {
                 throw new IllegalStateException("OpenAI deck request failed with status " + response.statusCode() + ".");
             }
 
-            return parseResponse(response.body());
+            return parseResponse(response.body(), request);
         } catch (IOException exception) {
             throw new IllegalStateException("OpenAI deck response could not be processed.", exception);
         } catch (InterruptedException exception) {
@@ -76,17 +79,32 @@ public class OpenAiDeckGeneratorClient implements AiDeckGeneratorClient {
         ObjectNode root = objectMapper.createObjectNode();
         root.put("model", model);
 
+        String targetLevel = request.normalizedTargetLevel();
+        int maxWords = request.normalizedMaxWords();
+
         ArrayNode input = root.putArray("input");
         input.add(message("developer", """
                 You are a Vietnamese vocabulary deck generator.
                 Extract useful English vocabulary from learner-provided English text.
                 Return only JSON matching the schema.
+                CEFR target: %s.
+                Maximum items: %d.
+                If CEFR target is Any, extract useful vocabulary across levels.
+                If CEFR target is A1, A2, B1, B2, C1, or C2, include only words that accurately match that level.
+                If the pasted text has no suitable words for the selected CEFR level, return {"items":[]}.
+                Use only words or useful phrases that actually appear in the source text.
+                Do not invent words, meanings, examples, tags, or levels.
+                Deduplicate by English word or phrase.
+                Preserve a source sentence from the pasted text in exampleSentence when possible.
+                Infer partOfSpeech and tag from the source context.
+                level must be one of A1, A2, B1, B2, C1, or C2.
                 Vietnamese meanings must be natural Vietnamese with full diacritics, for example:
                 "bài tập được giao", "sự có mặt", "hạn chót", "kiên cường".
                 Never remove Vietnamese tone marks or write Vietnamese without accents.
-                Do not include more than 20 items. Do not mention API details or unavailable data.
-                """));
-        input.add(message("user", "English text:\n" + safe(request.text())));
+                Never return placeholder meanings such as unknown, N/A, or "cần bổ sung nghĩa".
+                Do not mention API details or unavailable data.
+                """.formatted(targetLevel, maxWords)));
+        input.add(message("user", "Target CEFR level: " + targetLevel + "\nEnglish text:\n" + safe(request.text())));
 
         ObjectNode text = root.putObject("text");
         ObjectNode format = text.putObject("format");
@@ -146,7 +164,7 @@ public class OpenAiDeckGeneratorClient implements AiDeckGeneratorClient {
         property.put("type", "string");
     }
 
-    private List<GeneratedDeckWordDto> parseResponse(String body) throws IOException {
+    private List<GeneratedDeckWordDto> parseResponse(String body, GenerateDeckRequest request) throws IOException {
         JsonNode root = objectMapper.readTree(body);
         String outputText = outputText(root);
         if (outputText.isBlank()) {
@@ -155,21 +173,27 @@ public class OpenAiDeckGeneratorClient implements AiDeckGeneratorClient {
 
         JsonNode json = objectMapper.readTree(outputText);
         List<GeneratedDeckWordDto> items = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        String targetLevel = request.normalizedTargetLevel();
         for (JsonNode item : json.path("items")) {
             String english = text(item, "english", "");
             String vietnameseMeaning = text(item, "vietnameseMeaning", "");
-            if (english.isBlank() || vietnameseMeaning.isBlank()) continue;
+            String level = normalizeLevel(text(item, "level", ""), targetLevel);
+            String key = english.toLowerCase(Locale.ROOT);
+            if (english.isBlank() || !hasUsableVietnameseMeaning(vietnameseMeaning) || seen.contains(key)) continue;
+            if (request.hasSpecificTargetLevel() && !targetLevel.equals(level)) continue;
+            seen.add(key);
             items.add(new GeneratedDeckWordDto(
                     english,
                     vietnameseMeaning,
                     text(item, "partOfSpeech", "n"),
-                    text(item, "level", "A2"),
+                    level,
                     text(item, "exampleSentence", ""),
-                    text(item, "tag", "ai-deck"),
+                    text(item, "tag", "general"),
                     "openai"
             ));
         }
-        return items.stream().limit(20).toList();
+        return items.stream().limit(request.normalizedMaxWords()).toList();
     }
 
     private String outputText(JsonNode root) {
@@ -193,6 +217,27 @@ public class OpenAiDeckGeneratorClient implements AiDeckGeneratorClient {
     private String text(JsonNode node, String field, String fallback) {
         String value = node.path(field).asText("");
         return value.isBlank() ? safe(fallback) : value.trim();
+    }
+
+    private String normalizeLevel(String value, String fallback) {
+        String level = safe(value).toUpperCase(Locale.ROOT);
+        if (Set.of("A1", "A2", "B1", "B2", "C1", "C2").contains(level)) {
+            return level;
+        }
+        return "Any".equals(fallback) ? "A2" : fallback;
+    }
+
+    private boolean hasUsableVietnameseMeaning(String value) {
+        String meaning = safe(value);
+        if (meaning.isBlank()) {
+            return false;
+        }
+        String lower = meaning.toLowerCase(Locale.ROOT);
+        return !lower.contains("cần bổ sung")
+                && !lower.contains("unknown")
+                && !lower.contains("placeholder")
+                && !lower.equals("n/a")
+                && !lower.equals("na");
     }
 
     private String safe(String value) {

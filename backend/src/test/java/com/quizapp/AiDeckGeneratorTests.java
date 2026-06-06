@@ -1,5 +1,6 @@
 package com.quizapp;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -18,6 +19,7 @@ import com.quizapp.ai.GeneratedDeckWordDto;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -51,7 +53,7 @@ class AiDeckGeneratorTests {
                         "resilient",
                         "kiên cường",
                         "adj",
-                        "B1",
+                        "B2",
                         "She stayed resilient after the hard exam.",
                         "mindset",
                         "openai"
@@ -62,15 +64,37 @@ class AiDeckGeneratorTests {
                         .with(oauthUser("deck-user@example.com"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "text", "She stayed resilient after the hard exam."
+                                "text", "She stayed resilient after the hard exam.",
+                                "targetLevel", "B2",
+                                "maxWords", 10
                         ))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.source", is("openai")))
                 .andExpect(jsonPath("$.items[0].english", is("resilient")))
                 .andExpect(jsonPath("$.items[0].vietnameseMeaning", is("kiên cường")))
-                .andExpect(jsonPath("$.items[0].level", is("B1")));
+                .andExpect(jsonPath("$.items[0].level", is("B2")));
 
-        verify(aiClient).generate(any(GenerateDeckRequest.class));
+        ArgumentCaptor<GenerateDeckRequest> requestCaptor = ArgumentCaptor.forClass(GenerateDeckRequest.class);
+        verify(aiClient).generate(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().normalizedTargetLevel()).isEqualTo("B2");
+        assertThat(requestCaptor.getValue().normalizedMaxWords()).isEqualTo(10);
+    }
+
+    @Test
+    void emptyAiDeckResponseDoesNotInventFallbackWords() throws Exception {
+        when(aiClient.isConfigured()).thenReturn(true);
+        when(aiClient.generate(any(GenerateDeckRequest.class))).thenReturn(List.of());
+
+        mockMvc.perform(post("/api/ai/generate-deck")
+                        .with(oauthUser("deck-empty-openai@example.com"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "text", "Critical thinking improves concentration.",
+                                "targetLevel", "B2"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.source", is("openai")))
+                .andExpect(jsonPath("$.items.length()", is(0)));
     }
 
     @Test

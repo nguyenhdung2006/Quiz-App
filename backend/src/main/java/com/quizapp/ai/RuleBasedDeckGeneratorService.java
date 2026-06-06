@@ -1,126 +1,136 @@
 package com.quizapp.ai;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 
 @Service
 public class RuleBasedDeckGeneratorService {
-    private static final Pattern WORD_PATTERN = Pattern.compile("[A-Za-z][A-Za-z'-]{2,}");
     private static final Pattern SENTENCE_SPLIT = Pattern.compile("(?<=[.!?])\\s+");
-    private static final int MAX_ITEMS = 20;
-    private static final Set<String> STOPWORDS = Set.of(
-            "about", "after", "again", "also", "although", "always", "because", "before", "being",
-            "between", "could", "every", "first", "from", "have", "into", "just", "like", "many",
-            "more", "most", "only", "other", "people", "should", "some", "such", "than", "that",
-            "their", "them", "then", "there", "these", "they", "this", "those", "through", "very",
-            "were", "what", "when", "where", "which", "while", "with", "would", "your"
-    );
-    private static final Map<String, String> COMMON_MEANINGS = Map.ofEntries(
-            Map.entry("assignment", "bài tập được giao"),
-            Map.entry("attendance", "sự có mặt"),
-            Map.entry("deadline", "hạn chót"),
-            Map.entry("resilient", "kiên cường"),
-            Map.entry("curious", "tò mò"),
-            Map.entry("habit", "thói quen"),
-            Map.entry("review", "ôn lại"),
-            Map.entry("consistent", "nhất quán"),
-            Map.entry("learners", "người học"),
-            Map.entry("vocabulary", "từ vựng"),
-            Map.entry("progress", "tiến bộ"),
-            Map.entry("evidence", "bằng chứng"),
-            Map.entry("compare", "so sánh"),
-            Map.entry("focus", "tập trung"),
-            Map.entry("database", "cơ sở dữ liệu"),
-            Map.entry("deploy", "triển khai"),
-            Map.entry("debug", "gỡ lỗi"),
-            Map.entry("interface", "giao diện"),
-            Map.entry("repository", "kho mã nguồn")
-    );
+    private static final Map<String, Term> TERMS = terms();
 
     public GeneratedDeckResponse generate(GenerateDeckRequest request) {
-        Map<String, Candidate> candidates = new LinkedHashMap<>();
-        String[] sentences = SENTENCE_SPLIT.split(clean(request.text()));
+        String text = clean(request.text());
+        String targetLevel = request.normalizedTargetLevel();
+        int maxWords = request.normalizedMaxWords();
+        List<GeneratedDeckWordDto> items = new ArrayList<>();
 
-        for (String sentence : sentences) {
-            Matcher matcher = WORD_PATTERN.matcher(sentence);
-            while (matcher.find()) {
-                String raw = matcher.group();
-                String key = raw.toLowerCase(Locale.ROOT);
-                if (STOPWORDS.contains(key) || key.length() < 4) continue;
-
-                Candidate candidate = candidates.computeIfAbsent(key, ignored -> new Candidate(raw, sentence));
-                candidate.count++;
-                if (candidate.example.isBlank() && !sentence.isBlank()) {
-                    candidate.example = sentence.trim();
-                }
+        for (Term term : TERMS.values()) {
+            if (request.hasSpecificTargetLevel() && !term.level().equals(targetLevel)) {
+                continue;
+            }
+            if (!appearsInText(text, term.english())) {
+                continue;
+            }
+            items.add(toWord(term, text));
+            if (items.size() >= maxWords) {
+                break;
             }
         }
-
-        List<GeneratedDeckWordDto> items = candidates.values().stream()
-                .sorted(Comparator.comparingInt((Candidate item) -> item.count).reversed()
-                        .thenComparing(item -> item.word.toLowerCase(Locale.ROOT)))
-                .limit(MAX_ITEMS)
-                .map(this::toWord)
-                .toList();
 
         return new GeneratedDeckResponse(items, "fallback");
     }
 
-    private GeneratedDeckWordDto toWord(Candidate candidate) {
+    private GeneratedDeckWordDto toWord(Term term, String sourceText) {
         return new GeneratedDeckWordDto(
-                candidate.word,
-                fallbackMeaning(candidate.word),
-                guessPartOfSpeech(candidate.word),
-                "A2",
-                fallbackExample(candidate),
-                "ai-deck",
+                term.english(),
+                term.vietnameseMeaning(),
+                term.partOfSpeech(),
+                term.level(),
+                sourceSentence(sourceText, term.english()),
+                term.tag(),
                 "fallback"
         );
     }
 
-    private String fallbackMeaning(String word) {
-        return COMMON_MEANINGS.getOrDefault(
-                word.toLowerCase(Locale.ROOT),
-                "Cần bổ sung nghĩa tiếng Việt"
-        );
-    }
-
-    private String guessPartOfSpeech(String word) {
-        String lower = word.toLowerCase(Locale.ROOT);
-        if (lower.endsWith("ly")) return "adv";
-        if (lower.endsWith("ing") || lower.endsWith("ed")) return "v";
-        if (lower.endsWith("ive") || lower.endsWith("ous") || lower.endsWith("ful") || lower.endsWith("able")) return "adj";
-        return "n";
-    }
-
-    private String fallbackExample(Candidate candidate) {
-        String example = clean(candidate.example);
-        if (!example.isBlank() && example.length() <= 240) {
-            return example;
+    private boolean appearsInText(String text, String term) {
+        if (text.isBlank() || term.isBlank()) {
+            return false;
         }
-        return "The word \"" + candidate.word + "\" appears in the pasted text.";
+        return Pattern.compile("\\b" + Pattern.quote(term) + "\\b", Pattern.CASE_INSENSITIVE)
+                .matcher(text)
+                .find();
+    }
+
+    private String sourceSentence(String text, String term) {
+        String[] sentences = SENTENCE_SPLIT.split(text);
+        for (String sentence : sentences) {
+            String clean = clean(sentence);
+            if (appearsInText(clean, term)) {
+                return clean.length() <= 240 ? clean : clean.substring(0, 237) + "...";
+            }
+        }
+        return text.length() <= 240 ? text : text.substring(0, 237) + "...";
     }
 
     private String clean(String value) {
-        return value == null ? "" : value.trim();
+        return value == null ? "" : value.trim().replaceAll("\\s+", " ");
     }
 
-    private static class Candidate {
-        private final String word;
-        private String example;
-        private int count;
+    private static Map<String, Term> terms() {
+        Map<String, Term> terms = new LinkedHashMap<>();
+        add(terms, "assignment", "bài tập được giao", "n", "A2", "school");
+        add(terms, "attendance", "sự có mặt", "n", "A2", "school");
+        add(terms, "deadline", "hạn chót", "n", "A2", "school");
+        add(terms, "habit", "thói quen", "n", "A2", "learning");
+        add(terms, "review", "ôn lại", "v", "A2", "learning");
+        add(terms, "focus", "tập trung", "v", "A2", "learning");
+        add(terms, "regularly", "một cách đều đặn", "adv", "A2", "learning");
+        add(terms, "comfortable", "thoải mái", "adj", "A2", "general");
 
-        private Candidate(String word, String example) {
-            this.word = word;
-            this.example = example == null ? "" : example.trim();
-        }
+        add(terms, "improve", "cải thiện", "v", "B1", "learning");
+        add(terms, "knowledge", "kiến thức", "n", "B1", "learning");
+        add(terms, "reduce", "giảm bớt", "v", "B1", "general");
+        add(terms, "avoid", "tránh", "v", "B1", "general");
+        add(terms, "although", "mặc dù", "conj", "B1", "academic");
+        add(terms, "entertainment", "sự giải trí", "n", "B1", "general");
+        add(terms, "develop", "phát triển", "v", "B1", "academic");
+        add(terms, "compare", "so sánh", "v", "B1", "academic");
+        add(terms, "interface", "giao diện", "n", "B1", "technology");
+        add(terms, "database", "cơ sở dữ liệu", "n", "B1", "technology");
+        add(terms, "deploy", "triển khai", "v", "B1", "technology");
+        add(terms, "debug", "gỡ lỗi", "v", "B1", "technology");
+        add(terms, "repository", "kho mã nguồn", "n", "B1", "technology");
+
+        add(terms, "critical thinking", "tư duy phản biện", "n", "B2", "academic");
+        add(terms, "concentration", "sự tập trung", "n", "B2", "learning");
+        add(terms, "distraction", "yếu tố gây xao nhãng", "n", "B2", "learning");
+        add(terms, "academic", "mang tính học thuật", "adj", "B2", "academic");
+        add(terms, "significant", "đáng kể", "adj", "B2", "academic");
+        add(terms, "evidence", "bằng chứng", "n", "B2", "academic");
+        add(terms, "consequence", "hậu quả", "n", "B2", "academic");
+        add(terms, "beneficial", "có lợi", "adj", "B2", "academic");
+        add(terms, "whereas", "trong khi đó", "conj", "B2", "academic");
+        add(terms, "resilient", "kiên cường", "adj", "B2", "mindset");
+
+        add(terms, "mitigate", "giảm thiểu", "v", "C1", "academic");
+        add(terms, "sophisticated", "tinh vi", "adj", "C1", "academic");
+        add(terms, "ambiguous", "mơ hồ", "adj", "C1", "academic");
+        add(terms, "substantial", "đáng kể", "adj", "C1", "academic");
+        add(terms, "integrate", "tích hợp", "v", "C1", "technology");
+        add(terms, "comprehensive", "toàn diện", "adj", "C1", "academic");
+
+        add(terms, "ubiquitous", "phổ biến khắp nơi", "adj", "C2", "academic");
+        add(terms, "meticulous", "tỉ mỉ", "adj", "C2", "academic");
+        add(terms, "paradigm", "hệ hình", "n", "C2", "academic");
+        add(terms, "nuanced", "có nhiều sắc thái", "adj", "C2", "academic");
+        return terms;
+    }
+
+    private static void add(Map<String, Term> terms, String english, String meaning, String pos, String level, String tag) {
+        terms.put(english.toLowerCase(Locale.ROOT), new Term(english, meaning, pos, level, tag));
+    }
+
+    private record Term(
+            String english,
+            String vietnameseMeaning,
+            String partOfSpeech,
+            String level,
+            String tag
+    ) {
     }
 }

@@ -114,24 +114,38 @@
 
 <section class="dashboardPanel" data-app-page-panel="dashboard">
 <div class="dashCard">
-<span class="dashLabel">Words</span>
+<span class="dashLabel">Total Words</span>
 <strong id="totalWordsTop">0</strong>
 </div>
 <div class="dashCard">
-<span class="dashLabel">Wrong Bank</span>
-<strong id="totalWrongWordsTop">0</strong>
-</div>
-<div class="dashCard">
-<span class="dashLabel">Main Loop</span>
-<strong>Add - Quiz - Review</strong>
+<span class="dashLabel">Accuracy</span>
+<strong id="accuracyTop">0%</strong>
 </div>
 <div class="dashCard">
 <span class="dashLabel">Due Today</span>
 <strong id="dueTodayTop">0</strong>
 </div>
 <div class="dashCard">
+<span class="dashLabel">Weak Words</span>
+<strong id="weakWordsTop">0</strong>
+</div>
+<div class="dashCard">
 <span class="dashLabel">Weekly Correct</span>
 <strong id="weeklyCorrectTop">0</strong>
+</div>
+</section>
+
+<section class="weakWordsCenter" data-app-page-panel="dashboard" aria-label="Words to fix">
+<div class="weakWordsCenterHead">
+<div>
+<span class="heroEyebrow">Words to Fix</span>
+<h2>Clean up the words costing you points</h2>
+<p id="weakWordsCenterSummary">Weak words will appear after you review or miss vocabulary.</p>
+</div>
+<button class="utilityBtn" id="weakWordsReviewBtn" type="button" disabled>Review Weak Words</button>
+</div>
+<div class="weakWordsCenterList" id="weakWordsCenterList">
+<p class="emptyStudio">No weak words yet. Missed or overdue words will show up here.</p>
 </div>
 </section>
 
@@ -730,7 +744,7 @@ Hmm... choose one before moving on!
 <section class="previewCard previewCard--flow">
 <span class="previewStep">03</span>
 <h3>Review at the right time</h3>
-<p>Spaced repetition đưa từ vào hàng đợi đúng thời điểm. Bạn chỉ cần xử lý Review Today với Again hoặc Got It.</p>
+<p>Spaced repetition đưa từ vào hàng đợi đúng thời điểm. Bạn chỉ cần xử lý Review Today với Again, Good hoặc Easy.</p>
 <ul class="previewFeatureList">
 <li>Due Today</li>
 <li>Review queue</li>
@@ -935,7 +949,88 @@ Hmm... choose one before moving on!
 </section>
 
 <section class="studioView" id="studioViewDecks">
+<div class="studioCard curatedDeckCard">
+<div class="studioCardHead">
+<div>
+<h3>Generate Curated Deck</h3>
+<p>Create a reliable topic deck from reviewed local seed lists. No web scraping, no fake citations.</p>
+</div>
+<span>curated-local</span>
+</div>
+<div class="curatedDeckControls">
+<label>
+<span>Topic</span>
+<select id="curatedTopicSelect">
+<option value="ielts">IELTS</option>
+<option value="travel">Travel</option>
+<option value="school">School</option>
+<option value="technology">Technology</option>
+<option value="business">Business</option>
+<option value="health">Health</option>
+<option value="environment">Environment</option>
+<option value="daily-life">Daily Life</option>
+<option value="academic">Academic English</option>
+<option value="work">Work</option>
+<option value="custom">Custom topic</option>
+</select>
+</label>
+<label>
+<span>Custom topic</span>
+<input id="curatedCustomTopic" type="text" maxlength="40" placeholder="Optional, e.g. IELTS">
+</label>
+<label>
+<span>CEFR</span>
+<select id="curatedLevelSelect">
+<option value="Any">Any</option>
+<option value="A1">A1</option>
+<option value="A2">A2</option>
+<option value="B1">B1</option>
+<option value="B2" selected>B2</option>
+<option value="C1">C1</option>
+<option value="C2">C2</option>
+</select>
+</label>
+<label>
+<span>Word Count</span>
+<select id="curatedCountSelect">
+<option value="10">10</option>
+<option value="20" selected>20</option>
+<option value="30">30</option>
+<option value="50">50</option>
+</select>
+</label>
+</div>
+<div class="aiDeckActions">
+<button class="utilityBtn" id="curatedGenerateBtn" type="button">Generate Deck</button>
+<button class="miniBtn" id="curatedClearBtn" type="button">Clear</button>
+</div>
+<p class="apiStateMessage" id="curatedDeckStatus">Choose a topic, CEFR level, and word count to generate a reviewable deck.</p>
+</div>
+
+<div class="studioCard curatedDeckReviewCard">
+<div class="studioCardHead">
+<h3>Review Curated Words</h3>
+<span class="aiDeckCountPill" id="curatedDeckCount">0 generated / 0 selected</span>
+<div class="aiDeckBulkActions">
+<button class="miniBtn" id="curatedSelectAllBtn" type="button" disabled>Select All</button>
+<button class="miniBtn" id="curatedDeselectAllBtn" type="button" disabled>Deselect All</button>
+<button class="utilityBtn" id="curatedImportBtn" type="button" disabled>Import Selected</button>
+</div>
+</div>
+<div class="aiDeckList" id="curatedDeckList">
+<p class="emptyStudio">No curated words generated yet.</p>
+</div>
+</div>
+
+<div class="studioCard starterDecksCard">
+<div class="studioCardHead">
+<div>
+<h3>Starter sample decks</h3>
+<p>Small hand-picked decks for quick import. These stay simple on purpose.</p>
+</div>
+</div>
 <div class="topicDeckGrid" id="topicDeckGrid"></div>
+</div>
 </section>
 
 <section class="studioView" id="studioViewAiDeck">
@@ -951,6 +1046,29 @@ Hmm... choose one before moving on!
 <span>English text</span>
 <textarea id="aiDeckText" maxlength="8000" placeholder="Paste an article, paragraph, lesson note, or transcript here"></textarea>
 </label>
+<div class="aiDeckOptions" aria-label="AI Deck generation options">
+<label>
+<span>Target CEFR</span>
+<select id="aiDeckTargetLevel">
+<option value="Any">Any level</option>
+<option value="A1">A1</option>
+<option value="A2">A2</option>
+<option value="B1">B1</option>
+<option value="B2">B2</option>
+<option value="C1">C1</option>
+<option value="C2">C2</option>
+</select>
+</label>
+<label>
+<span>Max words</span>
+<select id="aiDeckMaxWords">
+<option value="10">10</option>
+<option value="15">15</option>
+<option value="20" selected>20</option>
+<option value="30">30</option>
+</select>
+</label>
+</div>
 <div class="aiDeckActions">
 <button class="utilityBtn" id="aiDeckGenerateBtn" type="button">Generate</button>
 <button class="miniBtn" id="aiDeckClearBtn" type="button">Clear</button>
@@ -961,6 +1079,7 @@ Hmm... choose one before moving on!
 <div class="studioCard aiDeckReviewCard">
 <div class="studioCardHead">
 <h3>Review Generated Words</h3>
+<span class="aiDeckCountPill" id="aiDeckReviewCount">0 generated / 0 selected</span>
 <div class="aiDeckBulkActions">
 <button class="miniBtn" id="aiDeckSelectAllBtn" type="button" disabled>Select All</button>
 <button class="miniBtn" id="aiDeckDeselectAllBtn" type="button" disabled>Deselect All</button>
@@ -977,7 +1096,7 @@ Hmm... choose one before moving on!
 <div class="studioCard csvCard">
 <h3>CSV Import</h3>
 <p>CSV is a spreadsheet-style text file. Use columns: eng, vie, pos, tag, example, note.</p>
-<div class="csvExample">eng,vie,pos,tag,example,note<br>focus,tap trung,v,study,Focus on one thing.,Daily learning</div>
+<div class="csvExample">eng,vie,pos,tag,example,note<br>focus,tập trung,v,study,Focus on one thing.,Daily learning</div>
 <div class="csvActions">
 <button class="utilityBtn" id="csvPickBtn" type="button">Choose CSV</button>
 <button class="miniBtn" id="csvTemplateBtn" type="button">Download Template</button>
@@ -1008,6 +1127,7 @@ Hmm... choose one before moving on!
 <script src="js/challenge.js"></script>
 <script src="js/main.js"></script>
 <script src="js/app.js"></script>
+<script src="js/curated-decks.js"></script>
 <script src="js/learning-studio.js"></script>
 <script src="js/analytics-dashboard.js"></script>
 <script src="js/review-today.js"></script>

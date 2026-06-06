@@ -18,14 +18,14 @@ public class RuleBasedExplanationService {
         return new ExplainWrongAnswerResponse(
                 word,
                 correctAnswer,
-                "Ban chon \"" + userAnswer + "\", nhung dap an dung la \"" + correctAnswer
-                        + "\". Hay kiem tra lai nghia chinh, ngu canh va loai tu truoc khi chon.",
-                "Voi nhom " + tag + " o muc " + level + ", hay uu tien nho nghia cot loi cua \""
-                        + word + "\" roi doi chieu voi cau hoi.",
+                "Bạn chọn \"" + userAnswer + "\", nhưng đáp án đúng là \"" + correctAnswer
+                        + "\". Hãy kiểm tra lại nghĩa chính, ngữ cảnh và loại từ trước khi chọn.",
+                "Với nhóm " + tag + " ở mức " + level + ", hãy ưu tiên nhớ nghĩa cốt lõi của \""
+                        + word + "\" rồi đối chiếu với câu hỏi.",
                 example,
-                "Lien ket \"" + word + "\" voi mot tinh huong quen thuoc, sau do tu noi lai nghia tieng Viet truoc khi nhin dap an.",
+                "Liên kết \"" + word + "\" với một tình huống quen thuộc, sau đó tự nói lại nghĩa tiếng Việt trước khi nhìn đáp án.",
                 collocations(word),
-                "Nham \"" + word + "\" voi mot tu gan nghia hoac chon theo cam giac thay vi kiem tra ngu canh.",
+                "Nhầm \"" + word + "\" với một từ gần nghĩa hoặc chọn theo cảm giác thay vì kiểm tra ngữ cảnh.",
                 "fallback"
         );
     }

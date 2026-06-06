@@ -62,6 +62,13 @@ class BackendHardeningTests {
     }
 
     @Test
+    void currentUserEndpointReturnsUnauthenticatedJsonWithoutRedirect() throws Exception {
+        mockMvc.perform(get("/api/me"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.authenticated", is(false)));
+    }
+
+    @Test
     void vocabularyCrudStillWorksForAuthenticatedUser() throws Exception {
         String email = "crud-user@example.com";
 

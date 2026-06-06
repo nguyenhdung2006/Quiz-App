@@ -2,6 +2,7 @@
 (function () {
 const AUTH_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 const REQUIRE_AUTH = window.quizIsProductionFrontend ? window.quizIsProductionFrontend() : false;
+const CLOUD_DELETE_QUEUE_KEY = "cloudDeleteQueue";
 let cloudSyncReady = false;
 let cloudSyncTimer = null;
 let applyingCloudSnapshot = false;
@@ -10,16 +11,16 @@ let latestAchievements = [];
 let cloudSnapshotPulled = false;
 
 const STARTER_WORDS = [
-{ eng: "resilient", vie: "kien cuong", pos: "adj", tag: "mindset", ipa: "/ri-ZIL-yuhnt/", level: "B1", context: "learning after difficulty", example: "She stayed resilient after the hard exam.", exampleMeaning: "Co ay van kien cuong sau bai kiem tra kho.", collocation: "resilient learner, remain resilient", synonyms: "strong, tough", antonyms: "fragile", commonMistake: "Do not use resilient for every kind of strong object.", note: "Useful for school and life." },
-{ eng: "curious", vie: "to mo", pos: "adj", tag: "mindset", ipa: "/KYUR-ee-uhs/", level: "A2", context: "learning attitude", example: "A curious learner asks better questions.", exampleMeaning: "Nguoi hoc to mo dat cau hoi tot hon.", collocation: "curious about, curious learner", synonyms: "interested", antonyms: "indifferent", commonMistake: "Curious about something, not curious with something.", note: "Good learning attitude." },
-{ eng: "focus", vie: "tap trung", pos: "v", tag: "study", ipa: "/FOH-kuhs/", level: "A2", context: "study action", example: "Focus on one small step first.", exampleMeaning: "Hay tap trung vao mot buoc nho truoc.", collocation: "focus on, stay focused", synonyms: "concentrate", antonyms: "distract", commonMistake: "Use focus on, not focus in.", note: "Can be noun or verb." },
-{ eng: "review", vie: "on lai", pos: "v", tag: "study", ipa: "/ri-VYOO/", level: "A2", context: "spaced repetition", example: "Review the hard words tomorrow.", exampleMeaning: "Hay on lai cac tu kho vao ngay mai.", collocation: "review notes, review vocabulary", synonyms: "revise", antonyms: "ignore", commonMistake: "In US English, review often means study again.", note: "Core spaced repetition action." },
-{ eng: "progress", vie: "tien bo", pos: "n", tag: "study", ipa: "/PRAH-gres/", level: "A2", context: "learning result", example: "Small progress still counts.", exampleMeaning: "Tien bo nho van dang duoc ghi nhan.", collocation: "make progress, steady progress", synonyms: "improvement", antonyms: "decline", commonMistake: "Say make progress, not do progress.", note: "Motivation word." },
-{ eng: "attempt", vie: "co gang thu", pos: "v", tag: "exam", ipa: "/uh-TEMPT/", level: "B1", context: "exam task", example: "Attempt every question calmly.", exampleMeaning: "Hay thu lam moi cau hoi mot cach binh tinh.", collocation: "attempt a question, first attempt", synonyms: "try", antonyms: "avoid", commonMistake: "Attempt is more formal than try.", note: "Try, not necessarily succeed." },
-{ eng: "evidence", vie: "bang chung", pos: "n", tag: "exam", ipa: "/EV-i-duhns/", level: "B1", context: "essay support", example: "Use evidence to support your answer.", exampleMeaning: "Dung bang chung de ung ho cau tra loi.", collocation: "strong evidence, provide evidence", synonyms: "proof", antonyms: "claim", commonMistake: "Evidence is usually uncountable.", note: "Common in essays." },
-{ eng: "compare", vie: "so sanh", pos: "v", tag: "exam", ipa: "/kuhm-PAIR/", level: "A2", context: "task verb", example: "Compare the two ideas clearly.", exampleMeaning: "Hay so sanh hai y tuong mot cach ro rang.", collocation: "compare A with B", synonyms: "contrast", antonyms: "separate", commonMistake: "Use compare A with B for general comparison.", note: "Task verb." },
-{ eng: "habit", vie: "thoi quen", pos: "n", tag: "daily", ipa: "/HAB-it/", level: "A2", context: "daily routine", example: "A tiny habit can become powerful.", exampleMeaning: "Mot thoi quen nho co the tro nen manh me.", collocation: "build a habit, daily habit", synonyms: "routine", antonyms: "one-time action", commonMistake: "Habit is a repeated action, not one decision.", note: "Daily routine." },
-{ eng: "calm", vie: "binh tinh", pos: "adj", tag: "daily", ipa: "/kahm/", level: "A2", context: "emotion", example: "Stay calm before answering.", exampleMeaning: "Hay giu binh tinh truoc khi tra loi.", collocation: "stay calm, calm down", synonyms: "relaxed", antonyms: "anxious", commonMistake: "Calm down can sound direct; be careful in polite speech.", note: "Mood and behavior." }
+{ eng: "resilient", vie: "kiên cường", pos: "adj", tag: "mindset", ipa: "/ri-ZIL-yuhnt/", level: "B1", context: "learning after difficulty", example: "She stayed resilient after the hard exam.", exampleMeaning: "Cô ấy vẫn kiên cường sau bài kiểm tra khó.", collocation: "resilient learner, remain resilient", synonyms: "strong, tough", antonyms: "fragile", commonMistake: "Do not use resilient for every kind of strong object.", note: "Useful for school and life." },
+{ eng: "curious", vie: "tò mò", pos: "adj", tag: "mindset", ipa: "/KYUR-ee-uhs/", level: "A2", context: "learning attitude", example: "A curious learner asks better questions.", exampleMeaning: "Người học tò mò đặt câu hỏi tốt hơn.", collocation: "curious about, curious learner", synonyms: "interested", antonyms: "indifferent", commonMistake: "Curious about something, not curious with something.", note: "Good learning attitude." },
+{ eng: "focus", vie: "tập trung", pos: "v", tag: "study", ipa: "/FOH-kuhs/", level: "A2", context: "study action", example: "Focus on one small step first.", exampleMeaning: "Hãy tập trung vào một bước nhỏ trước.", collocation: "focus on, stay focused", synonyms: "concentrate", antonyms: "distract", commonMistake: "Use focus on, not focus in.", note: "Can be noun or verb." },
+{ eng: "review", vie: "ôn lại", pos: "v", tag: "study", ipa: "/ri-VYOO/", level: "A2", context: "spaced repetition", example: "Review the hard words tomorrow.", exampleMeaning: "Hãy ôn lại các từ khó vào ngày mai.", collocation: "review notes, review vocabulary", synonyms: "revise", antonyms: "ignore", commonMistake: "In US English, review often means study again.", note: "Core spaced repetition action." },
+{ eng: "progress", vie: "tiến bộ", pos: "n", tag: "study", ipa: "/PRAH-gres/", level: "A2", context: "learning result", example: "Small progress still counts.", exampleMeaning: "Tiến bộ nhỏ vẫn đáng được ghi nhận.", collocation: "make progress, steady progress", synonyms: "improvement", antonyms: "decline", commonMistake: "Say make progress, not do progress.", note: "Motivation word." },
+{ eng: "attempt", vie: "cố gắng thử", pos: "v", tag: "exam", ipa: "/uh-TEMPT/", level: "B1", context: "exam task", example: "Attempt every question calmly.", exampleMeaning: "Hãy thử làm mọi câu hỏi một cách bình tĩnh.", collocation: "attempt a question, first attempt", synonyms: "try", antonyms: "avoid", commonMistake: "Attempt is more formal than try.", note: "Try, not necessarily succeed." },
+{ eng: "evidence", vie: "bằng chứng", pos: "n", tag: "exam", ipa: "/EV-i-duhns/", level: "B1", context: "essay support", example: "Use evidence to support your answer.", exampleMeaning: "Dùng bằng chứng để ủng hộ câu trả lời.", collocation: "strong evidence, provide evidence", synonyms: "proof", antonyms: "claim", commonMistake: "Evidence is usually uncountable.", note: "Common in essays." },
+{ eng: "compare", vie: "so sánh", pos: "v", tag: "exam", ipa: "/kuhm-PAIR/", level: "A2", context: "task verb", example: "Compare the two ideas clearly.", exampleMeaning: "Hãy so sánh hai ý tưởng một cách rõ ràng.", collocation: "compare A with B", synonyms: "contrast", antonyms: "separate", commonMistake: "Use compare A with B for general comparison.", note: "Task verb." },
+{ eng: "habit", vie: "thói quen", pos: "n", tag: "daily", ipa: "/HAB-it/", level: "A2", context: "daily routine", example: "A tiny habit can become powerful.", exampleMeaning: "Một thói quen nhỏ có thể trở nên mạnh mẽ.", collocation: "build a habit, daily habit", synonyms: "routine", antonyms: "one-time action", commonMistake: "Habit is a repeated action, not one decision.", note: "Daily routine." },
+{ eng: "calm", vie: "bình tĩnh", pos: "adj", tag: "daily", ipa: "/kahm/", level: "A2", context: "emotion", example: "Stay calm before answering.", exampleMeaning: "Hãy giữ bình tĩnh trước khi trả lời.", collocation: "stay calm, calm down", synonyms: "relaxed", antonyms: "anxious", commonMistake: "Calm down can sound direct; be careful in polite speech.", note: "Mood and behavior." }
 ];
 
 function getVocab() {
@@ -59,6 +60,67 @@ let status = ensureSyncStatus();
 if (!status) return;
 status.textContent = message;
 status.className = `syncStatus syncStatus--${tone}`;
+}
+
+function cloudDeleteQueueKey() {
+return typeof accountStorageKey === "function"
+? accountStorageKey(CLOUD_DELETE_QUEUE_KEY)
+: CLOUD_DELETE_QUEUE_KEY;
+}
+
+function readPendingCloudDeletes() {
+try {
+let raw = localStorage.getItem(cloudDeleteQueueKey());
+let ids = raw ? JSON.parse(raw) : [];
+return Array.isArray(ids) ? Array.from(new Set(ids.map(id => String(id)).filter(Boolean))) : [];
+} catch (error) {
+return [];
+}
+}
+
+function writePendingCloudDeletes(ids) {
+let clean = Array.from(new Set((ids || []).map(id => String(id)).filter(Boolean)));
+try {
+if (clean.length) {
+localStorage.setItem(cloudDeleteQueueKey(), JSON.stringify(clean));
+} else {
+localStorage.removeItem(cloudDeleteQueueKey());
+}
+} catch (error) {
+// Local-first behavior stays available even if localStorage quota is unavailable.
+}
+return clean;
+}
+
+function queuePendingCloudDelete(id) {
+if (!id) return [];
+return writePendingCloudDeletes([...readPendingCloudDeletes(), id]);
+}
+
+async function flushPendingCloudDeletes() {
+let ids = readPendingCloudDeletes();
+if (!ids.length) return true;
+if (!cloudSyncReady) return false;
+
+let remaining = [];
+for (let id of ids) {
+try {
+let response = await fetch(`${AUTH_API_ORIGIN}/api/vocab/${encodeURIComponent(id)}`, {
+method: "DELETE",
+credentials: "include"
+});
+if (!response.ok && response.status !== 404) remaining.push(id);
+} catch (error) {
+remaining.push(id);
+}
+}
+
+writePendingCloudDeletes(remaining);
+if (remaining.length) {
+setSyncStatus("Cloud delete pending", "warn");
+return false;
+}
+return true;
 }
 
 function toServerWord(word) {
@@ -224,6 +286,7 @@ if (!cloudSyncReady || applyingCloudSnapshot) return false;
 setSyncStatus("Syncing...", "syncing");
 
 try {
+if (!await flushPendingCloudDeletes()) return false;
 let response = await fetch(`${AUTH_API_ORIGIN}/api/snapshot`, {
 credentials: "include"
 });
@@ -248,6 +311,7 @@ if (!cloudSyncReady || applyingCloudSnapshot) return;
 
 try {
 setSyncStatus("Syncing...", "syncing");
+if (!await flushPendingCloudDeletes()) return;
 let response = await fetch(`${AUTH_API_ORIGIN}/api/sync`, {
 method: "POST",
 credentials: "include",
@@ -325,9 +389,12 @@ async function deleteCloudWord(word) {
 let id = word?.id;
 if (!id) return null;
 
-let result = await requestJson(`/api/vocab/${id}`, { method: "DELETE" });
-if (result) setSyncStatus("Synced", "ok");
-return result;
+queuePendingCloudDelete(id);
+setSyncStatus("Cloud delete pending", "syncing");
+let flushed = await flushPendingCloudDeletes();
+if (!flushed) return null;
+setSyncStatus("Synced", "ok");
+return {};
 }
 
 async function importCloudSamples() {
@@ -391,17 +458,34 @@ let topWords = document.getElementById("totalWordsTop");
 let topWrong = document.getElementById("totalWrongWordsTop");
 let dueToday = document.getElementById("dueTodayTop");
 let weeklyCorrect = document.getElementById("weeklyCorrectTop");
+let accuracyTop = document.getElementById("accuracyTop");
+let weakWordsTop = document.getElementById("weakWordsTop");
 
 if (topWords) topWords.textContent = String(getVocab().length);
 if (topWrong) topWrong.textContent = String(getWrongWords().length);
 if (dueToday) dueToday.textContent = String(getDueTodayCount());
 if (weeklyCorrect) weeklyCorrect.textContent = String(getWeeklyCorrectCount());
+if (accuracyTop) accuracyTop.textContent = `${getAverageAccuracy()}%`;
+if (weakWordsTop) weakWordsTop.textContent = String(getWeakWordCandidates().length);
 updateProfilePanel();
 renderLeaderboard();
+renderWeakWordsCenter();
 }
 
 function getTotalCorrect() {
 return getVocab().reduce((sum, word) => sum + Number(word?.stats?.correct || 0), 0);
+}
+
+function getTotalReviews() {
+return getVocab().reduce((sum, word) => {
+let stats = word?.stats || {};
+return sum + Math.max(Number(stats.seen || 0), Number(stats.correct || 0) + Number(stats.wrong || 0));
+}, 0);
+}
+
+function getAverageAccuracy() {
+let total = getTotalReviews();
+return total ? Math.round(getTotalCorrect() / total * 100) : 0;
 }
 
 function getMasteredCount(words = getVocab()) {
@@ -429,6 +513,87 @@ if (!nextReview) return Number(word?.stats?.seen || 0) > 0 && !word.mastered;
 let due = new Date(nextReview).getTime();
 return !Number.isNaN(due) && due <= now;
 }).length;
+}
+
+function getWordReviewCount(word) {
+let stats = word?.stats || {};
+return Math.max(Number(stats.seen || 0), Number(stats.correct || 0) + Number(stats.wrong || 0));
+}
+
+function getWordAccuracy(word) {
+let total = getWordReviewCount(word);
+return total ? Math.round(Number(word?.stats?.correct || 0) / total * 100) : 0;
+}
+
+function getWeakWordCandidates(limit = 8) {
+let now = Date.now();
+return getVocab()
+.map(word => {
+let stats = word?.stats || {};
+let nextReview = stats.nextReview ? new Date(stats.nextReview).getTime() : null;
+let overdue = nextReview && !Number.isNaN(nextReview) && nextReview <= now;
+let mastery = typeof getMasteryLabel === "function" ? getMasteryLabel(word) : "";
+let wrong = Number(stats.wrong || 0);
+let reviews = getWordReviewCount(word);
+let accuracy = getWordAccuracy(word);
+let weak = wrong >= 2 || (reviews >= 3 && accuracy < 70) || (overdue && mastery !== "Mastered");
+let score = wrong * 4 + (100 - accuracy) / 10 + (overdue ? 12 : 0);
+return { word, wrong, reviews, accuracy, overdue, score, weak };
+})
+.filter(item => item.word?.eng && item.word?.vie && item.weak)
+.sort((a, b) => b.score - a.score)
+.slice(0, limit);
+}
+
+function renderWeakWordsCenter() {
+let list = document.getElementById("weakWordsCenterList");
+let summary = document.getElementById("weakWordsCenterSummary");
+let button = document.getElementById("weakWordsReviewBtn");
+if (!list) return;
+
+let items = getWeakWordCandidates(6);
+list.innerHTML = "";
+if (summary) {
+summary.textContent = items.length
+? `${items.length} priority words based on wrong count, mastery, and due status.`
+: "Weak words will appear after you review or miss vocabulary.";
+}
+if (button) button.disabled = items.length === 0;
+
+if (!items.length) {
+let empty = document.createElement("p");
+empty.className = "emptyStudio";
+empty.textContent = getVocab().length
+? "No weak words yet. Keep reviewing and this center will surface problem words."
+: "No vocabulary yet. Add words or generate an AI Deck to start learning.";
+list.appendChild(empty);
+return;
+}
+
+items.forEach(item => {
+let card = document.createElement("article");
+card.className = "weakFixCard";
+let main = document.createElement("div");
+let title = document.createElement("strong");
+title.textContent = item.word.eng;
+let meaning = document.createElement("span");
+meaning.textContent = item.word.vie;
+main.append(title, meaning);
+let meta = document.createElement("small");
+meta.textContent = `${item.accuracy}% accuracy · ${item.wrong} wrong · ${item.word.tag || "untagged"}`;
+card.append(main, meta);
+list.appendChild(card);
+});
+}
+
+function startWeakWordsReview() {
+let words = getWeakWordCandidates(12).map(item => item.word);
+if (!words.length) return;
+if (typeof startWordSetQuiz === "function") {
+startWordSetQuiz(words, "mixed", { kind: "weak-words" });
+} else if (typeof showAppPage === "function") {
+showAppPage("review");
+}
 }
 
 function getQuizHistory() {
@@ -596,6 +761,7 @@ function initAppShell() {
 document.querySelectorAll("[data-app-page]").forEach(button => {
 button.addEventListener("click", () => showAppPage(button.dataset.appPage));
 });
+document.getElementById("weakWordsReviewBtn")?.addEventListener("click", startWeakWordsReview);
 showAppPage(document.body.dataset.appPage || "dashboard");
 }
 
