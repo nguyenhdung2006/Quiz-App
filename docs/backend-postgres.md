@@ -99,3 +99,20 @@ Run backend tests from `backend`:
 ```powershell
 .\mvnw.cmd test
 ```
+
+After starting against PostgreSQL, verify Actuator health:
+
+```text
+GET http://localhost:8080/actuator/health
+```
+
+Expected healthy response:
+
+```json
+{
+  "status": "UP"
+}
+```
+
+If the database is unreachable or `JPA_DDL_AUTO=validate` detects schema drift,
+startup or health should fail before a production rollout is considered safe.

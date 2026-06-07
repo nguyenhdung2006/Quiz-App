@@ -60,8 +60,14 @@ variables in the hosting platform.
 | `SESSION_COOKIE_SAME_SITE` | Production yes | Use `none` for Vercel frontend + Render backend. Local default is `lax`. |
 | `SESSION_COOKIE_SECURE` | Production yes | Use `true` for HTTPS production. Local default is `false`. |
 | `SESSION_COOKIE_PATH` | Optional | Defaults to `/`. |
+| `APP_ENV` | Optional | Safe label shown by `/actuator/info`, for example `production`. |
+| `APP_VERSION` | Optional | Safe release label shown by `/actuator/info`. |
 | `OPENAI_API_KEY` | Optional | If missing, AI explain uses rule-based fallback. |
 | `AI_MODEL` | Optional | Defaults to `gpt-4.1-mini`. |
+| `AI_EXPLAIN_RATE_LIMIT_PER_MINUTE` | Optional | Defaults to `10`. Tune cautiously for public launches. |
+| `AI_EXPLAIN_RATE_LIMIT_PER_DAY` | Optional | Defaults to `100`. |
+| `AI_DECK_RATE_LIMIT_PER_MINUTE` | Optional | Defaults to `3`. |
+| `AI_DECK_RATE_LIMIT_PER_DAY` | Optional | Defaults to `20`. |
 
 Use `.env.example` or `backend/.env.example` as a template. Never commit `.env`.
 
@@ -147,7 +153,7 @@ Suggested settings:
 Root Directory: backend
 Build Command: .\mvnw.cmd clean package -DskipTests
 Start Command: java -jar target/quiz-0.0.1-SNAPSHOT.jar
-Health Check Path: /api/health
+Health Check Path: /actuator/health
 ```
 
 On Linux-based Render services, use:
@@ -159,6 +165,9 @@ Start Command: java -jar target/quiz-0.0.1-SNAPSHOT.jar
 
 Add the environment variables from the table above. Keep
 `OPENAI_API_KEY` optional unless AI explanations should call OpenAI.
+
+Set `APP_ENV=production` and optionally `APP_VERSION` to the release name so
+`/actuator/info` can confirm which build is running without exposing secrets.
 
 ## Frontend Deploy
 
@@ -196,9 +205,9 @@ or:
 CORS_ALLOWED_ORIGINS=https://YOUR_FRONTEND_DOMAIN
 ```
 
-## Health Check
+## Health And Monitoring
 
-Public endpoint:
+Public lightweight compatibility endpoint:
 
 ```text
 GET /api/health
@@ -215,6 +224,58 @@ Expected response:
 
 This endpoint does not expose database, OAuth, or AI secrets.
 
+Actuator endpoints exposed publicly:
+
+```text
+GET /actuator/health
+GET /actuator/info
+```
+
+Only `health` and `info` are exposed. Do not expose `env`, `beans`,
+`mappings`, `heapdump`, `configprops`, or `threaddump` in production.
+
+Expected healthy response:
+
+```json
+{
+  "status": "UP"
+}
+```
+
+The health endpoint uses Spring Boot health indicators, including database
+connectivity. If PostgreSQL is unavailable, the status should become `DOWN`.
+Details are intentionally hidden from public responses.
+
+Expected safe info response:
+
+```json
+{
+  "app": {
+    "name": "WordArena",
+    "version": "0.0.1-SNAPSHOT",
+    "environment": "production"
+  },
+  "ai": {
+    "enabled": true
+  },
+  "flyway": {
+    "enabled": true
+  }
+}
+```
+
+This response must never contain database URLs, passwords, OAuth secrets, API
+keys, session settings, or stack traces.
+
+Startup logs include a short safe summary:
+
+```text
+WordArena backend started: profiles=default, port=8080, aiEnabled=true, flywayEnabled=true
+```
+
+Use the log line to confirm the app reached `ApplicationReadyEvent` and to
+verify AI/Flyway toggles without dumping configuration.
+
 ## AI Cost Guard
 
 `OPENAI_API_KEY` is optional. Without it, the app still runs and AI Explain uses
@@ -223,11 +284,26 @@ the rule-based fallback.
 Current protections:
 
 - Backend AI endpoints have in-memory per-user rate limiting.
+- Tune `AI_EXPLAIN_RATE_LIMIT_*` and `AI_DECK_RATE_LIMIT_*` with care.
 - No AI response cache yet.
 - Do not expose `OPENAI_API_KEY` in frontend code.
 
 For a larger public launch, add shared rate limiting and caching in a later
 sprint if the backend is scaled across multiple instances.
+
+## Production Smoke Checklist
+
+After each deploy:
+
+1. Open `https://YOUR_BACKEND_DOMAIN/actuator/health` and confirm HTTP 200 with `status: UP`.
+2. Open `https://YOUR_BACKEND_DOMAIN/actuator/info` and confirm app name, environment, AI enabled status, and Flyway enabled status are safe and correct.
+3. Open the frontend URL and confirm the app shell loads.
+4. Sign in with Google and confirm `/api/me` shows the expected user.
+5. Add one test vocabulary word, refresh, and confirm sync still shows as healthy.
+6. Run a small quiz and confirm the result saves locally/cloud when signed in.
+7. Open Review and confirm the queue loads without console errors.
+8. Try AI Explain or AI Deck. With no `OPENAI_API_KEY`, confirm fallback UX appears. With a key, confirm rate limits still apply.
+9. Check backend logs for the startup summary and absence of secret values.
 
 ## Troubleshooting
 
