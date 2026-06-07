@@ -45,3 +45,10 @@ ai:
   openai:
     api-key: ${OPENAI_API_KEY:}
     responses-url: https://api.openai.com/v1/responses
+  rate-limit:
+    explain:
+      per-minute: ${AI_EXPLAIN_RATE_LIMIT_PER_MINUTE:10}
+      per-day: ${AI_EXPLAIN_RATE_LIMIT_PER_DAY:100}
+    deck:
+      per-minute: ${AI_DECK_RATE_LIMIT_PER_MINUTE:3}
+      per-day: ${AI_DECK_RATE_LIMIT_PER_DAY:20}

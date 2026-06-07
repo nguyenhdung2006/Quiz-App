@@ -53,6 +53,72 @@ class BackendHardeningTests {
     }
 
     @Test
+    void createWordRejectsNormalizedEnglishDuplicate() throws Exception {
+        String email = "duplicate-create@example.com";
+
+        mockMvc.perform(post("/api/vocab")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "eng", " Hello   World ",
+                                "vie", "xin chao the gioi",
+                                "pos", "n",
+                                "tag", "greeting"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eng", is("Hello World")));
+
+        mockMvc.perform(post("/api/vocab")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "eng", "hello world",
+                                "vie", "xin chao",
+                                "pos", "n",
+                                "tag", "greeting"
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Word already exists.")));
+
+        mockMvc.perform(get("/api/vocab")
+                        .with(oauthUser(email)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()", is(1)));
+    }
+
+    @Test
+    void updateWordRejectsNormalizedEnglishDuplicateButAllowsSameWord() throws Exception {
+        String email = "duplicate-update@example.com";
+        long helloId = createWord(email, "Hello", "xin chao");
+        long focusId = createWord(email, "focus", "tap trung");
+
+        mockMvc.perform(put("/api/vocab/" + helloId)
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "eng", " hello ",
+                                "vie", "xin chao updated",
+                                "pos", "n",
+                                "tag", "greeting"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eng", is("hello")))
+                .andExpect(jsonPath("$.vie", is("xin chao updated")));
+
+        mockMvc.perform(put("/api/vocab/" + focusId)
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "eng", " HELLO ",
+                                "vie", "xin chao duplicate",
+                                "pos", "n",
+                                "tag", "greeting"
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Word already exists.")));
+    }
+
+    @Test
     void regularUserCannotImportAdminSampleWords() throws Exception {
         mockMvc.perform(post("/api/admin/sample-words")
                         .with(oauthUser("regular-user@example.com")))
@@ -115,6 +181,23 @@ class BackendHardeningTests {
                         .with(oauthUser(email)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()", is(0)));
+    }
+
+    private long createWord(String email, String eng, String vie) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/vocab")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "eng", eng,
+                                "vie", vie,
+                                "pos", "n",
+                                "tag", "test"
+                        ))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
+        return created.get("id").asLong();
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor oauthUser(String email) {

@@ -5,6 +5,7 @@ import com.quizapp.user.ProfileDto;
 import com.quizapp.user.ProfileRequest;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,6 +58,9 @@ public class VocabularyService {
 
     @Transactional
     public WordDto createWord(AppUser user, WordRequest request) {
+        String normalizedEng = normalizeEnglishForStorage(request.eng());
+        ensureNoDuplicateEnglish(user, normalizedEng, null);
+
         VocabularyWord word = new VocabularyWord();
         word.setUser(user);
         applyWordRequest(word, request);
@@ -71,6 +75,9 @@ public class VocabularyService {
     public WordDto updateWord(AppUser user, Long id, WordRequest request) {
         VocabularyWord word = words.findByIdAndUser(id, user)
                 .orElseThrow(() -> new IllegalArgumentException("Word not found."));
+        String normalizedEng = normalizeEnglishForStorage(request.eng());
+        ensureNoDuplicateEnglish(user, normalizedEng, id);
+
         applyWordRequest(word, request);
         return WordDto.from(words.save(word));
     }
@@ -215,7 +222,8 @@ public class VocabularyService {
     }
 
     private VocabularyWord upsertByEnglish(AppUser user, WordRequest request) {
-        VocabularyWord word = words.findByUserAndEngIgnoreCase(user, trim(request.eng()))
+        String normalizedEng = normalizeEnglishForStorage(request.eng());
+        VocabularyWord word = findByNormalizedEnglish(user, normalizedEng)
                 .orElseGet(() -> {
                     VocabularyWord created = new VocabularyWord();
                     created.setUser(user);
@@ -226,7 +234,7 @@ public class VocabularyService {
     }
 
     private void applyWordRequest(VocabularyWord word, WordRequest request) {
-        String eng = trim(request.eng());
+        String eng = normalizeEnglishForStorage(request.eng());
         String vie = trim(request.vie());
         if (eng.isBlank() || vie.isBlank()) {
             throw new IllegalArgumentException("English and Vietnamese are required.");
@@ -260,6 +268,35 @@ public class VocabularyService {
             stats.setLastReviewed(request.stats().lastReviewed());
             stats.setNextReview(request.stats().nextReview());
         }
+    }
+
+    private void ensureNoDuplicateEnglish(AppUser user, String normalizedEng, Long currentWordId) {
+        if (normalizedEng.isBlank()) return;
+
+        findByNormalizedEnglish(user, normalizedEng)
+                .filter(existing -> currentWordId == null || !existing.getId().equals(currentWordId))
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("Word already exists.");
+                });
+    }
+
+    private java.util.Optional<VocabularyWord> findByNormalizedEnglish(AppUser user, String normalizedEng) {
+        if (normalizedEng.isBlank()) {
+            return java.util.Optional.empty();
+        }
+
+        String normalizedKey = englishLookupKey(normalizedEng);
+        return words.findByUserOrderByCreatedAtDesc(user).stream()
+                .filter(word -> englishLookupKey(word.getEng()).equals(normalizedKey))
+                .findFirst();
+    }
+
+    private String normalizeEnglishForStorage(String value) {
+        return trim(value).replaceAll("\\s+", " ");
+    }
+
+    private String englishLookupKey(String value) {
+        return normalizeEnglishForStorage(value).toLowerCase(Locale.ROOT);
     }
 
     private WordStats ensureStats(VocabularyWord word) {

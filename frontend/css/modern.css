@@ -1169,6 +1169,117 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   background: rgba(255, 255, 255, 0.045);
 }
 
+.reviewSessionOverview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(220px, 1.5fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgba(158, 241, 255, 0.14);
+  border-radius: var(--radius);
+  background: rgba(2, 8, 22, 0.38);
+}
+
+.reviewSessionCopy,
+.reviewSessionProgress {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.reviewSessionCopy strong {
+  color: white;
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.reviewSessionCopy span,
+.reviewSessionProgress span {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.reviewProgressTrack {
+  overflow: hidden;
+  width: 100%;
+  height: 10px;
+  border: 1px solid rgba(158, 241, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.reviewProgressFill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  transition: width 0.22s ease;
+}
+
+.reviewSessionStats,
+.reviewCompletionStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.reviewSessionStat {
+  display: grid;
+  min-width: 68px;
+  padding: 8px 10px;
+  border: 1px solid rgba(158, 241, 255, 0.12);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.045);
+  text-align: center;
+}
+
+.reviewSessionStat strong {
+  color: white;
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.reviewSessionStat small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.reviewStateCard {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px dashed rgba(158, 241, 255, 0.22);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.reviewStateCard--complete {
+  border-style: solid;
+  border-color: rgba(93, 242, 162, 0.28);
+  background: rgba(93, 242, 162, 0.08);
+}
+
+.reviewStateCard h3 {
+  margin: 0;
+  color: white;
+  font-size: 1.18rem;
+}
+
+.reviewStateCard p {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 750;
+}
+
+.reviewStateActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .reviewQueueItem {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1181,6 +1292,10 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.018)),
     rgba(2, 8, 22, 0.44);
+}
+
+.reviewQueueItem.is-current {
+  border-color: rgba(250, 214, 92, 0.28);
 }
 
 .reviewQueueItem.is-revealed {
@@ -1259,6 +1374,44 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .reviewActions button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.reviewRatingBtn {
+  display: grid;
+  gap: 2px;
+  min-width: 108px;
+  min-height: 48px;
+  padding: 9px 11px;
+  border: 1px solid rgba(158, 241, 255, 0.16);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.reviewRatingBtn strong {
+  color: white;
+  font-size: 0.92rem;
+  line-height: 1.1;
+}
+
+.reviewRatingBtn span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.reviewRatingBtn--again {
+  border-color: rgba(255, 107, 107, 0.26);
+}
+
+.reviewRatingBtn--good {
+  border-color: rgba(93, 242, 162, 0.26);
+}
+
+.reviewRatingBtn--easy {
+  border-color: rgba(250, 214, 92, 0.28);
 }
 
 .reviewFeedback {
@@ -3255,6 +3408,11 @@ thead th:last-child {
   cursor: default;
 }
 
+.answer:disabled {
+  opacity: 1;
+  transform: none;
+}
+
 .questionFeedback {
   min-height: 24px;
   margin: 12px auto 0;
@@ -3917,6 +4075,10 @@ html[data-theme="light"] .profilePanel h2,
 html[data-theme="light"] .leaderboardPanel h2,
 html[data-theme="light"] .sectionHeader h2,
 html[data-theme="light"] .reviewTodayHead h2,
+html[data-theme="light"] .reviewSessionCopy strong,
+html[data-theme="light"] .reviewSessionStat strong,
+html[data-theme="light"] .reviewStateCard h3,
+html[data-theme="light"] .reviewRatingBtn strong,
 html[data-theme="light"] .analyticsPanelHead h3,
 html[data-theme="light"] .analyticsMetric strong,
 html[data-theme="light"] .weakWordRow strong,
@@ -3955,6 +4117,11 @@ html[data-theme="light"] .performanceMeta,
 html[data-theme="light"] .insightCard span,
 html[data-theme="light"] .reviewQueueMeta,
 html[data-theme="light"] .reviewAnswerDetails p,
+html[data-theme="light"] .reviewSessionCopy span,
+html[data-theme="light"] .reviewSessionProgress span,
+html[data-theme="light"] .reviewSessionStat small,
+html[data-theme="light"] .reviewStateCard p,
+html[data-theme="light"] .reviewRatingBtn span,
 html[data-theme="light"] .weakFixCard span,
 html[data-theme="light"] .weakFixCard small,
 html[data-theme="light"] .reviewFeedback span,
@@ -4004,6 +4171,10 @@ html[data-theme="light"] .profileFormField textarea::placeholder {
 html[data-theme="light"] .leaderboardList li,
 html[data-theme="light"] .reviewQueueItem,
 html[data-theme="light"] .reviewAnswerDetails,
+html[data-theme="light"] .reviewSessionOverview,
+html[data-theme="light"] .reviewSessionStat,
+html[data-theme="light"] .reviewStateCard,
+html[data-theme="light"] .reviewRatingBtn,
 html[data-theme="light"] .weakFixCard,
 html[data-theme="light"] .reviewTodayBody .emptyStudio,
 html[data-theme="light"] .weakWordRow,
@@ -4067,6 +4238,10 @@ html[data-theme="light"] .reviewFeedback {
   background: rgba(8, 127, 82, 0.08);
 }
 
+html[data-theme="light"] .reviewStateCard--complete {
+  background: rgba(8, 127, 82, 0.08);
+}
+
 html[data-theme="light"] .selected {
   color: white;
 }
@@ -4087,6 +4262,7 @@ html[data-theme="light"] .selected {
   }
 
   .weakWordsCenterHead,
+  .reviewSessionOverview,
   .reviewQueueItem {
     grid-template-columns: 1fr;
   }
@@ -4099,6 +4275,11 @@ html[data-theme="light"] .selected {
   .reviewActions {
     justify-content: flex-start;
     max-width: none;
+  }
+
+  .reviewSessionStats,
+  .reviewCompletionStats {
+    justify-content: flex-start;
   }
 
   .analyticsOverviewGrid {
@@ -4347,12 +4528,29 @@ html[data-theme="light"] .selected {
 }
 
 @media (max-width: 620px) {
+  body {
+    padding-inline: 8px;
+  }
+
+  #home,
+  #mistakeScreen,
+  #reviewScreen,
+  #quizScreen,
+  #resultScreen,
+  .heroPanel {
+    width: min(100%, calc(100vw - 16px));
+  }
+
   .appSidebar {
     align-items: stretch;
+    flex-wrap: wrap;
+    overflow-x: visible;
     padding: 5px;
   }
 
   .sidebarGroup {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
     gap: 5px;
   }
 
@@ -4380,7 +4578,8 @@ html[data-theme="light"] .selected {
 
   .appSidebar .utilityBtn,
   .appSidebar .miniBtn {
-    min-height: 30px;
+    flex: 1 1 auto;
+    min-height: 38px;
     padding: 6px 8px;
   }
 
@@ -4455,8 +4654,65 @@ html[data-theme="light"] .selected {
     padding: 14px;
   }
 
+  .tableTools {
+    grid-template-columns: 1fr;
+    max-width: calc(100vw - 16px);
+    padding: 10px;
+  }
+
+  .filterCluster {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .filterCluster label,
+  .filterCluster select,
+  .filterCluster .favoriteFilter {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .clearBtn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .table-container {
+    width: 100%;
+    max-width: calc(100vw - 16px);
+    max-height: none;
+    overscroll-behavior-x: contain;
+  }
+
+  table {
+    min-width: 680px;
+  }
+
   .studioPanel {
-    max-height: calc(100vh - 24px);
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 14px;
+  }
+
+  .studioOverlay,
+  .previewOverlay,
+  .profileEditorOverlay {
+    padding: 12px;
+  }
+
+  .studioTabs {
+    margin: 14px 0;
+    padding-bottom: 8px;
+    scroll-padding-inline: 4px;
+  }
+
+  .studioTab {
+    min-height: 42px;
+  }
+
+  .studioCard {
+    padding: 14px;
   }
 
   .studioHeader,
@@ -4503,7 +4759,15 @@ html[data-theme="light"] .selected {
   }
 
   .reviewActions {
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .reviewActions button {
+    min-height: 44px;
+    padding-inline: 8px;
   }
 
   .historyItem {
@@ -4533,8 +4797,10 @@ html[data-theme="light"] .selected {
   }
 
   .authCluster {
-    top: 10px;
-    right: 10px;
+    position: static;
+    justify-content: flex-end;
+    width: 100%;
+    margin: 0 0 8px;
     gap: 8px;
   }
 
@@ -4549,6 +4815,62 @@ html[data-theme="light"] .selected {
   .previewHeader h2,
   .resultCard h2 {
     font-size: 2rem;
+  }
+
+  #quizScreen {
+    min-height: auto;
+    padding: 28px 0 24px;
+  }
+
+  #question {
+    width: 100%;
+    padding: 18px 16px;
+    font-size: 1.8rem;
+  }
+
+  #answers {
+    width: 100%;
+    gap: 10px;
+  }
+
+  .answer {
+    min-height: 78px;
+    padding: 16px;
+    font-size: 1rem;
+  }
+
+  #progressBar {
+    width: 100%;
+  }
+
+  .resultCard {
+    width: 100%;
+    margin-top: 28px;
+    padding: 20px;
+  }
+
+  #reviewScreen,
+  #mistakeScreen {
+    padding: 28px 0 30px;
+  }
+
+  .reviewTools,
+  .reviewList {
+    width: 100%;
+  }
+
+  .reviewCard {
+    padding: 14px;
+  }
+
+  .reviewCard h3 {
+    margin-right: 0;
+  }
+
+  .reviewStatus {
+    position: static;
+    display: inline-flex;
+    margin-bottom: 8px;
   }
 
   #score {

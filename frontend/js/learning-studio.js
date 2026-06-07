@@ -638,15 +638,24 @@ button.disabled = locked;
 button.textContent = label;
 }
 
-function unlockAiDeckGenerateWhenReady() {
+function aiDeckCooldownStatus(message, wait) {
+return message
+? `${message} AI is cooling down. Try again in ${wait}s.`
+: `AI is cooling down. Try again in ${wait}s.`;
+}
+
+function unlockAiDeckGenerateWhenReady(message = "", kind = "warn") {
 clearTimeout(aiDeckCooldownTimer);
 let remaining = Math.max(0, aiDeckCooldownUntil - Date.now());
 if (remaining <= 0) {
 setAiDeckGenerateButton(false);
+if (message) setAiDeckStatus(message, kind);
 return;
 }
-setAiDeckGenerateButton(true, `Wait ${Math.ceil(remaining / 1000)}s`);
-aiDeckCooldownTimer = setTimeout(() => setAiDeckGenerateButton(false), remaining);
+let wait = Math.ceil(remaining / 1000);
+setAiDeckGenerateButton(true, `Wait ${wait}s`);
+setAiDeckStatus(aiDeckCooldownStatus(message, wait), kind);
+aiDeckCooldownTimer = setTimeout(() => unlockAiDeckGenerateWhenReady(message, kind), Math.min(1000, remaining));
 }
 
 function generatedToWord(item, source) {
@@ -906,7 +915,7 @@ return;
 let now = Date.now();
 if (now < aiDeckCooldownUntil) {
 let wait = Math.ceil((aiDeckCooldownUntil - now) / 1000);
-setAiDeckStatus(`Please wait ${wait}s before generating another deck.`, "warn");
+setAiDeckStatus(`AI is cooling down. Try again in ${wait}s.`, "warn");
 unlockAiDeckGenerateWhenReady();
 return;
 }
@@ -915,14 +924,18 @@ let textarea = document.getElementById("aiDeckText");
 let text = textarea?.value.trim() || "";
 let options = getAiDeckGenerationOptions();
 if (!text) {
-setAiDeckStatus("Paste English text before generating a deck.", "warn");
+setAiDeckStatus("Paste some text before generating.", "warn");
 return;
 }
 if (text.length > 8000) {
 setAiDeckStatus("Text must be 8000 characters or less.", "warn");
 return;
 }
+if (text.length > 5000) {
+toastStudio("Text is very large. Generation may take longer.", "warn");
+}
 
+let previousGeneratedWords = generatedAiDeckWords;
 generatedAiDeckWords = [];
 renderAiDeckList();
 setAiDeckSource("Loading");
@@ -930,6 +943,8 @@ setAiDeckStatus("Generating vocabulary deck...", "loading");
 aiDeckGenerating = true;
 aiDeckCooldownUntil = Date.now() + AI_DECK_COOLDOWN_MS;
 setAiDeckGenerateButton(true, "Generating...");
+let cooldownStatusMessage = "";
+let cooldownStatusKind = "warn";
 
 try {
 let payload = await requestAiDeck(text, options);
@@ -952,14 +967,18 @@ setAiDeckStatus(
 generatedAiDeckWords.length ? successMessage : emptyMessage,
 generatedAiDeckWords.length ? "ok" : "warn"
 );
+cooldownStatusMessage = generatedAiDeckWords.length ? successMessage : emptyMessage;
+cooldownStatusKind = generatedAiDeckWords.length ? "ok" : "warn";
 } catch (error) {
 setAiDeckSource("Unavailable");
 setAiDeckStatus("AI deck generation is unavailable. Try again later. Your current vocabulary is unchanged.", "warn");
-generatedAiDeckWords = [];
+cooldownStatusMessage = "AI deck generation is unavailable. Try again later. Your current vocabulary is unchanged.";
+cooldownStatusKind = "warn";
+generatedAiDeckWords = previousGeneratedWords;
 renderAiDeckList();
 } finally {
 aiDeckGenerating = false;
-unlockAiDeckGenerateWhenReady();
+unlockAiDeckGenerateWhenReady(cooldownStatusMessage, cooldownStatusKind);
 }
 }
 
@@ -997,6 +1016,7 @@ let merged = [...base];
 let existing = new Set(base.map(word => normalizeEnglishKey(word.eng)).filter(Boolean));
 let added = 0;
 let skipped = 0;
+let importedAt = new Date().toISOString();
 incoming.forEach(word => {
 let clean = normalizeWord(word);
 let key = normalizeEnglishKey(clean.eng);
@@ -1005,6 +1025,7 @@ skipped++;
 return;
 }
 existing.add(key);
+stampWordUpdatedAt(clean, importedAt);
 merged.push(clean);
 added++;
 });
@@ -1103,15 +1124,28 @@ return values;
 }
 
 async function importCsvFile(file) {
-let words = parseCsv(await file.text());
+try {
+let text = await file.text();
+if (!text.trim()) {
+setText("csvImportResult", "Import file appears empty.");
+toastStudio("Import file appears empty.", "warn");
+return;
+}
+
+let words = parseCsv(text);
 if (!words.length) {
 setText("csvImportResult", "No valid words found. Check headers: eng,vie,pos,tag,ipa,level,context,example,exampleMeaning,collocation,synonyms,antonyms,commonMistake,note.");
+toastStudio("No valid CSV words found.", "warn");
 return;
 }
 let result = importWordsToVocabulary(words);
 let message = importFeedback(result, "CSV", words.length, "CSV has");
 setText("csvImportResult", message);
 toastStudio(message, result.added ? "ok" : "warn");
+} catch (error) {
+setText("csvImportResult", "CSV import failed. Please check the file format.");
+toastStudio("CSV import failed. Please check the file format.", "err");
+}
 }
 
 function downloadCsvTemplate() {

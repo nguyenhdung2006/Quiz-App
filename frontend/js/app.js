@@ -117,7 +117,7 @@ remaining.push(id);
 
 writePendingCloudDeletes(remaining);
 if (remaining.length) {
-setSyncStatus("Cloud delete pending", "warn");
+setSyncStatus("Delete pending - sync paused", "warn");
 return false;
 }
 return true;
@@ -176,7 +176,9 @@ stats: word?.stats
 }
 
 function wordMergeKey(word) {
-let eng = String(word?.eng || "").trim().toLowerCase();
+let eng = typeof normalizeEnglishKey === "function"
+? normalizeEnglishKey(word?.eng)
+: String(word?.eng || "").trim().toLowerCase().replace(/\s+/g, " ");
 let id = word?.id ? `id:${word.id}` : "";
 return eng ? `eng:${eng}` : id;
 }
@@ -390,7 +392,7 @@ let id = word?.id;
 if (!id) return null;
 
 queuePendingCloudDelete(id);
-setSyncStatus("Cloud delete pending", "syncing");
+setSyncStatus("Delete pending - sync paused", "syncing");
 let flushed = await flushPendingCloudDeletes();
 if (!flushed) return null;
 setSyncStatus("Synced", "ok");
@@ -1152,6 +1154,7 @@ let merged = [...base];
 let existing = new Set(base.map(w => normalizeEnglishKey(w.eng)).filter(Boolean));
 let added = 0;
 let skipped = 0;
+let importedAt = new Date().toISOString();
 
 incoming.forEach(w => {
 let key = normalizeEnglishKey(w.eng);
@@ -1160,7 +1163,7 @@ skipped++;
 return;
 }
 existing.add(key);
-merged.push(w);
+merged.push(stampWordUpdatedAt(normalizeWord(w), importedAt));
 added++;
 });
 
@@ -1200,7 +1203,20 @@ if (!selectedFile) return;
 
 try {
 let text = await selectedFile.text();
-let normalized = normalizeImported(JSON.parse(text));
+if (!text.trim()) {
+toast("Import file appears empty.", "warn");
+return;
+}
+
+let payload;
+try {
+payload = JSON.parse(text);
+} catch (error) {
+toast("This JSON file is invalid.", "err");
+return;
+}
+
+let normalized = normalizeImported(payload);
 
 if (!normalized || normalized.vocab.length === 0) {
 toast("Import file has no valid vocab.", "warn");
@@ -1212,7 +1228,11 @@ let replace = confirm(
 );
 
 if (replace) {
-setData(normalized.vocab, normalized.wrongWords);
+let importedAt = new Date().toISOString();
+setData(
+normalized.vocab.map(word => stampWordUpdatedAt(normalizeWord(word), importedAt)),
+normalized.wrongWords.map(word => stampWordUpdatedAt(normalizeWord(word), importedAt))
+);
 toast(`Imported ${normalized.vocab.length} words by replacing current data.`, "ok");
 } else {
 let vocabResult = mergeByEnglishWithStats(getVocab(), normalized.vocab);

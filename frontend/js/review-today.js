@@ -6,6 +6,20 @@ let reviewSource = "Local";
 let reviewApiError = "";
 let revealedReviewItems = new Set();
 let reviewSubmittingItems = new Set();
+let reviewSession = freshSession();
+
+function freshSession() {
+return {
+active: false,
+completed: false,
+total: 0,
+reviewed: 0,
+again: 0,
+good: 0,
+easy: 0,
+source: "Local"
+};
+}
 
 function getWords() {
 return typeof vocab !== "undefined" && Array.isArray(vocab) ? vocab : [];
@@ -177,9 +191,10 @@ candidate.id === item.wordId || candidate.eng === item.eng
 );
 if (!word) return;
 
+let reviewedAt = new Date().toISOString();
 let data = stats(word);
 data.seen = Number(data.seen || 0) + 1;
-data.lastReviewed = new Date().toISOString();
+data.lastReviewed = reviewedAt;
 if (correct) {
 data.correct = Number(data.correct || 0) + 1;
 data.streak = serverResponse?.streak ?? (Number(data.streak || 0) + 1);
@@ -198,6 +213,8 @@ data.masteryLevel = 5;
 }
 
 data.nextReview = serverResponse?.nextReview || nextReviewDate(Number(data.streak || 0), correct);
+if (typeof stampWordUpdatedAt === "function") stampWordUpdatedAt(word, reviewedAt);
+else word.updatedAt = reviewedAt;
 persistLocalWords();
 renderTable?.();
 window.analyticsDashboard?.refresh?.();
@@ -221,6 +238,188 @@ let line = document.createElement("p");
 line.className = `apiStateMessage apiStateMessage--${kind}`;
 line.textContent = text;
 return line;
+}
+
+function actionButton(label, page, extraClass = "utilityBtn") {
+let button = document.createElement("button");
+button.className = extraClass;
+button.type = "button";
+button.textContent = label;
+button.addEventListener("click", () => {
+if (page === "weak") {
+document.getElementById("weakWordsReviewBtn")?.click();
+return;
+}
+if (typeof showAppPage === "function") showAppPage(page);
+});
+return button;
+}
+
+function ratingCopy(rating) {
+if (rating === "again") return { label: "Again", hint: "Review sooner" };
+if (rating === "easy") return { label: "Easy", hint: "I know this" };
+return { label: "Good", hint: "Keep learning" };
+}
+
+function makeRatingButton(rating, disabled, submitting, onClick) {
+let copy = ratingCopy(rating);
+let button = document.createElement("button");
+button.className = `reviewRatingBtn reviewRatingBtn--${rating}`;
+button.type = "button";
+button.disabled = disabled || submitting;
+button.setAttribute("aria-label", `${copy.label} - ${copy.hint}`);
+let label = document.createElement("strong");
+label.textContent = submitting ? "Saving..." : copy.label;
+let hint = document.createElement("span");
+hint.textContent = copy.hint;
+button.append(label, hint);
+button.addEventListener("click", onClick);
+return button;
+}
+
+function ensureSessionStarted() {
+if (reviewSession.active) return;
+reviewSession = {
+...freshSession(),
+active: true,
+total: reviewQueue.length,
+source: reviewSource
+};
+}
+
+function syncSessionWithQueue() {
+if (!reviewQueue.length && !reviewSession.reviewed) {
+reviewSession = {
+...freshSession(),
+source: reviewSource
+};
+return;
+}
+
+if (!reviewSession.active && reviewQueue.length) {
+ensureSessionStarted();
+}
+
+if (reviewSession.active) {
+reviewSession.source = reviewSource;
+reviewSession.total = Math.max(reviewSession.total, reviewSession.reviewed + reviewQueue.length);
+reviewSession.completed = reviewSession.reviewed > 0 && reviewQueue.length === 0;
+}
+}
+
+function sessionTotal() {
+return Math.max(reviewSession.total, reviewSession.reviewed + reviewQueue.length);
+}
+
+function renderSessionOverview() {
+let total = sessionTotal();
+let reviewed = Math.min(reviewSession.reviewed, total);
+let left = Math.max(0, total - reviewed);
+let percent = total ? Math.round(reviewed / total * 100) : 0;
+let panel = document.createElement("section");
+panel.className = "reviewSessionOverview";
+panel.setAttribute("aria-label", "Review session progress");
+
+let copy = document.createElement("div");
+copy.className = "reviewSessionCopy";
+let title = document.createElement("strong");
+title.textContent = "Today's Review";
+let subtitle = document.createElement("span");
+subtitle.textContent = total
+? `${total} ${total === 1 ? "word" : "words"} due - ${reviewSession.source}`
+: `No words due - ${reviewSource}`;
+copy.append(title, subtitle);
+
+let progress = document.createElement("div");
+progress.className = "reviewSessionProgress";
+let text = document.createElement("span");
+text.textContent = total
+? `Progress: ${reviewed} / ${total} - ${left} ${left === 1 ? "word" : "words"} left`
+: "Progress: 0 / 0 - all caught up";
+let track = document.createElement("div");
+track.className = "reviewProgressTrack";
+track.setAttribute("role", "progressbar");
+track.setAttribute("aria-valuemin", "0");
+track.setAttribute("aria-valuemax", "100");
+track.setAttribute("aria-valuenow", String(percent));
+track.setAttribute("aria-label", text.textContent);
+let fill = document.createElement("div");
+fill.className = "reviewProgressFill";
+fill.style.width = percent + "%";
+track.appendChild(fill);
+progress.append(text, track);
+
+let stats = document.createElement("div");
+stats.className = "reviewSessionStats";
+stats.append(
+sessionStat("Reviewed", reviewed),
+sessionStat("Again", reviewSession.again),
+sessionStat("Good", reviewSession.good),
+sessionStat("Easy", reviewSession.easy)
+);
+
+panel.append(copy, progress, stats);
+return panel;
+}
+
+function sessionStat(label, value) {
+let item = document.createElement("span");
+item.className = "reviewSessionStat";
+let strong = document.createElement("strong");
+strong.textContent = String(value);
+let small = document.createElement("small");
+small.textContent = label;
+item.append(strong, small);
+return item;
+}
+
+function renderEmptyState(host) {
+let empty = document.createElement("section");
+empty.className = "reviewStateCard reviewStateCard--empty";
+let title = document.createElement("h3");
+title.textContent = "No review words due today.";
+let message = document.createElement("p");
+message.textContent = reviewSource === "Cloud"
+? "You're all caught up. Come back tomorrow or practice weak words."
+: "You're all caught up locally. Add words or practice weak words when you want a light session.";
+let actions = document.createElement("div");
+actions.className = "reviewStateActions";
+actions.append(
+actionButton("Practice Weak Words", "weak"),
+actionButton("Add New Words", "vocabulary", "miniBtn"),
+actionButton("Go to Dashboard", "dashboard", "miniBtn")
+);
+empty.append(title, message, actions);
+host.appendChild(empty);
+}
+
+function renderCompletionState(host) {
+let total = sessionTotal();
+let confidence = reviewSession.reviewed
+? Math.round((reviewSession.good + reviewSession.easy) / reviewSession.reviewed * 100)
+: 0;
+let done = document.createElement("section");
+done.className = "reviewStateCard reviewStateCard--complete";
+let title = document.createElement("h3");
+title.textContent = "Review Complete";
+let message = document.createElement("p");
+message.textContent = `You reviewed ${reviewSession.reviewed || total} ${reviewSession.reviewed === 1 ? "word" : "words"} today. Keep your streak going tomorrow.`;
+let stats = document.createElement("div");
+stats.className = "reviewCompletionStats";
+stats.append(
+sessionStat("Again", reviewSession.again),
+sessionStat("Good", reviewSession.good),
+sessionStat("Easy", reviewSession.easy),
+sessionStat("Confidence", confidence + "%")
+);
+let actions = document.createElement("div");
+actions.className = "reviewStateActions";
+actions.append(
+actionButton("Back to Dashboard", "dashboard"),
+actionButton("Practice Weak Words", "weak", "miniBtn")
+);
+done.append(title, message, stats, actions);
+host.appendChild(done);
 }
 
 function renderFeedback(response, correct, fallbackMessage = "", rating = "") {
@@ -249,21 +448,21 @@ function renderQueue() {
 let host = document.getElementById("reviewTodayBody");
 if (!host) return;
 host.innerHTML = "";
-setText("reviewTodayMeta", reviewQueue.length
-? `Review 1 / ${reviewQueue.length} - ${reviewSource}`
+syncSessionWithQueue();
+let total = sessionTotal();
+let left = Math.max(0, total - reviewSession.reviewed);
+setText("reviewTodayMeta", total
+? `${total} ${total === 1 ? "word" : "words"} due - ${left} left`
 : `0 words due today - ${reviewSource}`);
+host.appendChild(renderSessionOverview());
 
 if (reviewApiError) {
 host.appendChild(stateLine(reviewApiError, "warn"));
 }
 
 if (!reviewQueue.length) {
-let empty = document.createElement("p");
-empty.className = "emptyStudio";
-empty.textContent = reviewSource === "Cloud"
-? "No review words today. Cloud queue is clear. Come back tomorrow or practice weak words."
-: "No review words today. Add words with review dates or practice weak words.";
-host.appendChild(empty);
+if (reviewSession.completed) renderCompletionState(host);
+else renderEmptyState(host);
 return;
 }
 
@@ -274,12 +473,13 @@ let revealed = revealedReviewItems.has(itemKey);
 let submitting = reviewSubmittingItems.has(itemKey);
 let row = document.createElement("article");
 row.className = "reviewQueueItem" + (revealed ? " is-revealed" : "");
+if (index === 0) row.classList.add("is-current");
 
 let main = document.createElement("div");
 main.className = "reviewWordMain";
 let progress = document.createElement("span");
 progress.className = "reviewProgress";
-progress.textContent = `Review ${index + 1} / ${reviewQueue.length}`;
+progress.textContent = index === 0 ? "Current card" : `Next ${index + 1}`;
 let title = document.createElement("strong");
 title.textContent = item.eng || "Unknown word";
 let meta = document.createElement("span");
@@ -319,26 +519,9 @@ revealedReviewItems.add(itemKey);
 renderQueue();
 });
 
-let wrongBtn = document.createElement("button");
-wrongBtn.className = "miniBtn";
-wrongBtn.type = "button";
-wrongBtn.textContent = submitting ? "Saving..." : "Again";
-wrongBtn.disabled = !revealed || submitting;
-wrongBtn.addEventListener("click", () => answerItem(item, false, "again"));
-
-let goodBtn = document.createElement("button");
-goodBtn.className = "utilityBtn";
-goodBtn.type = "button";
-goodBtn.textContent = submitting ? "Saving..." : "Good";
-goodBtn.disabled = !revealed || submitting;
-goodBtn.addEventListener("click", () => answerItem(item, true, "good"));
-
-let easyBtn = document.createElement("button");
-easyBtn.className = "miniBtn";
-easyBtn.type = "button";
-easyBtn.textContent = submitting ? "Saving..." : "Easy";
-easyBtn.disabled = !revealed || submitting;
-easyBtn.addEventListener("click", () => answerItem(item, true, "easy"));
+let wrongBtn = makeRatingButton("again", !revealed, submitting, () => answerItem(item, false, "again"));
+let goodBtn = makeRatingButton("good", !revealed, submitting, () => answerItem(item, true, "good"));
+let easyBtn = makeRatingButton("easy", !revealed, submitting, () => answerItem(item, true, "easy"));
 
 actions.append(priorityNode, revealBtn, wrongBtn, goodBtn, easyBtn);
 row.append(main, actions);
@@ -366,12 +549,17 @@ let itemKey = reviewItemKey(item);
 if (reviewSubmittingItems.has(itemKey)) return;
 
 reviewApiError = "";
+ensureSessionStarted();
 reviewSubmittingItems.add(itemKey);
 renderQueue();
 let response = null;
 try {
 response = reviewSource === "Cloud" ? await postAnswer(item, correct) : null;
 applyLocalAnswer(item, correct, response);
+reviewSession.reviewed += 1;
+if (rating === "again") reviewSession.again += 1;
+else if (rating === "easy") reviewSession.easy += 1;
+else reviewSession.good += 1;
 revealedReviewItems.delete(itemKey);
 await refresh();
 } finally {
@@ -398,7 +586,12 @@ renderQueue();
 }
 
 function init() {
-document.getElementById("reviewTodayStartBtn")?.addEventListener("click", refresh);
+document.getElementById("reviewTodayStartBtn")?.addEventListener("click", () => {
+reviewSession = freshSession();
+revealedReviewItems.clear();
+reviewSubmittingItems.clear();
+refresh();
+});
 refresh();
 }
 

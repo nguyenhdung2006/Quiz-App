@@ -19,6 +19,31 @@ button.disabled = loading;
 button.textContent = loading ? "Explaining..." : "Explain";
 }
 
+function ensureCooldownMessage(panel) {
+let message = panel.querySelector(".aiExplainCooldownMessage");
+if (!message) {
+message = document.createElement("p");
+message.className = "apiStateMessage apiStateMessage--warn aiExplainCooldownMessage";
+panel.appendChild(message);
+}
+return message;
+}
+
+function updateCooldownButton(button, panel, availableAt) {
+if (!button) return;
+let remaining = Math.max(0, availableAt - Date.now());
+if (remaining <= 0) {
+setLoading(button, false);
+panel.querySelector(".aiExplainCooldownMessage")?.remove();
+return;
+}
+let wait = Math.ceil(remaining / 1000);
+button.disabled = true;
+button.textContent = `Wait ${wait}s`;
+ensureCooldownMessage(panel).textContent = `AI is cooling down. Try again in ${wait}s.`;
+setTimeout(() => updateCooldownButton(button, panel, availableAt), Math.min(1000, remaining));
+}
+
 function fallbackExplanation(request) {
 let word = clean(request.word, "this word");
 let correctAnswer = clean(request.correctAnswer, "the correct answer");
@@ -121,7 +146,8 @@ message.textContent = `Please wait ${wait}s before asking again.`;
 panel.appendChild(message);
 return;
 }
-if (cooldownKey) aiExplainCooldowns.set(cooldownKey, now + AI_EXPLAIN_COOLDOWN_MS);
+let availableAfterRequest = now + AI_EXPLAIN_COOLDOWN_MS;
+if (cooldownKey) aiExplainCooldowns.set(cooldownKey, availableAfterRequest);
 panel.innerHTML = "";
 let loading = document.createElement("p");
 loading.className = "apiStateMessage apiStateMessage--loading";
@@ -132,7 +158,7 @@ try {
 let explanation = await requestExplanation(request);
 render(panel, explanation);
 } finally {
-setLoading(button, false);
+updateCooldownButton(button, panel, availableAfterRequest);
 }
 }
 };

@@ -113,15 +113,13 @@ if (generated && exampleInput) exampleInput.value = generated;
 document.addEventListener("keydown", function (e) {
 
 if (e.key >= "1" && e.key <= "4") {
+if (e.altKey || e.ctrlKey || e.metaKey) return;
+if (document.activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
 
 let i = Number(e.key) - 1;
 
-let answersDiv = document.querySelectorAll(".answer");
-
-if (answersDiv[i]) {
-
-answersDiv[i].click();
-
+if (typeof chooseAnswerByIndex === "function" && chooseAnswerByIndex(i)) {
+e.preventDefault();
 }
 
 }
@@ -135,18 +133,11 @@ if(e.key === "Escape"){
 }
 
 if(e.key === "Enter" && quizData?.length){
+    if (document.activeElement && ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
+    if (document.activeElement?.tagName === "BUTTON" && !document.activeElement.classList.contains("answer")) return;
 
-    if(answered[index]) return;
-
-    if(!answers[index]){
-        showThinkHint("Hmm... choose one before moving on.");
-        return;
-    }
-
-    if(index === quizData.length - 1){
-        submitAnswer();
-    }else{
-        nextQuestion();
+    if (typeof continueQuiz === "function" && continueQuiz()) {
+        e.preventDefault();
     }
 
 }

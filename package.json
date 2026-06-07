@@ -1,0 +1,12 @@
+{
+  "name": "wordarena-smoke-tests",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test:frontend": "playwright test",
+    "test:frontend:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.60.0"
+  }
+}

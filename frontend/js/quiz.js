@@ -44,6 +44,81 @@ options
 return data;
 }
 
+let quizInputLocked = false;
+let quizFinishing = false;
+
+function isQuizActive() {
+return quizScreen && !quizScreen.classList.contains("hidden") && Array.isArray(quizData) && quizData.length > 0;
+}
+
+function setAnswerButtonsLocked(locked) {
+document.querySelectorAll("#answers .answer").forEach(button => {
+button.disabled = locked;
+button.classList.toggle("locked", locked);
+button.setAttribute("aria-disabled", String(locked));
+});
+}
+
+function lockCurrentQuestionInput() {
+quizInputLocked = true;
+setAnswerButtonsLocked(true);
+}
+
+function renderQuestionFeedback(feedbackEl, picked, correctAnswer) {
+if (!feedbackEl) return;
+
+let isCorrect = picked === correctAnswer;
+feedbackEl.textContent = isCorrect ? "Correct. Press Enter or Next to continue." : `Wrong. Correct answer: ${correctAnswer}`;
+feedbackEl.className = "questionFeedback";
+feedbackEl.classList.add(isCorrect ? "questionFeedback--correct" : "questionFeedback--wrong");
+}
+
+function chooseAnswer(option) {
+if (!isQuizActive() || quizInputLocked || answered[index] || quizFinishing) return;
+
+answers[index] = option;
+selected = true;
+lockCurrentQuestionInput();
+checkAnswer();
+loadQuestion();
+quizScreen.setAttribute("tabindex", "-1");
+quizScreen.focus({ preventScroll: true });
+}
+
+function chooseAnswerByIndex(optionIndex) {
+if (!isQuizActive() || optionIndex < 0 || optionIndex > 3) return false;
+
+let buttons = document.querySelectorAll("#answers .answer");
+if (!buttons[optionIndex] || buttons[optionIndex].disabled) return false;
+
+buttons[optionIndex].click();
+return true;
+}
+
+function continueQuiz() {
+if (!isQuizActive() || quizFinishing) return false;
+
+if (!answers[index]) {
+showThinkHint("Hmm... choose one before moving on.");
+return true;
+}
+
+if (!answered[index]) {
+lockCurrentQuestionInput();
+checkAnswer();
+loadQuestion();
+return true;
+}
+
+if (index >= quizData.length - 1) {
+submitAnswer();
+return true;
+}
+
+nextQuestion();
+return true;
+}
+
 function startWordSetQuiz(words, mode, options = {}) {
 clearInterval(questionTimer);
 
@@ -66,6 +141,8 @@ answered = [];
 correctCount = 0;
 combo = 0;
 maxCombo = 0;
+quizInputLocked = false;
+quizFinishing = false;
 
 isPracticeMode = Boolean(options.practice);
 isChallengeMode = Boolean(options.challenge);
@@ -139,6 +216,8 @@ index = 0;
 answers = [];
 answered = [];
 correctCount = 0;
+quizInputLocked = false;
+quizFinishing = false;
 
 hideAllScreens();
 quizScreen.classList.remove("hidden");
@@ -177,6 +256,8 @@ index = 0;
 answers = [];
 answered = [];
 correctCount = 0;
+quizInputLocked = false;
+quizFinishing = false;
 
 hideAllScreens();
 quizScreen.classList.remove("hidden");
@@ -259,6 +340,7 @@ document.getElementById("timer").classList.remove("timerDanger");
 clearTimeout(hintTimer);
 
 selected = Boolean(answers[index]);
+quizInputLocked = Boolean(answered[index]) || quizFinishing;
 
 hideHint();
 if (!answered[index]) startHintTimer();
@@ -293,14 +375,11 @@ let div = document.createElement("button");
 div.className = "answer";
 div.type = "button";
 div.innerText = (i + 1) + ". " + o;
+div.setAttribute("aria-label", `Answer ${i + 1}: ${o}`);
+div.setAttribute("aria-pressed", String(answers[index] === o));
 
 div.onclick = () => {
-if (answered[index]) return;
-
-answers[index] = o;
-selected = true;
-checkAnswer();
-loadQuestion();
+chooseAnswer(o);
 };
 
 if (answers[index] === o) {
@@ -308,9 +387,6 @@ div.classList.add("selected");
 }
 
 if (answered[index]) {
-div.disabled = true;
-div.classList.add("locked");
-
 if (o === correctAnswer) {
 div.classList.add("correct");
 }
@@ -320,14 +396,18 @@ div.classList.add("wrong");
 }
 }
 
+if (quizInputLocked || answered[index]) {
+div.disabled = true;
+div.classList.add("locked");
+div.setAttribute("aria-disabled", "true");
+}
+
 answersDiv.appendChild(div);
 });
 
 if (answered[index] && feedbackEl) {
 let picked = answers[index];
-let isCorrect = picked === correctAnswer;
-feedbackEl.textContent = isCorrect ? "Correct!" : `Wrong. Correct answer: ${correctAnswer}`;
-feedbackEl.classList.add(isCorrect ? "questionFeedback--correct" : "questionFeedback--wrong");
+renderQuestionFeedback(feedbackEl, picked, correctAnswer);
 }
 
 if (index === quizData.length - 1) {
@@ -388,6 +468,8 @@ renderTable();
 }
 
 function submitAnswer() {
+if (quizFinishing) return;
+
 if (!answers[index]) {
 showThinkHint("Hmm... choose one before moving on.");
 return;
@@ -397,6 +479,8 @@ checkAnswer();
 loadQuestion();
 
 if (index === quizData.length - 1) {
+quizFinishing = true;
+setAnswerButtonsLocked(true);
 progress.style.width = "100%";
 
 setTimeout(() => {
@@ -412,6 +496,7 @@ finishQuiz();
 
 function finishQuiz() {
 clearInterval(questionTimer);
+quizFinishing = false;
 quizScreen.classList.add("hidden");
 resultScreen.classList.remove("hidden");
 
@@ -560,17 +645,23 @@ reviewScreen.classList.remove("hidden");
 }
 
 function showResultScreen() {
+quizFinishing = false;
 hideAllScreens();
 resultScreen.classList.remove("hidden");
 }
 
 function nextQuestion() {
+if (quizFinishing) return;
+
 if (!answers[index]) {
 showThinkHint("Hmm... choose one before moving on.");
 return;
 }
 
+if (!answered[index]) {
+lockCurrentQuestionInput();
 checkAnswer();
+}
 
 if (index >= quizData.length - 1) {
 submitAnswer();
@@ -578,11 +669,12 @@ return;
 }
 
 index++;
+quizInputLocked = false;
 loadQuestion();
 }
 
 function prevQuestion() {
-if (index <= 0) return;
+if (index <= 0 || quizFinishing) return;
 
 index--;
 loadQuestion();

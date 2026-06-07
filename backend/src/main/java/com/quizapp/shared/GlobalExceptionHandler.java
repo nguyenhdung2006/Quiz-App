@@ -1,5 +1,7 @@
 package com.quizapp.shared;
 
+import com.quizapp.ai.AiRateLimitError;
+import com.quizapp.ai.AiRateLimitExceededException;
 import java.util.Comparator;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -38,6 +40,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
                 .body(ApiError.of("Forbidden.", List.of(exception.getMessage())));
+    }
+
+    @ExceptionHandler(AiRateLimitExceededException.class)
+    ResponseEntity<AiRateLimitError> handleAiRateLimit(AiRateLimitExceededException exception) {
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(AiRateLimitError.standard(exception.getRetryAfterSeconds()));
     }
 
     @ExceptionHandler(RuntimeException.class)

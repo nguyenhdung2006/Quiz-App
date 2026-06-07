@@ -48,6 +48,8 @@ variables in the hosting platform.
 | `DATABASE_USERNAME` | Production yes | PostgreSQL username. |
 | `DATABASE_PASSWORD` | Production yes | PostgreSQL password. |
 | `JPA_DDL_AUTO` | Production yes | Use `validate` after schema is created. Local can omit for `update`. |
+| `FLYWAY_ENABLED` | Optional | Defaults to `false`. Set to `true` only for a verified PostgreSQL database or a fresh database that should run migrations. |
+| `FLYWAY_BASELINE_ON_MIGRATE` | Optional | Defaults to `false`. Do not enable unless intentionally baselining an existing verified database. |
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID. |
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret. |
 | `FRONTEND_URL` | Production yes | Public frontend origin, for example `https://YOUR_FRONTEND_DOMAIN`. |
@@ -94,18 +96,41 @@ SESSION_COOKIE_SECURE=true
 
 ## PostgreSQL Setup
 
-Create the database, then apply the schema once:
-
-```powershell
-psql -d quizapp -f database\schema.sql
-```
-
-For production:
+Flyway migration support is prepared but disabled by default. For a fresh
+PostgreSQL database, enable Flyway and let it apply the baseline migration:
 
 ```text
 DATABASE_URL=jdbc:postgresql://HOST:5432/quizapp
 DATABASE_USERNAME=...
 DATABASE_PASSWORD=...
+FLYWAY_ENABLED=true
+JPA_DDL_AUTO=validate
+```
+
+The legacy `database/schema.sql` file remains a reference and manual repair
+script for now. Do not run both `database/schema.sql` and Flyway V1 against the
+same fresh database.
+
+For an existing Supabase or production database, do not simply enable Flyway and
+deploy. Use this safer rollout:
+
+1. Back up/export the database schema.
+2. Verify tables, columns, constraints, indexes, triggers, and seed data match
+   `backend/src/main/resources/db/migration/V1__baseline_schema.sql`.
+3. Check for schema drift, especially legacy tables created before later app
+   fields existed.
+4. Baseline the existing database deliberately so Flyway records the correct
+   starting point without replaying V1 over populated tables.
+5. Enable Flyway only after the baseline marker is correct.
+6. Keep `JPA_DDL_AUTO=validate`.
+
+Minimum production database env after verification:
+
+```text
+DATABASE_URL=jdbc:postgresql://HOST:5432/quizapp
+DATABASE_USERNAME=...
+DATABASE_PASSWORD=...
+FLYWAY_ENABLED=true
 JPA_DDL_AUTO=validate
 ```
 
@@ -195,14 +220,14 @@ This endpoint does not expose database, OAuth, or AI secrets.
 `OPENAI_API_KEY` is optional. Without it, the app still runs and AI Explain uses
 the rule-based fallback.
 
-Current limitations:
+Current protections:
 
-- No backend rate limit yet.
+- Backend AI endpoints have in-memory per-user rate limiting.
 - No AI response cache yet.
 - Do not expose `OPENAI_API_KEY` in frontend code.
 
-For a larger public launch, add backend rate limiting and caching in a later
-sprint.
+For a larger public launch, add shared rate limiting and caching in a later
+sprint if the backend is scaled across multiple instances.
 
 ## Troubleshooting
 
@@ -224,7 +249,10 @@ Database connection fail:
 H2 local vs PostgreSQL production:
 
 - Local can run with no database env and uses H2.
-- Production should use PostgreSQL and `JPA_DDL_AUTO=validate`.
+- Flyway is disabled by default so PostgreSQL-specific migrations do not break
+  H2 local/test startup.
+- Production should use PostgreSQL, `FLYWAY_ENABLED=true` only after baseline
+  verification, and `JPA_DDL_AUTO=validate`.
 
 AI not configured:
 

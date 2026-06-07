@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    name: Backend tests and frontend checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Run backend tests
+        working-directory: backend
+        run: |
+          chmod +x mvnw
+          ./mvnw -B test
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check frontend JavaScript syntax
+        run: |
+          node -e "
+          const { readdirSync } = require('node:fs');
+          const { join } = require('node:path');
+          const { spawnSync } = require('node:child_process');
+
+          function collectJsFiles(dir) {
+            return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+              const fullPath = join(dir, entry.name);
+              if (entry.isDirectory()) return collectJsFiles(fullPath);
+              return entry.isFile() && entry.name.endsWith('.js') ? [fullPath] : [];
+            });
+          }
+
+          const files = collectJsFiles('frontend/js');
+          for (const file of files) {
+            const result = spawnSync(process.execPath, ['--check', file], { stdio: 'inherit' });
+            if (result.status !== 0) process.exit(result.status || 1);
+          }
+
+          console.log('Checked ' + files.length + ' frontend JavaScript files.');
+          "
+
+      - name: Install frontend smoke test dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run frontend smoke tests
+        run: npm run test:frontend

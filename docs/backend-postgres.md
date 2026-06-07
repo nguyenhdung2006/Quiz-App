@@ -16,15 +16,40 @@ Create the database:
 CREATE DATABASE quizapp;
 ```
 
-Apply the manual schema once:
+For a fresh PostgreSQL database, prefer Flyway:
+
+```powershell
+$env:DATABASE_URL="jdbc:postgresql://localhost:5432/quizapp"
+$env:DATABASE_USERNAME="postgres"
+$env:DATABASE_PASSWORD="your_password"
+$env:FLYWAY_ENABLED="true"
+$env:JPA_DDL_AUTO="validate"
+.\mvnw.cmd spring-boot:run
+```
+
+Flyway is disabled by default because the current baseline migration is
+PostgreSQL-specific and the normal local/test path uses H2. Leave
+`FLYWAY_ENABLED` unset for quick H2 development.
+
+The legacy `database/schema.sql` file remains as a reference and manual repair
+script while migration rollout is staged. Do not apply `database/schema.sql` and
+Flyway V1 to the same fresh database.
+
+For an existing Supabase or production database, do not enable Flyway until the
+database has been verified and baselined:
+
+1. Back up/export the schema.
+2. Compare tables, columns, constraints, indexes, triggers, and achievements
+   seed data against `backend/src/main/resources/db/migration/V1__baseline_schema.sql`.
+3. Check old manual repair gaps before trusting `JPA_DDL_AUTO=validate`.
+4. Add the Flyway baseline marker intentionally.
+5. Only then set `FLYWAY_ENABLED=true` with `JPA_DDL_AUTO=validate`.
+
+If you intentionally need the old manual schema path for a local PostgreSQL
+database, apply it before startup and keep Flyway disabled:
 
 ```powershell
 psql -d quizapp -f ..\database\schema.sql
-```
-
-Then run:
-
-```powershell
 $env:DATABASE_URL="jdbc:postgresql://localhost:5432/quizapp"
 $env:DATABASE_USERNAME="postgres"
 $env:DATABASE_PASSWORD="your_password"
@@ -32,7 +57,9 @@ $env:JPA_DDL_AUTO="validate"
 .\mvnw.cmd spring-boot:run
 ```
 
-For fast development without manual schema validation, leave `JPA_DDL_AUTO` unset and Spring will use `update`.
+For fast development without manual schema validation, leave `DATABASE_URL`,
+`FLYWAY_ENABLED`, and `JPA_DDL_AUTO` unset. Spring will use H2 with Hibernate
+`update`.
 
 ## API Endpoints
 All app APIs require an authenticated Google session except the OAuth/login routes.

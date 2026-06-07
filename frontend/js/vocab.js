@@ -2,6 +2,7 @@ let editingWordIndex = null;
 
 const POS_OPTIONS = ["interjection", "n", "v", "adj", "adv", "proverb", "idiom"];
 const LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2", "IELTS 5.0", "IELTS 6.0", "IELTS 7.0", "IELTS 8.0+", "School"];
+const MAX_ENGLISH_WORD_LENGTH = 120;
 
 document.addEventListener("click", () => {
 document.querySelectorAll(".actionMenu.is-open").forEach(menu => menu.classList.remove("is-open"));
@@ -13,6 +14,20 @@ return String(value || "").trim();
 
 function normalizeEnglishKey(value) {
 return cleanText(value).toLowerCase().replace(/\s+/g, " ");
+}
+
+function stampWordUpdatedAt(word, timestamp = new Date().toISOString()) {
+if (word && typeof word === "object") {
+word.updatedAt = timestamp;
+}
+return word;
+}
+
+function validateWordFields(word) {
+if (!word.eng) return "Please enter an English word.";
+if (!word.vie) return "Please enter a Vietnamese meaning.";
+if (word.eng.length > MAX_ENGLISH_WORD_LENGTH) return "English word is too long.";
+return "";
 }
 
 function normalizeWord(word) {
@@ -179,9 +194,10 @@ function recordWordResult(word, isCorrect) {
 let target = vocab.find(w => w.eng === word.eng);
 if (!target) return;
 
+let reviewedAt = new Date().toISOString();
 target.stats = target.stats || {};
 target.stats.seen = Number(target.stats.seen || 0) + 1;
-target.stats.lastReviewed = new Date().toISOString();
+target.stats.lastReviewed = reviewedAt;
 
 if (isCorrect) {
 target.stats.correct = Number(target.stats.correct || 0) + 1;
@@ -197,6 +213,7 @@ target.mastered = false;
 }
 
 target.stats.nextReview = nextReviewDate(target.stats, isCorrect);
+stampWordUpdatedAt(target, reviewedAt);
 }
 
 function buildExampleSentence(eng, pos, context, collocation) {
@@ -256,8 +273,14 @@ engInput?.focus();
 
 function addWord(options = {}) {
 let word = readWordForm();
+let validationMessage = validateWordFields(word);
 
-if (!word.eng || !word.vie) return;
+if (validationMessage) {
+alert(validationMessage);
+if (!word.eng) engInput?.focus();
+else if (!word.vie) vieInput?.focus();
+return;
+}
 
 if (!word.example) {
 word.example = buildExampleSentence(word.eng, word.pos, word.context, word.collocation);
@@ -269,6 +292,7 @@ alert("Word already exists!");
 return;
 }
 
+stampWordUpdatedAt(word);
 let localIndex = vocab.push(word) - 1;
 
 save();
@@ -708,8 +732,9 @@ let current = vocab[i];
 if (!current) return;
 
 let next = normalizeWord({ ...current, ...patch });
-if (!next.eng || !next.vie) {
-alert("English and Vietnamese are required.");
+let validationMessage = validateWordFields(next);
+if (validationMessage) {
+alert(validationMessage);
 return;
 }
 
@@ -722,6 +747,7 @@ return;
 }
 
 let oldEng = current.eng;
+stampWordUpdatedAt(next);
 vocab[i] = next;
 wrongWords = wrongWords.map(word => word.eng === oldEng ? normalizeWord({ ...word, ...next }) : word);
 editingWordIndex = null;
@@ -739,6 +765,7 @@ renderTable();
 }
 
 function syncWordUpdate(i) {
+if (vocab[i]) stampWordUpdatedAt(vocab[i]);
 save();
 renderTable();
 renderMistakeTable();
