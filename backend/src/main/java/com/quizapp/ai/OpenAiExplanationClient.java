@@ -17,6 +17,9 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class OpenAiExplanationClient implements AiExplanationClient {
+    private static final int MAX_FIELD_LENGTH = 400;
+    private static final int MAX_COLLOCATION_LENGTH = 80;
+
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final String apiKey;
@@ -168,16 +171,16 @@ public class OpenAiExplanationClient implements AiExplanationClient {
             throw new IllegalStateException("OpenAI response did not include text output.");
         }
 
-        JsonNode json = objectMapper.readTree(outputText);
+        JsonNode json = AiJsonGuardrails.parseJsonOutput(objectMapper, outputText);
         return new ExplainWrongAnswerResponse(
-                text(json, "word", fallbackWord),
-                text(json, "shortMeaning", ""),
-                text(json, "whyWrong", ""),
-                text(json, "correctUsage", ""),
-                text(json, "example", ""),
-                text(json, "memoryTip", ""),
+                text(json, fallbackWord, "word", "english"),
+                text(json, "", "shortMeaning", "meaning", "vietnameseMeaning"),
+                text(json, "", "whyWrong", "why_wrong", "reason"),
+                text(json, "", "correctUsage", "correct_usage", "usage"),
+                text(json, "", "example", "exampleSentence"),
+                text(json, "", "memoryTip", "memory_tip", "tip"),
                 stringList(json.get("collocations")),
-                text(json, "commonMistake", ""),
+                text(json, "", "commonMistake", "common_mistake"),
                 "openai"
         );
     }
@@ -204,20 +207,36 @@ public class OpenAiExplanationClient implements AiExplanationClient {
         List<String> values = new ArrayList<>();
         if (node != null && node.isArray()) {
             for (JsonNode item : node) {
-                if (!item.asText("").isBlank()) {
-                    values.add(item.asText());
+                String value = bounded(item.asText(""));
+                if (!value.isBlank()) {
+                    values.add(value.length() > MAX_COLLOCATION_LENGTH ? "" : value);
                 }
             }
+        } else if (node != null && node.isTextual()) {
+            String value = bounded(node.asText(""));
+            if (!value.isBlank() && value.length() <= MAX_COLLOCATION_LENGTH) {
+                values.add(value);
+            }
         }
-        return values;
+        return values.stream().filter(value -> !value.isBlank()).limit(4).toList();
     }
 
-    private String text(JsonNode node, String field, String fallback) {
-        String value = node.path(field).asText("");
-        return value.isBlank() ? safe(fallback) : value.trim();
+    private String text(JsonNode node, String fallback, String... fields) {
+        for (String field : fields) {
+            String value = bounded(node.path(field).asText(""));
+            if (!value.isBlank()) {
+                return value;
+            }
+        }
+        return safe(fallback);
+    }
+
+    private String bounded(String value) {
+        String clean = safe(value);
+        return clean.length() > MAX_FIELD_LENGTH ? "" : clean;
     }
 
     private String safe(String value) {
-        return value == null ? "" : value.trim();
+        return value == null ? "" : value.trim().replaceAll("\\s+", " ");
     }
 }

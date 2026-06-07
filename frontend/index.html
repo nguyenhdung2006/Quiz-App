@@ -954,8 +954,8 @@ Hmm... choose one before moving on!
 <div class="studioCard curatedDeckCard">
 <div class="studioCardHead">
 <div>
-<h3>Generate Curated Deck</h3>
-<p>Create a reliable topic deck from reviewed local seed lists. No web scraping, no fake citations.</p>
+<h3>Curated Deck Builder</h3>
+<p>Choose a small built-in deck, review the words, then import only what you need.</p>
 </div>
 <span>curated-local</span>
 </div>
@@ -963,31 +963,28 @@ Hmm... choose one before moving on!
 <label>
 <span>Topic</span>
 <select id="curatedTopicSelect">
-<option value="ielts">IELTS</option>
-<option value="travel">Travel</option>
-<option value="school">School</option>
-<option value="technology">Technology</option>
-<option value="business">Business</option>
-<option value="health">Health</option>
-<option value="environment">Environment</option>
-<option value="daily-life">Daily Life</option>
-<option value="academic">Academic English</option>
-<option value="work">Work</option>
+<option value="daily-life">Daily English</option>
+<option value="conversation">Common Conversation</option>
+<option value="travel">Travel English</option>
+<option value="university">University Survival English</option>
+<option value="toeic">TOEIC Essentials</option>
+<option value="ielts">IELTS Essentials</option>
+<option value="academic">Academic Vocabulary</option>
 <option value="custom">Custom topic</option>
 </select>
 </label>
 <label>
 <span>Custom topic</span>
-<input id="curatedCustomTopic" type="text" maxlength="40" placeholder="Overrides topic, e.g. Travel">
+<input id="curatedCustomTopic" type="text" maxlength="40" placeholder="Overrides topic, e.g. TOEIC">
 </label>
 <label>
 <span>CEFR</span>
 <select id="curatedLevelSelect">
-<option value="Any">Any</option>
+<option value="Any" selected>Any</option>
 <option value="A1">A1</option>
 <option value="A2">A2</option>
 <option value="B1">B1</option>
-<option value="B2" selected>B2</option>
+<option value="B2">B2</option>
 <option value="C1">C1</option>
 <option value="C2">C2</option>
 </select>
@@ -998,7 +995,6 @@ Hmm... choose one before moving on!
 <option value="10">10</option>
 <option value="20" selected>20</option>
 <option value="30">30</option>
-<option value="50">50</option>
 </select>
 </label>
 </div>
@@ -1027,8 +1023,8 @@ Hmm... choose one before moving on!
 <div class="studioCard starterDecksCard">
 <div class="studioCardHead">
 <div>
-<h3>Starter sample decks</h3>
-<p>Small hand-picked decks for quick import. These stay simple on purpose.</p>
+<h3>Built-in starter decks</h3>
+<p>Small hand-picked decks with consistent level, topic, and examples.</p>
 </div>
 </div>
 <div class="topicDeckGrid" id="topicDeckGrid"></div>

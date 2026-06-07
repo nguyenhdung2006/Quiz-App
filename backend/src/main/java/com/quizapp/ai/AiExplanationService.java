@@ -1,9 +1,13 @@
 package com.quizapp.ai;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AiExplanationService {
+    private static final Logger log = LoggerFactory.getLogger(AiExplanationService.class);
+
     private final AiExplanationClient aiClient;
     private final RuleBasedExplanationService fallback;
 
@@ -20,6 +24,7 @@ public class AiExplanationService {
         try {
             return aiClient.explain(request);
         } catch (RuntimeException exception) {
+            log.warn("AI explanation failed safely: {}", exception.getMessage());
             return fallback.explain(request);
         }
     }

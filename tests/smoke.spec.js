@@ -130,8 +130,18 @@ async function preparePage(page, options = {}) {
       return;
     }
     if (url.endsWith("/api/ai/generate-deck")) {
+      if (options.aiDeckRawBody !== undefined || options.aiDeckStatus) {
+        await route.fulfill({
+          status: options.aiDeckStatus || 200,
+          contentType: options.aiDeckContentType || "application/json",
+          body: options.aiDeckRawBody !== undefined
+            ? options.aiDeckRawBody
+            : JSON.stringify(options.aiDeckResponse || {})
+        });
+        return;
+      }
       await route.fulfill({
-        json: {
+        json: options.aiDeckResponse || {
           source: "fallback",
           items: [
             {
@@ -386,6 +396,80 @@ test("AI deck panel opens without calling a real AI service", async ({ page }) =
   await expect(page.locator("#learningStudio")).toBeVisible();
   await expect(page.locator("#aiDeckText")).toBeVisible();
   await expect(page.locator("#aiDeckGenerateBtn")).toBeVisible();
+
+  expect(fatalConsole).toEqual([]);
+});
+
+test("AI deck rate limit message clears loading state", async ({ page }) => {
+  const fatalConsole = await preparePage(page, {
+    aiDeckStatus: 429,
+    aiDeckResponse: {
+      error: "Rate limit exceeded",
+      message: "Too many AI requests. Please try again later.",
+      retryAfterSeconds: 45
+    }
+  });
+
+  await page.getByRole("button", { name: "AI Deck", exact: true }).click();
+  await page.locator("#aiDeckBtn").click();
+  await page.locator("#aiDeckText").fill("Critical thinking improves concentration during academic reading.");
+  await page.locator("#aiDeckGenerateBtn").click();
+
+  await expect(page.locator("#aiDeckStatus")).toContainText("Daily AI limit reached");
+  await expect(page.locator("#aiDeckSource")).toContainText("Rate limited");
+  await expect(page.locator("#aiDeckGenerateBtn")).not.toHaveText("Generating...");
+  await expect(page.locator("#aiDeckList")).toContainText("No generated words yet");
+
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("AI deck malformed response does not freeze the panel", async ({ page }) => {
+  const fatalConsole = await preparePage(page, {
+    aiDeckRawBody: "not-json",
+    aiDeckContentType: "text/plain"
+  });
+
+  await page.getByRole("button", { name: "AI Deck", exact: true }).click();
+  await page.locator("#aiDeckBtn").click();
+  await page.locator("#aiDeckText").fill("Useful vocabulary appears in this short passage.");
+  await page.locator("#aiDeckGenerateBtn").click();
+
+  await expect(page.locator("#aiDeckStatus")).toContainText("AI response could not be processed");
+  await expect(page.locator("#aiDeckSource")).toContainText("Unavailable");
+  await expect(page.locator("#aiDeckGenerateBtn")).not.toHaveText("Generating...");
+  await expect(page.locator("#aiDeckList")).toContainText("No generated words yet");
+
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("curated deck list renders and imports without duplicating words", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+
+  await page.getByRole("button", { name: "Studio" }).click();
+  await page.locator("#studioBtn").click();
+  await expect(page.locator("#learningStudio")).toBeVisible();
+  await page.locator(".studioTab[data-studio-tab='decks']").click();
+
+  await expect(page.locator("#topicDeckGrid")).toContainText("IELTS Essentials");
+  await expect(page.locator("#topicDeckGrid")).toContainText("starter pick");
+
+  await page.locator("#curatedTopicSelect").selectOption("toeic");
+  await page.locator("#curatedLevelSelect").selectOption("Any");
+  await page.locator("#curatedCountSelect").selectOption("10");
+  await page.locator("#curatedGenerateBtn").click();
+
+  await expect(page.locator("#curatedDeckStatus")).toContainText("Generated 10 reliable TOEIC Essentials words");
+  await expect(page.locator("#curatedDeckList .aiDeckField--eng input").first()).toHaveValue("invoice");
+
+  await page.locator("#curatedImportBtn").click();
+  await expect(page.locator("#curatedDeckStatus")).toContainText("Imported 10 new words");
+  await page.locator("#curatedImportBtn").click();
+  await expect(page.locator("#curatedDeckStatus")).toContainText("No new words imported");
+
+  await expect.poll(async () => page.evaluate(() => {
+    const words = JSON.parse(localStorage.getItem("quizAccount:local-guest:vocab") || "[]");
+    return words.filter(word => word.tag === "toeic").length;
+  })).toBe(10);
 
   expect(fatalConsole).toEqual([]);
 });

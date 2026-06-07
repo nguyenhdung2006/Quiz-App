@@ -20,6 +20,13 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class OpenAiDeckGeneratorClient implements AiDeckGeneratorClient {
+    private static final Set<String> VALID_LEVELS = Set.of("A1", "A2", "B1", "B2", "C1", "C2");
+    private static final int MAX_ENGLISH_LENGTH = 80;
+    private static final int MAX_MEANING_LENGTH = 160;
+    private static final int MAX_POS_LENGTH = 20;
+    private static final int MAX_EXAMPLE_LENGTH = 240;
+    private static final int MAX_TAG_LENGTH = 40;
+
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final String apiKey;
@@ -171,25 +178,26 @@ public class OpenAiDeckGeneratorClient implements AiDeckGeneratorClient {
             throw new IllegalStateException("OpenAI deck response did not include text output.");
         }
 
-        JsonNode json = objectMapper.readTree(outputText);
+        JsonNode json = AiJsonGuardrails.parseJsonOutput(objectMapper, outputText);
+        JsonNode rawItems = json.isArray() ? json : json.path("items");
         List<GeneratedDeckWordDto> items = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         String targetLevel = request.normalizedTargetLevel();
-        for (JsonNode item : json.path("items")) {
-            String english = text(item, "english", "");
-            String vietnameseMeaning = text(item, "vietnameseMeaning", "");
-            String level = normalizeLevel(text(item, "level", ""), targetLevel);
-            String key = english.toLowerCase(Locale.ROOT);
-            if (english.isBlank() || !hasUsableVietnameseMeaning(vietnameseMeaning) || seen.contains(key)) continue;
+        for (JsonNode item : rawItems) {
+            String english = boundedText(item, MAX_ENGLISH_LENGTH, "english", "eng", "word", "term");
+            String vietnameseMeaning = boundedText(item, MAX_MEANING_LENGTH, "vietnameseMeaning", "vietnamese", "vie", "meaning");
+            String level = normalizeLevel(firstText(item, "level", "cefr", "wordLevel"), targetLevel);
+            String key = normalizedEnglishKey(english);
+            if (english.isBlank() || !hasUsableVietnameseMeaning(vietnameseMeaning) || key.isBlank() || seen.contains(key)) continue;
             if (request.hasSpecificTargetLevel() && !targetLevel.equals(level)) continue;
             seen.add(key);
             items.add(new GeneratedDeckWordDto(
                     english,
                     vietnameseMeaning,
-                    text(item, "partOfSpeech", "n"),
+                    normalizePartOfSpeech(firstText(item, "partOfSpeech", "pos", "part_of_speech")),
                     level,
-                    text(item, "exampleSentence", ""),
-                    text(item, "tag", "general"),
+                    boundedText(item, MAX_EXAMPLE_LENGTH, "exampleSentence", "example", "sentence"),
+                    normalizeTag(firstText(item, "tag", "topic", "category")),
                     "openai"
             ));
         }
@@ -214,21 +222,59 @@ public class OpenAiDeckGeneratorClient implements AiDeckGeneratorClient {
         return combined.toString();
     }
 
-    private String text(JsonNode node, String field, String fallback) {
-        String value = node.path(field).asText("");
-        return value.isBlank() ? safe(fallback) : value.trim();
+    private String firstText(JsonNode node, String... fields) {
+        for (String field : fields) {
+            String value = node.path(field).asText("");
+            if (!value.isBlank()) {
+                return compact(value);
+            }
+        }
+        return "";
+    }
+
+    private String boundedText(JsonNode node, int maxLength, String... fields) {
+        String value = firstText(node, fields);
+        if (value.length() > maxLength) {
+            return "";
+        }
+        return value;
     }
 
     private String normalizeLevel(String value, String fallback) {
-        String level = safe(value).toUpperCase(Locale.ROOT);
-        if (Set.of("A1", "A2", "B1", "B2", "C1", "C2").contains(level)) {
+        String level = compact(value).toUpperCase(Locale.ROOT);
+        if (VALID_LEVELS.contains(level)) {
             return level;
         }
         return "Any".equals(fallback) ? "A2" : fallback;
     }
 
+    private String normalizePartOfSpeech(String value) {
+        String pos = compact(value).toLowerCase(Locale.ROOT);
+        return switch (pos) {
+            case "noun", "n" -> "n";
+            case "verb", "v" -> "v";
+            case "adjective", "adj" -> "adj";
+            case "adverb", "adv" -> "adv";
+            case "conjunction", "conj" -> "conj";
+            case "preposition", "prep" -> "prep";
+            case "idiom" -> "idiom";
+            case "phrase" -> "phrase";
+            default -> pos.length() <= MAX_POS_LENGTH && !pos.isBlank() ? pos : "n";
+        };
+    }
+
+    private String normalizeTag(String value) {
+        String tag = compact(value).toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-");
+        tag = tag.replaceAll("(^-+|-+$)", "");
+        return tag.isBlank() || tag.length() > MAX_TAG_LENGTH ? "general" : tag;
+    }
+
+    private String normalizedEnglishKey(String value) {
+        return compact(value).toLowerCase(Locale.ROOT);
+    }
+
     private boolean hasUsableVietnameseMeaning(String value) {
-        String meaning = safe(value);
+        String meaning = compact(value);
         if (meaning.isBlank()) {
             return false;
         }
@@ -240,7 +286,11 @@ public class OpenAiDeckGeneratorClient implements AiDeckGeneratorClient {
                 && !lower.equals("na");
     }
 
+    private String compact(String value) {
+        return value == null ? "" : value.trim().replaceAll("\\s+", " ");
+    }
+
     private String safe(String value) {
-        return value == null ? "" : value.trim();
+        return compact(value);
     }
 }

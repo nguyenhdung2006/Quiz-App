@@ -34,6 +34,56 @@ it: [
 ]
 };
 
+const CURATED_DECK_METADATA = {
+ielts: {
+title: "IELTS Essentials",
+description: "Common academic vocabulary for IELTS reading and writing.",
+difficulty: "B2",
+tag: "ielts",
+recommended: true
+},
+toeic: {
+title: "TOEIC Essentials",
+description: "Workplace words for email, meetings, schedules, and business tasks.",
+difficulty: "B1",
+tag: "toeic"
+},
+academic: {
+title: "Academic Vocabulary",
+description: "Research and essay vocabulary for advanced study.",
+difficulty: "C1",
+tag: "academic"
+},
+"daily-life": {
+title: "Daily English",
+description: "Practical everyday words for routines, errands, and simple plans.",
+difficulty: "A2",
+tag: "daily-life",
+recommended: true
+},
+university: {
+title: "University Survival English",
+description: "Campus, assignment, and course vocabulary for student life.",
+difficulty: "B1",
+tag: "university"
+},
+travel: {
+title: "Travel English",
+description: "Airport, hotel, and trip vocabulary for beginner travel situations.",
+difficulty: "A2",
+tag: "travel"
+},
+conversation: {
+title: "Common Conversation",
+description: "Natural connector words and everyday phrases for smoother speaking.",
+difficulty: "A2",
+tag: "conversation",
+recommended: true
+}
+};
+
+const STARTER_DECK_KEYS = ["daily-life", "conversation", "travel", "university", "toeic", "ielts", "academic"];
+
 const BADGES = [
 { code: "FIRST_WORD", name: "First Word", description: "Add your first word.", test: () => getWords().length > 0 },
 { code: "FIRST_QUIZ", name: "First Quiz", description: "Finish one quiz round.", test: () => getHistory().length > 0 },
@@ -84,6 +134,15 @@ let node = document.getElementById(id);
 if (node) node.textContent = value;
 }
 
+function escapeHtml(value) {
+return String(value || "")
+.replace(/&/g, "&amp;")
+.replace(/</g, "&lt;")
+.replace(/>/g, "&gt;")
+.replace(/"/g, "&quot;")
+.replace(/'/g, "&#39;");
+}
+
 let generatedAiDeckWords = [];
 const AI_DECK_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 const AI_DECK_POS_OPTIONS = ["n", "v", "adj", "adv", "conj", "prep", "idiom", "phrase"];
@@ -96,6 +155,8 @@ let generatedCuratedDeckWords = [];
 const CURATED_DECK_ITEMS = Array.isArray(window.WORD_ARENA_CURATED_DECKS) ? window.WORD_ARENA_CURATED_DECKS : [];
 const CURATED_TOPIC_ALIASES = {
 ielts: "ielts",
+toeic: "toeic",
+"toeic essentials": "toeic",
 travel: "travel",
 school: "school",
 technology: "technology",
@@ -106,9 +167,16 @@ health: "health",
 environment: "environment",
 "daily life": "daily-life",
 "daily-life": "daily-life",
+daily: "daily-life",
+conversation: "conversation",
+"common conversation": "conversation",
+speaking: "conversation",
 academic: "academic",
 "academic english": "academic",
-work: "work"
+university: "university",
+college: "university",
+campus: "university",
+work: "toeic"
 };
 const VALID_CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 const VIETNAMESE_DIACRITIC_PATTERN = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
@@ -305,10 +373,22 @@ function renderDecks() {
 let grid = document.getElementById("topicDeckGrid");
 if (!grid) return;
 grid.innerHTML = "";
-Object.entries(TOPIC_DECKS).forEach(([key, words]) => {
+STARTER_DECK_KEYS.forEach(key => {
+let words = curatedWordsForTopic(key);
+let metadata = deckMetadata(key);
+if (!words.length) return;
 let card = document.createElement("article");
 card.className = "topicDeckCard";
-card.innerHTML = `<span>${words.length} words</span><h3>${key.toUpperCase()}</h3><p>${words.slice(0, 3).map(w => w.eng).join(", ")}...</p>`;
+let sample = words.slice(0, 4).map(w => w.eng).join(", ");
+card.innerHTML = `
+<div class="topicDeckCardMeta">
+<span>${metadata.difficulty}</span>
+<span>${words.length} words</span>
+${metadata.recommended ? "<span>starter pick</span>" : ""}
+</div>
+<h3>${escapeHtml(metadata.title)}</h3>
+<p>${escapeHtml(metadata.description)}</p>
+<small>${escapeHtml(sample)}</small>`;
 let button = document.createElement("button");
 button.className = "utilityBtn";
 button.type = "button";
@@ -317,6 +397,27 @@ button.addEventListener("click", () => importDeck(key));
 card.appendChild(button);
 grid.appendChild(card);
 });
+}
+
+function curatedWordsForTopic(topicKey) {
+return CURATED_DECK_ITEMS.filter(item => item.topic === topicKey);
+}
+
+function deckMetadata(topicKey) {
+return CURATED_DECK_METADATA[topicKey] || {
+title: prettifyTopicLabel(topicKey),
+description: "Small curated vocabulary deck.",
+difficulty: "Mixed",
+tag: topicKey || "curated"
+};
+}
+
+function prettifyTopicLabel(topicKey) {
+return String(topicKey || "Custom topic")
+.split("-")
+.filter(Boolean)
+.map(part => part.charAt(0).toUpperCase() + part.slice(1))
+.join(" ");
 }
 
 function setCuratedDeckStatus(message, kind = "info") {
@@ -328,18 +429,21 @@ status.className = `apiStateMessage apiStateMessage--${kind}`;
 
 function curatedTopicLabel(topicKey) {
 let labels = {
-ielts: "IELTS",
-travel: "Travel",
+ielts: "IELTS Essentials",
+toeic: "TOEIC Essentials",
+travel: "Travel English",
 school: "School",
 technology: "Technology",
 business: "Business",
 health: "Health",
 environment: "Environment",
-"daily-life": "Daily Life",
-academic: "Academic English",
+"daily-life": "Daily English",
+academic: "Academic Vocabulary",
+university: "University Survival English",
+conversation: "Common Conversation",
 work: "Work"
 };
-return labels[topicKey] || topicKey || "Custom topic";
+return CURATED_DECK_METADATA[topicKey]?.title || labels[topicKey] || prettifyTopicLabel(topicKey);
 }
 
 function normalizeCuratedTopic(value) {
@@ -359,7 +463,7 @@ topicKey,
 topicLabel: customClean || curatedTopicLabel(topicKey),
 isCustom: Boolean(customClean),
 targetLevel,
-count: [10, 20, 30, 50].includes(count) ? count : 20
+count: [10, 20, 30].includes(count) ? count : 20
 };
 }
 
@@ -631,6 +735,14 @@ function setAiDeckSource(value) {
 setText("aiDeckSource", value || "Ready");
 }
 
+function aiDeckSourceLabel(source) {
+if (source === "openai") return "AI Generated";
+if (source === "fallback") return "Rule-based fallback";
+if (source === "rate-limited") return "Rate limited";
+if (source === "unavailable") return "Unavailable";
+return source || "Ready";
+}
+
 function setAiDeckGenerateButton(locked, label = "Generate") {
 let button = document.getElementById("aiDeckGenerateBtn");
 if (!button) return;
@@ -662,17 +774,28 @@ function generatedToWord(item, source) {
 let rawLevel = cleanAiDeckValue(item.level || item.cefr || item.wordLevel).toUpperCase();
 return {
 ...normalizeWord({
-eng: item.english || item.eng,
-vie: item.vietnameseMeaning || item.vie || item.meaning,
-pos: item.partOfSpeech || item.pos || "n",
-tag: item.tag || "general",
+eng: cleanAiDeckValue(item.english || item.eng || item.word || item.term, 80),
+vie: cleanAiDeckValue(item.vietnameseMeaning || item.vie || item.meaning || item.vietnamese, 160),
+pos: normalizeAiDeckPos(item.partOfSpeech || item.pos || item.part_of_speech || "n"),
+tag: cleanAiDeckValue(item.tag || item.topic || item.category || "general", 40).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "general",
 level: VALID_CEFR_LEVELS.includes(rawLevel) ? rawLevel : "",
 context: "AI Deck",
-example: item.exampleSentence || item.example || "",
+example: cleanAiDeckValue(item.exampleSentence || item.example || item.sentence || "", 240),
 note: `AI Deck source: ${item.source || source || "generated"}`
 }),
 selected: true
 };
+}
+
+function normalizeAiDeckPos(value) {
+let pos = cleanAiDeckValue(value, 20).toLowerCase();
+if (pos === "noun") return "n";
+if (pos === "verb") return "v";
+if (pos === "adjective") return "adj";
+if (pos === "adverb") return "adv";
+if (pos === "conjunction") return "conj";
+if (pos === "preposition") return "prep";
+return AI_DECK_POS_OPTIONS.includes(pos) ? pos : "n";
 }
 
 function hasUsableAiDeckMeaning(value) {
@@ -714,10 +837,44 @@ maxWords: options.maxWords || 20
 });
 
 if (!response.ok) {
-throw new Error("Deck generation request failed.");
+throw new Error(await aiDeckErrorMessage(response));
 }
 
-return response.json();
+try {
+return await response.json();
+} catch (error) {
+throw new Error("AI response could not be processed. Please try again.");
+}
+}
+
+async function aiDeckErrorMessage(response) {
+if (response.status === 429) {
+let retry = await aiRetrySeconds(response);
+return retry
+? `Daily AI limit reached. Please try again in ${retry}s.`
+: "Daily AI limit reached. Please try again later.";
+}
+if (response.status >= 500) {
+return "AI deck generation failed. Please try again.";
+}
+try {
+let payload = await response.clone().json();
+if (payload?.message) return String(payload.message);
+if (payload?.error) return String(payload.error);
+} catch (error) {
+// Keep the user-facing message stable when the error body is not JSON.
+}
+return "AI response could not be processed. Please try again.";
+}
+
+async function aiRetrySeconds(response) {
+try {
+let payload = await response.clone().json();
+let retry = Number(payload?.retryAfterSeconds || 0);
+return Number.isFinite(retry) && retry > 0 ? retry : 0;
+} catch (error) {
+return 0;
+}
 }
 
 function renderAiDeckList() {
@@ -788,8 +945,9 @@ host.appendChild(row);
 updateAiDeckSaveState();
 }
 
-function cleanAiDeckValue(value) {
-return String(value || "").trim();
+function cleanAiDeckValue(value, maxLength = 240) {
+let clean = String(value || "").trim().replace(/\s+/g, " ");
+return clean.length > maxLength ? "" : clean;
 }
 
 function createAiDeckTextField(index, field, label, value, required = false) {
@@ -949,19 +1107,25 @@ let cooldownStatusKind = "warn";
 try {
 let payload = await requestAiDeck(text, options);
 let source = payload?.source || "generated";
+let seen = new Set();
 generatedAiDeckWords = Array.isArray(payload?.items)
 ? payload.items
 .map(item => generatedToWord(item, source))
-.filter(word => word.eng && hasUsableAiDeckMeaning(word.vie) && VALID_CEFR_LEVELS.includes(word.level))
+.filter(word => {
+let key = normalizeEnglishKey(word.eng);
+if (!key || seen.has(key) || !hasUsableAiDeckMeaning(word.vie) || !VALID_CEFR_LEVELS.includes(word.level)) return false;
+seen.add(key);
+return true;
+})
 : [];
-setAiDeckSource(source === "openai" ? "OpenAI" : "Fallback");
+setAiDeckSource(aiDeckSourceLabel(source));
 renderAiDeckList();
 let levelLabel = options.targetLevel && options.targetLevel !== "Any" ? `${options.targetLevel} ` : "";
 let emptyMessage = source === "fallback"
-? `AI unavailable. No suitable ${levelLabel}vocabulary found by fallback.`
+? `AI response could not be processed. Rule-based fallback found no suitable ${levelLabel}vocabulary.`
 : `No suitable ${levelLabel}vocabulary found in this text.`;
 let successMessage = source === "fallback"
-? `AI unavailable. Fallback generated ${generatedAiDeckWords.length} approximate ${levelLabel}items.`
+? `AI response could not be processed. Rule-based fallback generated ${generatedAiDeckWords.length} approximate ${levelLabel}items.`
 : `Generated ${generatedAiDeckWords.length} ${levelLabel}vocabulary items.`;
 setAiDeckStatus(
 generatedAiDeckWords.length ? successMessage : emptyMessage,
@@ -970,14 +1134,17 @@ generatedAiDeckWords.length ? "ok" : "warn"
 cooldownStatusMessage = generatedAiDeckWords.length ? successMessage : emptyMessage;
 cooldownStatusKind = generatedAiDeckWords.length ? "ok" : "warn";
 } catch (error) {
-setAiDeckSource("Unavailable");
-setAiDeckStatus("AI deck generation is unavailable. Try again later. Your current vocabulary is unchanged.", "warn");
-cooldownStatusMessage = "AI deck generation is unavailable. Try again later. Your current vocabulary is unchanged.";
+let message = cleanAiDeckValue(error?.message, 180) || "AI deck generation failed. Please try again.";
+let rateLimited = message.toLowerCase().includes("limit reached");
+setAiDeckSource(aiDeckSourceLabel(rateLimited ? "rate-limited" : "unavailable"));
+setAiDeckStatus(`${message} Your current vocabulary is unchanged.`, "warn");
+cooldownStatusMessage = `${message} Your current vocabulary is unchanged.`;
 cooldownStatusKind = "warn";
 generatedAiDeckWords = previousGeneratedWords;
 renderAiDeckList();
 } finally {
 aiDeckGenerating = false;
+if (!generatedAiDeckWords.length) renderAiDeckList();
 unlockAiDeckGenerateWhenReady(cooldownStatusMessage, cooldownStatusKind);
 }
 }
@@ -1057,21 +1224,27 @@ return `No new words imported. ${result.skipped} ${label} duplicates already exi
 
 function enrichTopicWord(word, topic) {
 let clean = normalizeWord(word);
-let defaultLevel = topic === "ielts" ? "B2" : topic === "it" ? "B1" : "A2";
+let metadata = deckMetadata(topic);
 return normalizeWord({
 ...clean,
-level: clean.level || defaultLevel,
-context: clean.context || topic,
+tag: clean.tag || metadata.tag || topic,
+level: clean.level || metadata.difficulty || "A2",
+context: clean.context || metadata.title || topic,
 collocation: clean.collocation || `${clean.eng} practice`,
 commonMistake: clean.commonMistake || "Check the example before using this word in writing.",
-note: clean.note || `Topic deck: ${topic}`
+note: clean.note || metadata.title || `Topic deck: ${topic}`
 });
 }
 
 function importDeck(key) {
-let words = (TOPIC_DECKS[key] || []).map(word => enrichTopicWord(word, key));
+let metadata = deckMetadata(key);
+let words = curatedWordsForTopic(key).map(word => enrichTopicWord(word, key));
+if (!words.length) {
+toastStudio(`${metadata.title} is not available yet.`, "warn");
+return;
+}
 let result = importWordsToVocabulary(words);
-toastStudio(importFeedback(result, `${key.toUpperCase()} starter deck`, words.length, "Deck has"), result.added ? "ok" : "warn");
+toastStudio(importFeedback(result, metadata.title, words.length, "Deck has"), result.added ? "ok" : "warn");
 }
 
 function parseCsv(text) {

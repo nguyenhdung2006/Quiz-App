@@ -71,11 +71,48 @@ body: JSON.stringify(request)
 });
 
 if (!response.ok) {
-throw new Error("AI explanation request failed.");
+let fallback = fallbackExplanation(request);
+fallback.errorMessage = await aiExplainErrorMessage(response);
+return fallback;
 }
+try {
 return await response.json();
 } catch (error) {
-return fallbackExplanation(request);
+let fallback = fallbackExplanation(request);
+fallback.errorMessage = "AI response could not be processed. Showing a rule-based fallback.";
+return fallback;
+}
+} catch (error) {
+let fallback = fallbackExplanation(request);
+fallback.errorMessage = "AI explanation is unavailable. Showing a rule-based fallback.";
+return fallback;
+}
+}
+
+async function aiExplainErrorMessage(response) {
+if (response.status === 429) {
+let retry = await aiRetrySeconds(response);
+return retry
+? `Daily AI limit reached. Showing a rule-based fallback. Try again in ${retry}s.`
+: "Daily AI limit reached. Showing a rule-based fallback.";
+}
+try {
+let payload = await response.clone().json();
+if (payload?.message) return `${payload.message} Showing a rule-based fallback.`;
+if (payload?.error) return `${payload.error} Showing a rule-based fallback.`;
+} catch (error) {
+// Keep the panel controlled if the backend returns a non-JSON error page.
+}
+return "AI response could not be processed. Showing a rule-based fallback.";
+}
+
+async function aiRetrySeconds(response) {
+try {
+let payload = await response.clone().json();
+let retry = Number(payload?.retryAfterSeconds || 0);
+return Number.isFinite(retry) && retry > 0 ? retry : 0;
+} catch (error) {
+return 0;
 }
 }
 
@@ -86,12 +123,13 @@ let title = document.createElement("h4");
 title.textContent = "Why this answer was wrong";
 panel.appendChild(title);
 
-if (data.source === "local-fallback") {
-let warning = document.createElement("p");
-warning.className = "apiStateMessage apiStateMessage--warn";
-warning.textContent = "AI explanation API is unavailable. Showing a local fallback.";
-panel.appendChild(warning);
-}
+let source = document.createElement("p");
+let fallbackSource = data.source === "local-fallback" || data.source === "fallback";
+source.className = `apiStateMessage apiStateMessage--${fallbackSource ? "warn" : "ok"}`;
+source.textContent = fallbackSource
+? clean(data.errorMessage, "Rule-based fallback explanation.")
+: "AI Generated explanation.";
+panel.appendChild(source);
 
 let meaning = line("Short meaning", data.shortMeaning);
 let why = line("Why wrong", data.whyWrong);

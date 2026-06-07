@@ -2056,6 +2056,30 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   font-weight: 900;
 }
 
+.topicDeckCardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.topicDeckCardMeta span {
+  margin-bottom: 0;
+}
+
+.topicDeckCard p {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-weight: 750;
+}
+
+.topicDeckCard small {
+  display: block;
+  min-height: 34px;
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
 .focusPanel {
   display: grid;
   grid-template-columns: 1fr auto auto;
