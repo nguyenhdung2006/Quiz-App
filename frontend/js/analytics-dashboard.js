@@ -197,7 +197,7 @@ if (overdue > 0) insights.push({ type: "overdue-review", message: `You have ${ov
 if (!insights.length) {
 insights.push({
 type: "steady-progress",
-message: words.length ? "Your learning data looks steady. Keep reviewing due words." : "Add words to unlock learning analytics."
+message: words.length ? "Your learning data looks steady. Review due words to keep momentum." : "Add a few words to unlock learning analytics."
 });
 }
 return insights.slice(0, 4);
@@ -322,7 +322,7 @@ ctx.stroke();
 if (!trend.length) {
 ctx.fillStyle = "rgba(224, 240, 255, 0.74)";
 ctx.font = "700 15px Segoe UI, Arial";
-ctx.fillText("Take a quiz to unlock your accuracy trend", 34, height / 2);
+ctx.fillText("Take a quiz to unlock your accuracy trend.", 34, height / 2);
 return;
 }
 

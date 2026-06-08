@@ -772,7 +772,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 
 #home {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
 .dashboardPanel,
@@ -795,22 +795,22 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 
 .dashboardPanel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
 }
 
 .todayFocusPanel {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
+  gap: 16px;
   align-items: center;
   overflow: hidden;
-  padding: 20px;
-  border: 1px solid rgba(158, 241, 255, 0.18);
+  padding: 18px;
+  border: 1px solid rgba(158, 241, 255, 0.14);
   border-radius: 14px;
   background:
-    linear-gradient(135deg, rgba(24, 233, 255, 0.12), rgba(93, 242, 162, 0.055) 58%, rgba(255, 106, 213, 0.045)),
+    linear-gradient(135deg, rgba(24, 233, 255, 0.095), rgba(93, 242, 162, 0.045) 58%, rgba(255, 106, 213, 0.025)),
     rgba(8, 14, 29, 0.94);
   color: var(--text);
   text-align: left;
@@ -826,10 +826,10 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 }
 
 .todayFocusPanel h2 {
-  margin: 8px 0 6px;
+  margin: 7px 0 6px;
   color: white;
-  font-size: clamp(1.85rem, 3vw, 2.35rem);
-  line-height: 1;
+  font-size: clamp(1.58rem, 2.5vw, 2.05rem);
+  line-height: 1.05;
 }
 
 .todayFocusPanel p {
@@ -995,9 +995,24 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 }
 
 .dashCard {
-  min-height: 78px;
-  padding: 14px;
+  --dash-accent: var(--cyan);
+  position: relative;
+  display: grid;
+  min-height: 104px;
+  padding: 15px;
+  overflow: hidden;
+  align-content: space-between;
+  gap: 8px;
   text-align: left;
+}
+
+.dashCard::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--dash-accent);
+  opacity: 0.82;
 }
 
 .dashLabel,
@@ -1020,15 +1035,24 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 
 .dashCard strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 3px;
   color: #ffffff;
-  font-size: 1.58rem;
+  font-size: clamp(1.65rem, 2.4vw, 2.05rem);
   line-height: 1.1;
   text-shadow: none;
 }
 
+.dashCaption {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
 .dashboardPanel .dashCard:first-child,
 .dashboardPanel .dashCard:nth-child(4) {
+  --dash-accent: var(--green);
   border-color: rgba(93, 242, 162, 0.22);
   background:
     linear-gradient(145deg, rgba(93, 242, 162, 0.08), rgba(255, 255, 255, 0.025)),
@@ -1037,17 +1061,22 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 
 .dashboardPanel .dashCard:nth-child(2),
 .dashboardPanel .dashCard:nth-child(3) {
+  --dash-accent: var(--cyan);
   border-color: rgba(24, 233, 255, 0.2);
   background:
     linear-gradient(145deg, rgba(24, 233, 255, 0.075), rgba(255, 255, 255, 0.02)),
     rgba(9, 14, 30, 0.94);
 }
 
+.dashboardPanel .dashCard:nth-child(5) {
+  --dash-accent: var(--pink);
+}
+
 .weakWordsCenter {
   display: grid;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid rgba(255, 227, 110, 0.16);
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 227, 110, 0.14);
   border-radius: var(--radius);
   background:
     linear-gradient(145deg, rgba(255, 227, 110, 0.06), rgba(24, 233, 255, 0.025)),
@@ -1065,7 +1094,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 .weakWordsCenterHead h2 {
   margin: 5px 0 3px;
   color: #ffffff;
-  font-size: 1.18rem;
+  font-size: 1.24rem;
 }
 
 .weakWordsCenterHead p {
@@ -1076,15 +1105,15 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 
 .weakWordsCenterList {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
 }
 
 .weakFixCard {
   display: grid;
   gap: 8px;
   align-content: start;
-  padding: 13px 14px;
+  padding: 14px;
   border: 1px solid rgba(158, 241, 255, 0.12);
   border-radius: var(--radius);
   background: rgba(2, 8, 22, 0.42);

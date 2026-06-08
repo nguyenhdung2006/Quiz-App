@@ -101,13 +101,13 @@
 <section class="todayFocusPanel" data-app-page-panel="dashboard" aria-label="Today focus">
 <div>
 <span class="heroEyebrow">Today</span>
-<h2>Continue Learning</h2>
-<p>Start with due reviews, then add a small deck or run a quick mixed quiz.</p>
+<h2>Choose the next study block</h2>
+<p>Start with due reviews, then add a focused deck or run a short quiz.</p>
 </div>
 <div class="todayFocusActions">
-<button class="utilityBtn appQuickAction" type="button" data-app-page="review">Review Due Words</button>
+<button class="utilityBtn appQuickAction" type="button" data-app-page="review">Review Today</button>
 <button class="miniBtn appQuickAction" type="button" data-app-page="aiDeck">Generate AI Deck</button>
-<button class="miniBtn appQuickAction" type="button" data-app-page="vocabulary">Add Vocabulary</button>
+<button class="miniBtn appQuickAction" type="button" data-app-page="vocabulary">Add Words</button>
 <button class="miniBtn appQuickAction" type="button" onclick="startQuiz()">Start Quiz</button>
 </div>
 </section>
@@ -168,38 +168,43 @@
 
 <section class="dashboardPanel" data-app-page-panel="dashboard">
 <div class="dashCard">
-<span class="dashLabel">Total Words</span>
+<span class="dashLabel">Words</span>
 <strong id="totalWordsTop">0</strong>
+<small class="dashCaption">Saved in your deck</small>
 </div>
 <div class="dashCard">
 <span class="dashLabel">Accuracy</span>
 <strong id="accuracyTop">0%</strong>
+<small class="dashCaption">Across reviewed words</small>
 </div>
 <div class="dashCard">
-<span class="dashLabel">Due Today</span>
+<span class="dashLabel">Review Due</span>
 <strong id="dueTodayTop">0</strong>
+<small class="dashCaption">Ready for today</small>
 </div>
 <div class="dashCard">
-<span class="dashLabel">Weak Words</span>
+<span class="dashLabel">Focus Words</span>
 <strong id="weakWordsTop">0</strong>
+<small class="dashCaption">Need another pass</small>
 </div>
 <div class="dashCard">
-<span class="dashLabel">Weekly Correct</span>
+<span class="dashLabel">This Week</span>
 <strong id="weeklyCorrectTop">0</strong>
+<small class="dashCaption">Correct answers</small>
 </div>
 </section>
 
-<section class="weakWordsCenter" data-app-page-panel="dashboard" aria-label="Words to fix">
+<section class="weakWordsCenter" data-app-page-panel="dashboard" aria-label="Review focus">
 <div class="weakWordsCenterHead">
 <div>
-<span class="heroEyebrow">Words to Fix</span>
-<h2>Clean up the words costing you points</h2>
-<p id="weakWordsCenterSummary">Weak words will appear after you review or miss vocabulary.</p>
+<span class="heroEyebrow">Review focus</span>
+<h2>Words that need another pass</h2>
+<p id="weakWordsCenterSummary">Words appear here when accuracy, due status, or mistakes suggest extra practice.</p>
 </div>
-<button class="utilityBtn" id="weakWordsReviewBtn" type="button" disabled>Review Weak Words</button>
+<button class="utilityBtn" id="weakWordsReviewBtn" type="button" disabled>Practice Focus Words</button>
 </div>
 <div class="weakWordsCenterList" id="weakWordsCenterList">
-<p class="emptyStudio">No weak words yet. Missed or overdue words will show up here.</p>
+<p class="emptyStudio">No focus words yet. Review or quiz a few words and this section will prioritize what needs attention.</p>
 </div>
 </section>
 
@@ -211,7 +216,7 @@
 <span class="heroEyebrow">Player Profile</span>
 <h2 id="profileName">Vocabulary Runner</h2>
 <p id="profileIdentityLine">Local guest profile</p>
-<p>Daily learning streak</p>
+<p>Level, mastery, and study rhythm</p>
 </div>
 </div>
 <div class="xpTrack">
@@ -231,7 +236,7 @@
 <article class="leaderboardPanel">
 <div class="leaderboardHead">
 <span class="heroEyebrow">Snapshot</span>
-<h2>Weekly Momentum</h2>
+<h2>Learning Momentum</h2>
 </div>
 <div class="leaderboardTabs" aria-label="Leaderboard categories">
 <span>XP</span>
@@ -266,17 +271,17 @@
 
 <div class="analyticsHero">
 <span class="heroEyebrow">Priority</span>
-<h3>Use data to choose the next review, not to stare at charts.</h3>
-<p>Tap into weak words, due reviews, tag performance, and streak data to keep each study session focused.</p>
+<h3>Use data to choose one useful next step.</h3>
+<p>Check due reviews, focus words, accuracy trend, and tag performance before starting the next study block.</p>
 </div>
 
 <div class="analyticsOverviewGrid">
-<article class="analyticsMetric analyticsMetric--words"><span>Total Words</span><strong id="analyticsTotalWords">0</strong></article>
+<article class="analyticsMetric analyticsMetric--words"><span>Words</span><strong id="analyticsTotalWords">0</strong></article>
 <article class="analyticsMetric analyticsMetric--mastery"><span>Mastered</span><strong id="analyticsMasteredWords">0</strong></article>
 <article class="analyticsMetric analyticsMetric--learning"><span>Learning</span><strong id="analyticsLearningWords">0</strong></article>
-<article class="analyticsMetric analyticsMetric--weak"><span>Struggling</span><strong id="analyticsStrugglingWords">0</strong></article>
-<article class="analyticsMetric analyticsMetric--feature analyticsMetric--due"><span>Due Today</span><strong id="analyticsDueToday">0</strong></article>
-<article class="analyticsMetric analyticsMetric--feature analyticsMetric--accuracy"><span>Avg Accuracy</span><strong id="analyticsAverageAccuracy">0%</strong></article>
+<article class="analyticsMetric analyticsMetric--weak"><span>Focus Words</span><strong id="analyticsStrugglingWords">0</strong></article>
+<article class="analyticsMetric analyticsMetric--feature analyticsMetric--due"><span>Review Due</span><strong id="analyticsDueToday">0</strong></article>
+<article class="analyticsMetric analyticsMetric--feature analyticsMetric--accuracy"><span>Average Accuracy</span><strong id="analyticsAverageAccuracy">0%</strong></article>
 <article class="analyticsMetric analyticsMetric--sessions"><span>Quiz Sessions</span><strong id="analyticsQuizSessions">0</strong></article>
 <article class="analyticsMetric analyticsMetric--feature analyticsMetric--streak"><span>Current Streak</span><strong id="analyticsCurrentStreak">0</strong></article>
 <article class="analyticsMetric analyticsMetric--feature analyticsMetric--xp"><span>XP</span><strong id="analyticsXp">0</strong></article>

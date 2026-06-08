@@ -558,8 +558,8 @@ let items = getWeakWordCandidates(6);
 list.innerHTML = "";
 if (summary) {
 summary.textContent = items.length
-? `${items.length} priority words based on wrong count, mastery, and due status.`
-: "Weak words will appear after you review or miss vocabulary.";
+? `${items.length} focus words based on mistakes, mastery, and due status.`
+: "Focus words appear after quizzes or reviews reveal what needs another pass.";
 }
 if (button) button.disabled = items.length === 0;
 
@@ -568,7 +568,7 @@ let empty = document.createElement("div");
 empty.className = "emptyStudio emptyStudio--action";
 let message = document.createElement("p");
 message.textContent = getVocab().length
-? "No weak words yet. Keep reviewing and this center will surface problem words."
+? "No focus words yet. Keep reviewing and this section will surface words that need attention."
 : "No vocabulary yet. Add words or generate an AI Deck to start learning.";
 let actions = document.createElement("div");
 actions.className = "emptyStudioActions";
