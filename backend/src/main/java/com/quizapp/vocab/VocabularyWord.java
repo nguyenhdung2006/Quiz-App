@@ -69,8 +69,8 @@ public class VocabularyWord {
     @Column(columnDefinition = "TEXT")
     private String note;
 
-    private boolean favorite;
-    private boolean mastered;
+    private Boolean favorite = false;
+    private Boolean mastered = false;
 
     @OneToOne(mappedBy = "word", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private WordStats stats;
@@ -124,9 +124,9 @@ public class VocabularyWord {
     public void setCommonMistake(String commonMistake) { this.commonMistake = commonMistake; }
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
-    public boolean isFavorite() { return favorite; }
+    public boolean isFavorite() { return Boolean.TRUE.equals(favorite); }
     public void setFavorite(boolean favorite) { this.favorite = favorite; }
-    public boolean isMastered() { return mastered; }
+    public boolean isMastered() { return Boolean.TRUE.equals(mastered); }
     public void setMastered(boolean mastered) { this.mastered = mastered; }
     public WordStats getStats() { return stats; }
     public Instant getUpdatedAt() { return updatedAt; }

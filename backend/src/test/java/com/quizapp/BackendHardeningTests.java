@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import javax.sql.DataSource;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,9 @@ class BackendHardeningTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private DataSource dataSource;
 
     @Test
     void invalidWordRequestReturnsUnifiedValidationError() throws Exception {
@@ -217,6 +221,22 @@ class BackendHardeningTests {
                 .andExpect(jsonPath("$.length()", is(1)))
                 .andExpect(jsonPath("$[0].id", is((int) otherWordId)))
                 .andExpect(jsonPath("$[0].eng", is("private")));
+    }
+
+    @Test
+    void snapshotHandlesLegacyNullVocabularyFlags() throws Exception {
+        createWord("legacy-null-flags@example.com", "legacy", "cu");
+
+        try (var connection = dataSource.getConnection();
+             var statement = connection.createStatement()) {
+            statement.executeUpdate("ALTER TABLE vocabulary ALTER COLUMN favorite DROP NOT NULL");
+            statement.executeUpdate("ALTER TABLE vocabulary ALTER COLUMN mastered DROP NOT NULL");
+            statement.executeUpdate("UPDATE vocabulary SET favorite = NULL, mastered = NULL WHERE eng = 'legacy'");
+        }
+
+        mockMvc.perform(get("/api/snapshot")
+                        .with(oauthUser("legacy-null-flags@example.com")))
+                .andExpect(status().isOk());
     }
 
     private long createWord(String email, String eng, String vie) throws Exception {
