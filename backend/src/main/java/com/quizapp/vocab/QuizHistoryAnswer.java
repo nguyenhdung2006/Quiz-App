@@ -40,7 +40,7 @@ public class QuizHistoryAnswer {
     private String correctAnswer;
 
     @Column(name = "is_correct", nullable = false)
-    private boolean correct;
+    private Boolean correct = false;
 
     @Column(name = "answered_at", nullable = false)
     private Instant answeredAt;

@@ -26,7 +26,7 @@ public class Achievement {
     private String description;
 
     @Column(name = "xp_reward", nullable = false)
-    private int xpReward;
+    private Integer xpReward = 0;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -40,7 +40,7 @@ public class Achievement {
     public String getCode() { return code; }
     public String getName() { return name; }
     public String getDescription() { return description; }
-    public int getXpReward() { return xpReward; }
+    public int getXpReward() { return xpReward == null ? 0 : xpReward; }
     public void setCode(String code) { this.code = code; }
     public void setName(String name) { this.name = name; }
     public void setDescription(String description) { this.description = description; }

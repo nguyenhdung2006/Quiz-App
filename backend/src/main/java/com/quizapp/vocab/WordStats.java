@@ -24,18 +24,18 @@ public class WordStats {
     @JoinColumn(name = "word_id", unique = true)
     private VocabularyWord word;
 
-    private int seen;
-    private int correct;
-    private int wrong;
+    private Integer seen = 0;
+    private Integer correct = 0;
+    private Integer wrong = 0;
 
     @Column(name = "current_streak")
-    private int currentStreak;
+    private Integer currentStreak = 0;
 
     @Column(name = "best_streak")
-    private int bestStreak;
+    private Integer bestStreak = 0;
 
     @Column(name = "mastery_level")
-    private int masteryLevel;
+    private Integer masteryLevel = 0;
 
     @Column(name = "last_reviewed")
     private Instant lastReviewed;
@@ -63,17 +63,17 @@ public class WordStats {
 
     public VocabularyWord getWord() { return word; }
     public void setWord(VocabularyWord word) { this.word = word; }
-    public int getSeen() { return seen; }
+    public int getSeen() { return seen == null ? 0 : seen; }
     public void setSeen(int seen) { this.seen = seen; }
-    public int getCorrect() { return correct; }
+    public int getCorrect() { return correct == null ? 0 : correct; }
     public void setCorrect(int correct) { this.correct = correct; }
-    public int getWrong() { return wrong; }
+    public int getWrong() { return wrong == null ? 0 : wrong; }
     public void setWrong(int wrong) { this.wrong = wrong; }
-    public int getCurrentStreak() { return currentStreak; }
+    public int getCurrentStreak() { return currentStreak == null ? 0 : currentStreak; }
     public void setCurrentStreak(int currentStreak) { this.currentStreak = currentStreak; }
-    public int getBestStreak() { return bestStreak; }
+    public int getBestStreak() { return bestStreak == null ? 0 : bestStreak; }
     public void setBestStreak(int bestStreak) { this.bestStreak = bestStreak; }
-    public int getMasteryLevel() { return masteryLevel; }
+    public int getMasteryLevel() { return masteryLevel == null ? 0 : masteryLevel; }
     public void setMasteryLevel(int masteryLevel) { this.masteryLevel = masteryLevel; }
     public Instant getLastReviewed() { return lastReviewed; }
     public void setLastReviewed(Instant lastReviewed) { this.lastReviewed = lastReviewed; }

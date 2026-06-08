@@ -48,6 +48,7 @@ public class LearningAnalyticsService {
                 .filter(word -> !isMastered(word) && !isStruggling(word))
                 .count();
         int weeklyXp = histories.stream()
+                .filter(history -> history.getCreatedAt() != null)
                 .filter(history -> !history.getCreatedAt().isBefore(Instant.now().minus(java.time.Duration.ofDays(7))))
                 .mapToInt(this::quizXp)
                 .sum();
@@ -85,6 +86,7 @@ public class LearningAnalyticsService {
     public List<AccuracyTrendDto> accuracyTrend(AppUser user) {
         Map<LocalDate, QuizDayAccumulator> byDay = new TreeMap<>();
         for (QuizHistory history : histories(user)) {
+            if (history.getCreatedAt() == null) continue;
             byDay.computeIfAbsent(toDate(history.getCreatedAt()), ignored -> new QuizDayAccumulator())
                     .add(history);
         }

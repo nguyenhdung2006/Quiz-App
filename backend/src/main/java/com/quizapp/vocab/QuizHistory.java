@@ -29,15 +29,15 @@ public class QuizHistory {
     private AppUser user;
 
     @Column(name = "total_questions", nullable = false)
-    private int totalQuestions;
+    private Integer totalQuestions = 0;
 
     @Column(name = "correct_answers", nullable = false)
-    private int correctAnswers;
+    private Integer correctAnswers = 0;
 
     @Column(name = "wrong_answers", nullable = false)
-    private int wrongAnswers;
+    private Integer wrongAnswers = 0;
 
-    private double score;
+    private Double score = 0.0;
 
     @Column(name = "quiz_mode", nullable = false)
     private String quizMode;
@@ -46,7 +46,7 @@ public class QuizHistory {
     private Integer challengeSeconds;
 
     @Column(name = "max_combo", nullable = false)
-    private int maxCombo;
+    private Integer maxCombo = 0;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
@@ -67,19 +67,19 @@ public class QuizHistory {
     public Long getId() { return id; }
     public AppUser getUser() { return user; }
     public void setUser(AppUser user) { this.user = user; }
-    public int getTotalQuestions() { return totalQuestions; }
+    public int getTotalQuestions() { return totalQuestions == null ? 0 : totalQuestions; }
     public void setTotalQuestions(int totalQuestions) { this.totalQuestions = totalQuestions; }
-    public int getCorrectAnswers() { return correctAnswers; }
+    public int getCorrectAnswers() { return correctAnswers == null ? 0 : correctAnswers; }
     public void setCorrectAnswers(int correctAnswers) { this.correctAnswers = correctAnswers; }
-    public int getWrongAnswers() { return wrongAnswers; }
+    public int getWrongAnswers() { return wrongAnswers == null ? 0 : wrongAnswers; }
     public void setWrongAnswers(int wrongAnswers) { this.wrongAnswers = wrongAnswers; }
-    public double getScore() { return score; }
+    public double getScore() { return score == null ? 0 : score; }
     public void setScore(double score) { this.score = score; }
     public String getQuizMode() { return quizMode; }
     public void setQuizMode(String quizMode) { this.quizMode = quizMode; }
     public Integer getChallengeSeconds() { return challengeSeconds; }
     public void setChallengeSeconds(Integer challengeSeconds) { this.challengeSeconds = challengeSeconds; }
-    public int getMaxCombo() { return maxCombo; }
+    public int getMaxCombo() { return maxCombo == null ? 0 : maxCombo; }
     public void setMaxCombo(int maxCombo) { this.maxCombo = maxCombo; }
     public Instant getCreatedAt() { return createdAt; }
 }

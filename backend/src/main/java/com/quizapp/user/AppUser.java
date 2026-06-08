@@ -31,12 +31,12 @@ public class AppUser {
     private String avatarUrl;
 
     private String role = "USER";
-    private int xp;
-    private int level = 1;
-    private int streak;
+    private Integer xp = 0;
+    private Integer level = 1;
+    private Integer streak = 0;
 
     @Column(name = "best_streak")
-    private int bestStreak;
+    private Integer bestStreak = 0;
 
     private LocalDate birthday;
     private String gender;
@@ -79,13 +79,13 @@ public class AppUser {
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
-    public int getXp() { return xp; }
+    public int getXp() { return xp == null ? 0 : xp; }
     public void setXp(int xp) { this.xp = xp; }
-    public int getLevel() { return level; }
+    public int getLevel() { return level == null || level < 1 ? 1 : level; }
     public void setLevel(int level) { this.level = level; }
-    public int getStreak() { return streak; }
+    public int getStreak() { return streak == null ? 0 : streak; }
     public void setStreak(int streak) { this.streak = streak; }
-    public int getBestStreak() { return bestStreak; }
+    public int getBestStreak() { return bestStreak == null ? 0 : bestStreak; }
     public void setBestStreak(int bestStreak) { this.bestStreak = bestStreak; }
     public LocalDate getBirthday() { return birthday; }
     public void setBirthday(LocalDate birthday) { this.birthday = birthday; }

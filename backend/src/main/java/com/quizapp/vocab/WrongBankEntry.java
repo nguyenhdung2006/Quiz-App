@@ -32,7 +32,7 @@ public class WrongBankEntry {
     @JoinColumn(name = "word_id")
     private VocabularyWord word;
 
-    private boolean mastered;
+    private Boolean mastered = false;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -52,6 +52,6 @@ public class WrongBankEntry {
     public void setUser(AppUser user) { this.user = user; }
     public VocabularyWord getWord() { return word; }
     public void setWord(VocabularyWord word) { this.word = word; }
-    public boolean isMastered() { return mastered; }
+    public boolean isMastered() { return Boolean.TRUE.equals(mastered); }
     public void setMastered(boolean mastered) { this.mastered = mastered; }
 }

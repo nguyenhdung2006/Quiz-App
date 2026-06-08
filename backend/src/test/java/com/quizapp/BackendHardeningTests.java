@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.sql.DataSource;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -237,6 +238,99 @@ class BackendHardeningTests {
         mockMvc.perform(get("/api/snapshot")
                         .with(oauthUser("legacy-null-flags@example.com")))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void authenticatedReadEndpointsHandleLegacyNullMetrics() throws Exception {
+        String email = "legacy-null-metrics@example.com";
+        createWord(email, "legacy metrics", "chi so cu");
+
+        mockMvc.perform(post("/api/quiz-results")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "quizMode": "mixed",
+                                  "challengeSeconds": 30,
+                                  "totalQuestions": 1,
+                                  "correctAnswers": 0,
+                                  "wrongAnswers": 1,
+                                  "score": 0,
+                                  "maxCombo": 0,
+                                  "answers": [
+                                    {
+                                      "eng": "legacy metrics",
+                                      "questionMode": "mixed",
+                                      "selectedAnswer": "wrong",
+                                      "correctAnswer": "chi so cu",
+                                      "correct": false
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        try (var connection = dataSource.getConnection();
+             var statement = connection.createStatement()) {
+            dropNotNull(statement, "app_users", "xp", "level", "streak", "best_streak");
+            dropNotNull(statement, "vocabulary", "favorite", "mastered");
+            dropNotNull(statement, "word_stats", "seen", "correct", "wrong", "current_streak", "best_streak", "mastery_level");
+            dropNotNull(statement, "wrong_bank", "mastered");
+            dropNotNull(statement, "quiz_history", "total_questions", "correct_answers", "wrong_answers", "score", "max_combo", "created_at");
+            dropNotNull(statement, "achievements", "xp_reward");
+
+            statement.executeUpdate("""
+                    UPDATE app_users
+                    SET xp = NULL, level = NULL, streak = NULL, best_streak = NULL
+                    WHERE email = 'legacy-null-metrics@example.com'
+                    """);
+            statement.executeUpdate("""
+                    UPDATE vocabulary
+                    SET favorite = NULL, mastered = NULL
+                    WHERE eng = 'legacy metrics'
+                    """);
+            statement.executeUpdate("""
+                    UPDATE word_stats
+                    SET seen = NULL,
+                        correct = NULL,
+                        wrong = NULL,
+                        current_streak = NULL,
+                        best_streak = NULL,
+                        mastery_level = NULL,
+                        next_review = TIMESTAMP '2020-01-01 00:00:00'
+                    """);
+            statement.executeUpdate("UPDATE wrong_bank SET mastered = NULL");
+            statement.executeUpdate("""
+                    UPDATE quiz_history
+                    SET total_questions = NULL,
+                        correct_answers = NULL,
+                        wrong_answers = NULL,
+                        score = NULL,
+                        max_combo = NULL,
+                        created_at = NULL
+                    """);
+            statement.executeUpdate("UPDATE achievements SET xp_reward = NULL");
+        }
+
+        for (String path : List.of(
+                "/api/me",
+                "/api/snapshot",
+                "/api/review/queue?limit=8",
+                "/api/analytics/overview",
+                "/api/analytics/review-pressure",
+                "/api/analytics/weak-words",
+                "/api/analytics/accuracy-trend",
+                "/api/analytics/tag-performance"
+        )) {
+            mockMvc.perform(get(path).with(oauthUser(email)))
+                    .andExpect(status().isOk());
+        }
+    }
+
+    private void dropNotNull(java.sql.Statement statement, String table, String... columns) throws Exception {
+        for (String column : columns) {
+            statement.executeUpdate("ALTER TABLE " + table + " ALTER COLUMN " + column + " DROP NOT NULL");
+        }
     }
 
     private long createWord(String email, String eng, String vie) throws Exception {
