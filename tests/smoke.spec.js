@@ -197,6 +197,22 @@ test("static app loads without fatal console errors", async ({ page }) => {
   expect(fatalConsole).toEqual([]);
 });
 
+test("empty user sees start-here onboarding and opens starter decks", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+
+  await expect(page.locator("#startHerePanel")).toBeVisible();
+  await expect(page.locator("#startHerePanel")).toContainText("Start here");
+  await expect(page.locator("#startHerePanel")).toContainText("Recommended first decks");
+
+  await page.locator("#startHereStarterBtn").click();
+  await expect(page.locator("#learningStudio")).toBeVisible();
+  await expect(page.locator(".studioTab[data-studio-tab='decks']")).toHaveClass(/is-active/);
+  await expect(page.locator("#curatedTopicSelect")).toHaveValue("daily-life");
+  await expect(page.locator("#topicDeckGrid")).toContainText("Daily English");
+
+  expect(fatalConsole).toEqual([]);
+});
+
 test("main navigation opens critical sections", async ({ page }) => {
   const fatalConsole = await preparePage(page);
 

@@ -38,6 +38,7 @@ save();
 renderTable();
 renderMistakeTable();
 updateStats();
+refreshOnboardingPanel();
 }
 
 function ensureSyncStatus() {
@@ -778,11 +779,62 @@ if (nextPage === "review") window.reviewToday?.refresh?.();
 window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function refreshOnboardingPanel() {
+let panel = document.getElementById("startHerePanel");
+if (!panel) return;
+
+let wordCount = getVocab().length;
+let quizButton = document.getElementById("startHereQuizBtn");
+let quizStatus = document.getElementById("startHereQuizStatus");
+let remaining = Math.max(4 - wordCount, 0);
+
+panel.hidden = wordCount >= 12;
+if (quizButton) quizButton.disabled = wordCount < 4;
+if (quizStatus) {
+quizStatus.textContent = wordCount >= 4
+? "Ready for your first quiz? Try a short mixed round when you feel ready."
+: `Add at least ${remaining} more ${remaining === 1 ? "word" : "words"} to start a quiz.`;
+}
+}
+
+function openStarterDeckFromOnboarding(deckKey = "daily-life") {
+showAppPage("studio");
+document.getElementById("studioBtn")?.click();
+window.setTimeout(() => {
+document.querySelector(".studioTab[data-studio-tab='decks']")?.click();
+let select = document.getElementById("curatedTopicSelect");
+if (select && deckKey) select.value = deckKey;
+document.getElementById("curatedGenerateBtn")?.focus();
+}, 0);
+}
+
+function initOnboarding() {
+document.getElementById("startHereStarterBtn")?.addEventListener("click", () => openStarterDeckFromOnboarding("daily-life"));
+document.querySelectorAll("[data-onboarding-deck]").forEach(button => {
+button.addEventListener("click", () => openStarterDeckFromOnboarding(button.dataset.onboardingDeck || "daily-life"));
+});
+document.getElementById("startHereAiDeckBtn")?.addEventListener("click", () => showAppPage("aiDeck"));
+document.getElementById("startHereAddWordBtn")?.addEventListener("click", () => {
+showAppPage("vocabulary");
+document.getElementById("engInput")?.focus();
+});
+document.getElementById("startHereQuizBtn")?.addEventListener("click", () => {
+if (getVocab().length >= 4 && typeof startQuiz === "function") {
+startQuiz();
+return;
+}
+showAppPage("vocabulary");
+document.getElementById("engInput")?.focus();
+});
+refreshOnboardingPanel();
+}
+
 function initAppShell() {
 document.querySelectorAll("[data-app-page]").forEach(button => {
 button.addEventListener("click", () => showAppPage(button.dataset.appPage));
 });
 document.getElementById("weakWordsReviewBtn")?.addEventListener("click", startWeakWordsReview);
+initOnboarding();
 showAppPage(document.body.dataset.appPage || "dashboard");
 }
 
@@ -840,6 +892,7 @@ autoSpeakToggle.checked = autoSpeak;
 renderTable();
 renderMistakeTable();
 updateStats();
+refreshOnboardingPanel();
 }
 
 let profileEditorPendingAvatar = "";
@@ -1188,6 +1241,7 @@ return { merged, added, skipped };
 async function importStarterWords() {
 if (await window.quizCloud?.importSamples()) {
 toast("Imported starter words to your cloud deck.", "ok");
+refreshOnboardingPanel();
 return;
 }
 

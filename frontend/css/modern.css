@@ -759,6 +759,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 
 .dashboardPanel,
 .todayFocusPanel,
+.startHerePanel,
 .playerHub,
 .learningStudioStrip,
 .aiDeckWorkspace,
@@ -832,6 +833,123 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 
 .todayFocusPanel .utilityBtn,
 .todayFocusPanel .miniBtn {
+  justify-content: center;
+}
+
+.startHerePanel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(93, 242, 162, 0.18);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(145deg, rgba(93, 242, 162, 0.07), rgba(24, 233, 255, 0.035)),
+    rgba(9, 14, 30, 0.9);
+  box-shadow: var(--shadow-soft);
+}
+
+.startHerePanel[hidden] {
+  display: none !important;
+}
+
+.startHereIntro h2 {
+  margin: 5px 0 5px;
+  color: #ffffff;
+  font-size: 1.28rem;
+  line-height: 1.15;
+}
+
+.startHereIntro p,
+.startHereStep p,
+.startHereNext,
+.starterDeckPreviewCard span {
+  margin: 0;
+  color: var(--text-muted);
+  font-weight: 650;
+}
+
+.startHereSteps,
+.starterDeckPreviewGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.startHereSteps {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.startHereStep {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(158, 241, 255, 0.12);
+  border-radius: var(--radius);
+  background: rgba(2, 8, 22, 0.34);
+}
+
+.startHereStep span {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(93, 242, 162, 0.16);
+  color: var(--green);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.startHereStep strong,
+.starterDeckPreviewCard strong {
+  color: #ffffff;
+}
+
+.starterDeckPreview {
+  display: grid;
+  gap: 8px;
+}
+
+.starterDeckPreviewGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.starterDeckPreviewCard {
+  display: grid;
+  gap: 5px;
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.starterDeckPreviewCard:hover,
+.starterDeckPreviewCard:focus-visible {
+  border-color: rgba(93, 242, 162, 0.4);
+  background: rgba(93, 242, 162, 0.09);
+  outline: none;
+}
+
+.startHereNext {
+  padding: 10px 12px;
+  border: 1px solid rgba(158, 241, 255, 0.12);
+  border-radius: var(--radius);
+  background: rgba(2, 8, 22, 0.28);
+}
+
+.startHereActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.startHereActions .utilityBtn,
+.startHereActions .miniBtn {
   justify-content: center;
 }
 
@@ -4160,6 +4278,7 @@ html[data-theme="light"] body::before {
 
 html[data-theme="light"] .heroPanel,
 html[data-theme="light"] .todayFocusPanel,
+html[data-theme="light"] .startHerePanel,
 html[data-theme="light"] .dashCard,
 html[data-theme="light"] .profilePanel,
 html[data-theme="light"] .leaderboardPanel,
@@ -4195,6 +4314,9 @@ html[data-theme="light"] .profileMenu {
 html[data-theme="light"] .heroPanel h1,
 html[data-theme="light"] .heroPanel p,
 html[data-theme="light"] .todayFocusPanel h2,
+html[data-theme="light"] .startHereIntro h2,
+html[data-theme="light"] .startHereStep strong,
+html[data-theme="light"] .starterDeckPreviewCard strong,
 html[data-theme="light"] .analyticsHero h3,
 html[data-theme="light"] .dashCard strong,
 html[data-theme="light"] .profilePanel h2,
@@ -4253,6 +4375,10 @@ html[data-theme="light"] .weakFixCard small,
 html[data-theme="light"] .reviewFeedback span,
 html[data-theme="light"] .emptyStudio,
 html[data-theme="light"] .todayFocusPanel p,
+html[data-theme="light"] .startHereIntro p,
+html[data-theme="light"] .startHereStep p,
+html[data-theme="light"] .startHereNext,
+html[data-theme="light"] .starterDeckPreviewCard span,
 html[data-theme="light"] .analyticsHero p,
 html[data-theme="light"] .profileMenu span {
   color: var(--text-muted);
@@ -4605,6 +4731,7 @@ html[data-theme="light"] .selected {
 
   .dashboardPanel,
   .todayFocusPanel,
+  .startHerePanel,
   .playerHub,
   .learningStudioStrip,
   .aiDeckWorkspaceGrid,
@@ -4619,6 +4746,11 @@ html[data-theme="light"] .selected {
   .previewGrid,
   .previewNotes {
     grid-template-columns: 1fr;
+  }
+
+  .startHereSteps,
+  .starterDeckPreviewGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .analyticsMetric,
@@ -4737,6 +4869,20 @@ html[data-theme="light"] .selected {
   }
 
   .todayFocusActions {
+    grid-template-columns: 1fr;
+  }
+
+  .startHerePanel {
+    padding: 14px;
+  }
+
+  .startHereSteps,
+  .starterDeckPreviewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .startHereActions {
+    display: grid;
     grid-template-columns: 1fr;
   }
 
