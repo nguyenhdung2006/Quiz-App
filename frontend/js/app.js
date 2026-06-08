@@ -563,11 +563,26 @@ summary.textContent = items.length
 if (button) button.disabled = items.length === 0;
 
 if (!items.length) {
-let empty = document.createElement("p");
-empty.className = "emptyStudio";
-empty.textContent = getVocab().length
+let empty = document.createElement("div");
+empty.className = "emptyStudio emptyStudio--action";
+let message = document.createElement("p");
+message.textContent = getVocab().length
 ? "No weak words yet. Keep reviewing and this center will surface problem words."
 : "No vocabulary yet. Add words or generate an AI Deck to start learning.";
+let actions = document.createElement("div");
+actions.className = "emptyStudioActions";
+let primary = document.createElement("button");
+primary.className = "miniBtn";
+primary.type = "button";
+primary.textContent = getVocab().length ? "Start Review" : "Add Words";
+primary.addEventListener("click", () => showAppPage(getVocab().length ? "review" : "vocabulary"));
+let secondary = document.createElement("button");
+secondary.className = "miniBtn";
+secondary.type = "button";
+secondary.textContent = "Generate Deck";
+secondary.addEventListener("click", () => showAppPage("aiDeck"));
+actions.append(primary, secondary);
+empty.append(message, actions);
 list.appendChild(empty);
 return;
 }

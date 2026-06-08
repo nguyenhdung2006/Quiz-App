@@ -440,8 +440,31 @@ function renderLoading() {
 let host = document.getElementById("reviewTodayBody");
 if (!host) return;
 host.innerHTML = "";
-host.appendChild(stateLine("Loading review queue...", "loading"));
+host.appendChild(stateLine("Checking today's review queue...", "loading"));
+host.appendChild(reviewLoadingSkeleton());
 setText("reviewTodayMeta", "Checking due words...");
+}
+
+function reviewLoadingSkeleton() {
+let shell = document.createElement("div");
+shell.className = "reviewLoadingSkeleton loadingSkeletonList";
+for (let i = 0; i < 2; i++) {
+let card = document.createElement("div");
+card.className = "loadingSkeletonCard";
+card.append(
+loadingSkeletonLine("loadingSkeletonLine--medium"),
+loadingSkeletonLine("loadingSkeletonLine--wide"),
+loadingSkeletonLine("loadingSkeletonLine--short")
+);
+shell.appendChild(card);
+}
+return shell;
+}
+
+function loadingSkeletonLine(extraClass = "") {
+let line = document.createElement("span");
+line.className = `loadingSkeletonLine ${extraClass}`.trim();
+return line;
 }
 
 function renderQueue() {

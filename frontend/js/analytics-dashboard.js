@@ -322,7 +322,7 @@ ctx.stroke();
 if (!trend.length) {
 ctx.fillStyle = "rgba(224, 240, 255, 0.74)";
 ctx.font = "700 15px Segoe UI, Arial";
-ctx.fillText("Complete quizzes to see accuracy trend", 34, height / 2);
+ctx.fillText("Take a quiz to unlock your accuracy trend", 34, height / 2);
 return;
 }
 
@@ -393,7 +393,7 @@ let host = document.getElementById("weakWordsList");
 if (!host) return;
 host.innerHTML = "";
 if (!words.length) {
-host.appendChild(emptyLine("No weak words yet. Missed or low-mastery words will appear here."));
+host.appendChild(emptyLine("No weak words yet. Missed or low-mastery words will appear here after quizzes."));
 return;
 }
 words.slice(0, 8).forEach(item => {
@@ -444,7 +444,7 @@ group.className = "performanceGroup";
 let heading = document.createElement("h4");
 heading.textContent = title;
 group.appendChild(heading);
-if (!rows.length) group.appendChild(emptyLine("Complete quizzes to unlock this breakdown."));
+if (!rows.length) group.appendChild(emptyLine("Complete a quiz to unlock this breakdown."));
 rows.slice(0, 5).forEach(row => {
 let item = document.createElement("div");
 item.className = "performanceRow";

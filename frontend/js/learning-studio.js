@@ -825,7 +825,9 @@ maxWords: Number.isFinite(maxWords) ? maxWords : 20
 }
 
 async function requestAiDeck(text, options = {}) {
-let response = await fetch(`${AI_DECK_API_ORIGIN}/api/ai/generate-deck`, {
+let response;
+try {
+response = await fetch(`${AI_DECK_API_ORIGIN}/api/ai/generate-deck`, {
 method: "POST",
 credentials: "include",
 headers: { "Content-Type": "application/json" },
@@ -835,6 +837,9 @@ targetLevel: options.targetLevel || "Any",
 maxWords: options.maxWords || 20
 })
 });
+} catch (error) {
+throw new Error("AI deck generation failed. Please try again.");
+}
 
 if (!response.ok) {
 throw new Error(await aiDeckErrorMessage(response));
@@ -889,9 +894,10 @@ if (!generatedAiDeckWords.length) {
 let empty = document.createElement("p");
 empty.className = aiDeckGenerating ? "apiStateMessage apiStateMessage--loading" : "emptyStudio";
 empty.textContent = aiDeckGenerating
-? "Generating deck... Extracting useful vocabulary now."
-: "No generated words yet. Paste English text, click Generate, then edit and save selected words.";
+? "Generating vocabulary... extracting useful words and checking meanings."
+: "No generated words yet. Paste English text, generate a deck, then review and save selected words.";
 host.appendChild(empty);
+if (aiDeckGenerating) host.appendChild(aiDeckLoadingSkeleton());
 if (saveBtn) saveBtn.disabled = true;
 if (selectAllBtn) selectAllBtn.disabled = true;
 if (deselectAllBtn) deselectAllBtn.disabled = true;
@@ -943,6 +949,28 @@ host.appendChild(row);
 });
 
 updateAiDeckSaveState();
+}
+
+function aiDeckLoadingSkeleton() {
+let shell = document.createElement("div");
+shell.className = "loadingSkeletonList";
+for (let i = 0; i < 3; i++) {
+let card = document.createElement("div");
+card.className = "loadingSkeletonCard";
+card.append(
+loadingSkeletonLine("loadingSkeletonLine--wide"),
+loadingSkeletonLine("loadingSkeletonLine--medium"),
+loadingSkeletonLine("loadingSkeletonLine--short")
+);
+shell.appendChild(card);
+}
+return shell;
+}
+
+function loadingSkeletonLine(extraClass = "") {
+let line = document.createElement("span");
+line.className = `loadingSkeletonLine ${extraClass}`.trim();
+return line;
 }
 
 function cleanAiDeckValue(value, maxLength = 240) {
