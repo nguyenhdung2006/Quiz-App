@@ -84,9 +84,7 @@ public class VocabularyService {
 
     @Transactional
     public void deleteWord(AppUser user, Long id) {
-        VocabularyWord word = words.findByIdAndUser(id, user)
-                .orElseThrow(() -> new IllegalArgumentException("Word not found."));
-        words.delete(word);
+        words.findByIdAndUser(id, user).ifPresent(words::delete);
     }
 
     @Transactional

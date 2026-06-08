@@ -183,6 +183,42 @@ class BackendHardeningTests {
                 .andExpect(jsonPath("$.length()", is(0)));
     }
 
+    @Test
+    void deleteVocabularyIsIdempotentAndDoesNotCrossUserBoundaries() throws Exception {
+        String ownerEmail = "delete-owner@example.com";
+        String otherEmail = "delete-other@example.com";
+        long ownerWordId = createWord(ownerEmail, "archive", "luu tru");
+        long otherWordId = createWord(otherEmail, "private", "rieng tu");
+
+        mockMvc.perform(delete("/api/vocab/" + ownerWordId)
+                        .with(oauthUser(ownerEmail)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/vocab/" + ownerWordId)
+                        .with(oauthUser(ownerEmail)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/vocab/99999999")
+                        .with(oauthUser(ownerEmail)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/vocab/" + otherWordId)
+                        .with(oauthUser(ownerEmail)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/vocab")
+                        .with(oauthUser(ownerEmail)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()", is(0)));
+
+        mockMvc.perform(get("/api/vocab")
+                        .with(oauthUser(otherEmail)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()", is(1)))
+                .andExpect(jsonPath("$[0].id", is((int) otherWordId)))
+                .andExpect(jsonPath("$[0].eng", is("private")));
+    }
+
     private long createWord(String email, String eng, String vie) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/vocab")
                         .with(oauthUser(email))
