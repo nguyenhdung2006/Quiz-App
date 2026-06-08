@@ -4,12 +4,26 @@ const AUTH_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 const REQUIRE_AUTH = window.quizIsProductionFrontend ? window.quizIsProductionFrontend() : false;
 const CLOUD_DELETE_QUEUE_KEY = "cloudDeleteQueue";
 const AUTH_PROFILE_RETRY_DELAYS = [500, 1000];
+const CLOUD_SYNC_META_KEY = "cloudSyncMeta";
+const STALE_SYNC_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+const DELETE_RETRY_30_SECONDS = 30 * 1000;
+const DELETE_RETRY_5_MINUTES = 5 * 60 * 1000;
+const DELETE_RETRY_1_HOUR = 60 * 60 * 1000;
 let cloudSyncReady = false;
 let cloudSyncTimer = null;
 let applyingCloudSnapshot = false;
 let latestProgressSummary = null;
 let latestAchievements = [];
-let cloudSnapshotPulled = false;
+let cloudSyncState = {
+hasPulledCloudSnapshot: false,
+lastKnownRevision: null,
+lastPullAt: null,
+lastSuccessfulSyncAt: null,
+cloudSnapshotUpdatedAt: null,
+hadLocalDataBeforeLastPull: false,
+syncReady: false,
+pullInFlight: null
+};
 
 const STARTER_WORDS = [
 { eng: "resilient", vie: "kiên cường", pos: "adj", tag: "mindset", ipa: "/ri-ZIL-yuhnt/", level: "B1", context: "learning after difficulty", example: "She stayed resilient after the hard exam.", exampleMeaning: "Cô ấy vẫn kiên cường sau bài kiểm tra khó.", collocation: "resilient learner, remain resilient", synonyms: "strong, tough", antonyms: "fragile", commonMistake: "Do not use resilient for every kind of strong object.", note: "Useful for school and life." },
@@ -73,15 +87,49 @@ return typeof accountStorageKey === "function"
 function readPendingCloudDeletes() {
 try {
 let raw = localStorage.getItem(cloudDeleteQueueKey());
-let ids = raw ? JSON.parse(raw) : [];
-return Array.isArray(ids) ? Array.from(new Set(ids.map(id => String(id)).filter(Boolean))) : [];
+let items = raw ? JSON.parse(raw) : [];
+if (!Array.isArray(items)) return [];
+let clean = normalizeDeleteQueue(items);
+if (raw && JSON.stringify(items) !== JSON.stringify(clean)) writePendingCloudDeletes(clean);
+return clean;
 } catch (error) {
 return [];
 }
 }
 
-function writePendingCloudDeletes(ids) {
-let clean = Array.from(new Set((ids || []).map(id => String(id)).filter(Boolean)));
+function normalizeDeleteQueueItem(item, now = new Date().toISOString()) {
+let wordId = typeof item === "object" && item !== null ? item.wordId : item;
+wordId = String(wordId || "").trim();
+if (!wordId) return null;
+
+let attempts = Number(item?.attempts || 0);
+return {
+wordId,
+queuedAt: item?.queuedAt || now,
+attempts: Number.isFinite(attempts) && attempts > 0 ? Math.floor(attempts) : 0,
+lastAttemptAt: item?.lastAttemptAt || null,
+lastStatus: item?.lastStatus || "queued",
+lastError: item?.lastError || null
+};
+}
+
+function normalizeDeleteQueue(items) {
+let now = new Date().toISOString();
+let byId = new Map();
+for (let item of Array.isArray(items) ? items : []) {
+let clean = normalizeDeleteQueueItem(item, now);
+if (!clean) continue;
+
+let existing = byId.get(clean.wordId);
+if (!existing || clean.attempts > existing.attempts) {
+byId.set(clean.wordId, { ...(existing || {}), ...clean });
+}
+}
+return Array.from(byId.values());
+}
+
+function writePendingCloudDeletes(items) {
+let clean = normalizeDeleteQueue(items);
 try {
 if (clean.length) {
 localStorage.setItem(cloudDeleteQueueKey(), JSON.stringify(clean));
@@ -94,26 +142,173 @@ localStorage.removeItem(cloudDeleteQueueKey());
 return clean;
 }
 
+function deleteRetryDelayMs(attempts) {
+if (attempts <= 1) return 0;
+if (attempts === 2) return DELETE_RETRY_30_SECONDS;
+if (attempts === 3) return DELETE_RETRY_5_MINUTES;
+return DELETE_RETRY_1_HOUR;
+}
+
+function deleteQueueItemReady(item, now = Date.now()) {
+let delay = deleteRetryDelayMs(Number(item?.attempts || 0));
+if (!delay) return true;
+let lastAttempt = parseTime(item?.lastAttemptAt);
+return !lastAttempt || now - lastAttempt >= delay;
+}
+
+function cloudSyncMetaKey() {
+return typeof accountStorageKey === "function"
+? accountStorageKey(CLOUD_SYNC_META_KEY)
+: CLOUD_SYNC_META_KEY;
+}
+
+function readCloudSyncMeta() {
+try {
+let raw = localStorage.getItem(cloudSyncMetaKey());
+let meta = raw ? JSON.parse(raw) : {};
+return meta && typeof meta === "object" ? meta : {};
+} catch (error) {
+return {};
+}
+}
+
+function writeCloudSyncMeta(patch) {
+let next = {
+...readCloudSyncMeta(),
+...(patch || {})
+};
+try {
+localStorage.setItem(cloudSyncMetaKey(), JSON.stringify(next));
+} catch (error) {
+// Sync remains safe in memory even if localStorage quota is unavailable.
+}
+return next;
+}
+
+function normalizeRevision(value) {
+let revision = Number(value);
+return Number.isSafeInteger(revision) && revision >= 0 ? revision : null;
+}
+
+function rememberCloudRevision(value) {
+let revision = normalizeRevision(value);
+if (revision === null) return false;
+cloudSyncState.lastKnownRevision = revision;
+writeCloudSyncMeta({ lastKnownRevision: revision });
+return true;
+}
+
+function restoreCloudSyncMeta() {
+let meta = readCloudSyncMeta();
+cloudSyncState.lastSuccessfulSyncAt = meta.lastSuccessfulSyncAt || null;
+cloudSyncState.lastPullAt = meta.lastPullAt || null;
+cloudSyncState.cloudSnapshotUpdatedAt = meta.cloudSnapshotUpdatedAt || null;
+cloudSyncState.lastKnownRevision = normalizeRevision(meta.lastKnownRevision);
+}
+
+function resetCloudSyncStateForAccount() {
+cloudSyncState.hasPulledCloudSnapshot = false;
+cloudSyncState.cloudSnapshotUpdatedAt = null;
+cloudSyncState.hadLocalDataBeforeLastPull = false;
+cloudSyncState.lastKnownRevision = null;
+restoreCloudSyncMeta();
+}
+
+function parseTime(value) {
+let time = Date.parse(value || "");
+return Number.isNaN(time) ? 0 : time;
+}
+
+function maxTime(values) {
+return Math.max(0, ...(values || []).map(parseTime).filter(Boolean));
+}
+
+function snapshotUpdatedAt(snapshot) {
+let times = [];
+for (let word of Array.isArray(snapshot?.vocab) ? snapshot.vocab : []) {
+times.push(word?.updatedAt, word?.updated_at, word?.stats?.lastReviewed, word?.stats?.nextReview);
+}
+for (let word of Array.isArray(snapshot?.wrongWords) ? snapshot.wrongWords : []) {
+times.push(word?.updatedAt, word?.updated_at, word?.stats?.lastReviewed, word?.stats?.nextReview);
+}
+for (let item of Array.isArray(snapshot?.quizHistory) ? snapshot.quizHistory : []) {
+times.push(item?.createdAt, item?.created_at);
+}
+let time = maxTime(times);
+return time ? new Date(time).toISOString() : null;
+}
+
+function hasLocalSyncData() {
+return getVocab().length > 0 || getWrongWords().length > 0;
+}
+
+function isStaleDeviceRisk() {
+if (!cloudSyncState.hasPulledCloudSnapshot) return false;
+if (!cloudSyncState.hadLocalDataBeforeLastPull) return false;
+
+let cloudUpdated = parseTime(cloudSyncState.cloudSnapshotUpdatedAt);
+if (!cloudUpdated) return false;
+
+let lastSync = parseTime(cloudSyncState.lastSuccessfulSyncAt);
+if (!lastSync) return cloudUpdated > 0;
+
+let staleAge = Date.now() - lastSync;
+return staleAge > STALE_SYNC_THRESHOLD_MS && cloudUpdated > lastSync;
+}
+
+function blockStaleSyncPush() {
+setSyncStatus("Sync paused to protect your data", "warn");
+return false;
+}
+
 function queuePendingCloudDelete(id) {
 if (!id) return [];
-return writePendingCloudDeletes([...readPendingCloudDeletes(), id]);
+return writePendingCloudDeletes([...readPendingCloudDeletes(), {
+wordId: id,
+queuedAt: new Date().toISOString(),
+attempts: 0,
+lastAttemptAt: null,
+lastStatus: "queued",
+lastError: null
+}]);
 }
 
 async function flushPendingCloudDeletes() {
-let ids = readPendingCloudDeletes();
-if (!ids.length) return true;
+let queue = readPendingCloudDeletes();
+if (!queue.length) return true;
 if (!cloudSyncReady) return false;
 
 let remaining = [];
-for (let id of ids) {
+let now = Date.now();
+for (let item of queue) {
+if (!deleteQueueItemReady(item, now)) {
+remaining.push(item);
+continue;
+}
+
+let attemptedAt = new Date().toISOString();
 try {
-let response = await fetch(`${AUTH_API_ORIGIN}/api/vocab/${encodeURIComponent(id)}`, {
+let response = await fetch(`${AUTH_API_ORIGIN}/api/vocab/${encodeURIComponent(item.wordId)}`, {
 method: "DELETE",
 credentials: "include"
 });
-if (!response.ok && response.status !== 404) remaining.push(id);
+if (!response.ok && response.status !== 404) {
+remaining.push({
+...item,
+attempts: Number(item.attempts || 0) + 1,
+lastAttemptAt: attemptedAt,
+lastStatus: "failed",
+lastError: `HTTP ${response.status}`
+});
+}
 } catch (error) {
-remaining.push(id);
+remaining.push({
+...item,
+attempts: Number(item.attempts || 0) + 1,
+lastAttemptAt: attemptedAt,
+lastStatus: "failed",
+lastError: error?.message || "Network error"
+});
 }
 }
 
@@ -269,6 +464,10 @@ bio: profile.bio || ""
 
 function applyServerSnapshot(snapshot) {
 if (!snapshot) return;
+if (!rememberCloudRevision(snapshot.revision)) {
+cloudSyncState.lastKnownRevision = null;
+writeCloudSyncMeta({ lastKnownRevision: null });
+}
 
 applyingCloudSnapshot = true;
 try {
@@ -286,8 +485,10 @@ applyingCloudSnapshot = false;
 
 async function pullCloudSnapshot() {
 if (!cloudSyncReady || applyingCloudSnapshot) return false;
+if (cloudSyncState.pullInFlight) return cloudSyncState.pullInFlight;
 
-setSyncStatus("Syncing...", "syncing");
+cloudSyncState.pullInFlight = (async () => {
+setSyncStatus("Waiting for cloud snapshot...", "syncing");
 
 try {
 if (!await flushPendingCloudDeletes()) return false;
@@ -300,13 +501,43 @@ setSyncStatus("Cloud unavailable", "warn");
 return false;
 }
 
-applyServerSnapshot(await response.json());
-cloudSnapshotPulled = true;
+let snapshot = await response.json();
+let cloudUpdatedAt = snapshotUpdatedAt(snapshot);
+let hadLocalData = hasLocalSyncData();
+applyServerSnapshot(snapshot);
+cloudSyncState.hasPulledCloudSnapshot = true;
+cloudSyncState.lastPullAt = new Date().toISOString();
+cloudSyncState.cloudSnapshotUpdatedAt = cloudUpdatedAt;
+cloudSyncState.hadLocalDataBeforeLastPull = hadLocalData;
+writeCloudSyncMeta({
+lastPullAt: cloudSyncState.lastPullAt,
+cloudSnapshotUpdatedAt: cloudSyncState.cloudSnapshotUpdatedAt
+});
 setSyncStatus("Synced", "ok");
 return true;
 } catch (error) {
 setSyncStatus("Offline/local mode", "local");
 return false;
+} finally {
+cloudSyncState.pullInFlight = null;
+}
+})();
+
+return cloudSyncState.pullInFlight;
+}
+
+async function ensureCloudSnapshotBeforePush() {
+if (cloudSyncState.hasPulledCloudSnapshot) return true;
+
+setSyncStatus("Waiting for cloud snapshot...", "syncing");
+return await pullCloudSnapshot();
+}
+
+async function readJsonSafely(response) {
+try {
+return await response.json();
+} catch (error) {
+return null;
 }
 }
 
@@ -314,6 +545,16 @@ async function syncCloudNow() {
 if (!cloudSyncReady || applyingCloudSnapshot) return;
 
 try {
+if (!await ensureCloudSnapshotBeforePush()) return;
+if (cloudSyncState.lastKnownRevision === null) {
+setSyncStatus("Waiting for cloud revision...", "syncing");
+cloudSyncState.hasPulledCloudSnapshot = false;
+if (!await pullCloudSnapshot() || cloudSyncState.lastKnownRevision === null) {
+setSyncStatus("Cloud unavailable", "warn");
+return;
+}
+}
+if (isStaleDeviceRisk()) return blockStaleSyncPush();
 setSyncStatus("Syncing...", "syncing");
 if (!await flushPendingCloudDeletes()) return;
 let response = await fetch(`${AUTH_API_ORIGIN}/api/sync`, {
@@ -321,18 +562,28 @@ method: "POST",
 credentials: "include",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({
+expectedRevision: cloudSyncState.lastKnownRevision,
 profile: profilePayload(),
 vocab: getVocab().map(toServerWord),
 wrongWords: getWrongWords().map(toServerWord)
 })
 });
 
+if (response.status === 409) {
+await readJsonSafely(response);
+cloudSyncState.hasPulledCloudSnapshot = false;
+setSyncStatus("Cloud changed. Refreshing sync state...", "warn");
+await pullCloudSnapshot();
+return;
+}
+
 if (!response.ok) {
 setSyncStatus("Cloud unavailable", "warn");
 return;
 }
 applyServerSnapshot(await response.json());
-cloudSnapshotPulled = true;
+cloudSyncState.lastSuccessfulSyncAt = new Date().toISOString();
+writeCloudSyncMeta({ lastSuccessfulSyncAt: cloudSyncState.lastSuccessfulSyncAt });
 setSyncStatus("Synced", "ok");
 } catch (error) {
 // Local mode stays usable when the backend is offline.
@@ -342,7 +593,7 @@ setSyncStatus("Offline/local mode", "local");
 
 function scheduleCloudSync() {
 if (!cloudSyncReady || applyingCloudSnapshot) return;
-if (!cloudSnapshotPulled) {
+if (!cloudSyncState.hasPulledCloudSnapshot) {
 pullCloudSnapshot().then(pulled => {
 if (pulled) syncCloudNow();
 });
@@ -415,7 +666,8 @@ deleteWord: deleteCloudWord,
 importSamples: importCloudSamples,
 syncNow: syncCloudNow,
 pullNow: pullCloudSnapshot,
-isReady: () => cloudSyncReady
+isReady: () => cloudSyncReady,
+state: () => ({ ...cloudSyncState, pullInFlight: Boolean(cloudSyncState.pullInFlight) })
 };
 
 async function submitCloudQuizResult() {
@@ -950,8 +1202,10 @@ let result = await fetchCurrentUserWithRetry();
 
 if (result.status === "authenticated") {
 applyProfile(result.profile);
+resetCloudSyncStateForAccount();
 refreshAccountData();
 cloudSyncReady = true;
+cloudSyncState.syncReady = true;
 let pulled = await pullCloudSnapshot();
 if (pulled) syncCloudNow();
 return;

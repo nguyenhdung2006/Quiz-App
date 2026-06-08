@@ -16,6 +16,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.sql.DataSource;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -225,6 +228,153 @@ class BackendHardeningTests {
     }
 
     @Test
+    void snapshotIncludesCurrentSyncRevision() throws Exception {
+        mockMvc.perform(get("/api/snapshot")
+                        .with(oauthUser("revision-snapshot@example.com")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revision", is(0)));
+    }
+
+    @Test
+    void syncWithMatchingRevisionSucceedsAndIncrementsRevision() throws Exception {
+        String email = "revision-success@example.com";
+
+        mockMvc.perform(post("/api/sync")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "expectedRevision": 0,
+                                  "vocab": [
+                                    {
+                                      "eng": "revision word",
+                                      "vie": "tu phien ban",
+                                      "pos": "n"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revision", is(1)))
+                .andExpect(jsonPath("$.vocab.length()", is(1)))
+                .andExpect(jsonPath("$.vocab[0].eng", is("revision word")));
+    }
+
+    @Test
+    void staleSyncRevisionReturnsConflictAndDoesNotMutate() throws Exception {
+        String email = "revision-conflict@example.com";
+
+        mockMvc.perform(post("/api/sync")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "expectedRevision": 0,
+                                  "vocab": [
+                                    {
+                                      "eng": "first revision word",
+                                      "vie": "tu dau",
+                                      "pos": "n"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revision", is(1)));
+
+        mockMvc.perform(post("/api/sync")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "expectedRevision": 0,
+                                  "vocab": [
+                                    {
+                                      "eng": "stale overwrite",
+                                      "vie": "ghi de cu",
+                                      "pos": "n"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error", is("SYNC_REVISION_CONFLICT")))
+                .andExpect(jsonPath("$.currentRevision", is(1)));
+
+        mockMvc.perform(get("/api/snapshot")
+                        .with(oauthUser(email)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revision", is(1)))
+                .andExpect(jsonPath("$.vocab.length()", is(1)))
+                .andExpect(jsonPath("$.vocab[0].eng", is("first revision word")));
+    }
+
+    @Test
+    void missingSyncRevisionIsRejectedWithoutMutation() throws Exception {
+        String email = "revision-missing@example.com";
+
+        mockMvc.perform(post("/api/sync")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "vocab": [
+                                    {
+                                      "eng": "missing revision word",
+                                      "vie": "thieu phien ban",
+                                      "pos": "n"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error", is("SYNC_REVISION_CONFLICT")))
+                .andExpect(jsonPath("$.currentRevision", is(0)));
+
+        mockMvc.perform(get("/api/snapshot")
+                        .with(oauthUser(email)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revision", is(0)))
+                .andExpect(jsonPath("$.vocab.length()", is(0)));
+    }
+
+    @Test
+    void concurrentSyncWithSameRevisionAllowsOnlyOneWriter() throws Exception {
+        String email = "revision-concurrent@example.com";
+        mockMvc.perform(get("/api/snapshot")
+                        .with(oauthUser(email)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revision", is(0)));
+
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            Callable<Integer> first = () -> postSyncStatus(email, "concurrent one", "mot");
+            Callable<Integer> second = () -> postSyncStatus(email, "concurrent two", "hai");
+
+            var results = executor.invokeAll(List.of(first, second), 10, TimeUnit.SECONDS).stream()
+                    .map(future -> {
+                        try {
+                            return future.get();
+                        } catch (Exception exception) {
+                            throw new RuntimeException(exception);
+                        }
+                    })
+                    .sorted()
+                    .toList();
+
+            org.assertj.core.api.Assertions.assertThat(results).containsExactly(200, 409);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        mockMvc.perform(get("/api/snapshot")
+                        .with(oauthUser(email)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revision", is(1)))
+                .andExpect(jsonPath("$.vocab.length()", is(1)));
+    }
+
+    @Test
     void snapshotHandlesLegacyNullVocabularyFlags() throws Exception {
         createWord("legacy-null-flags@example.com", "legacy", "cu");
 
@@ -327,6 +477,169 @@ class BackendHardeningTests {
         }
     }
 
+    @Test
+    void syncSkipsMalformedItemsAndClampsUnsafeStats() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/sync")
+                        .with(oauthUser("sync-clamp@example.com"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "expectedRevision": 0,
+                                  "vocab": [
+                                    {
+                                      "eng": "",
+                                      "vie": "bad"
+                                    },
+                                    {
+                                      "eng": "safe stats",
+                                      "vie": "thong ke an toan",
+                                      "pos": "n",
+                                      "stats": {
+                                        "seen": -5,
+                                        "correct": -2,
+                                        "wrong": 2000001,
+                                        "streak": -7,
+                                        "bestStreak": -1,
+                                        "masteryLevel": 99,
+                                        "lastReviewed": "2999-01-01T00:00:00Z",
+                                        "nextReview": "2999-01-01T00:00:00Z"
+                                      }
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revision", is(1)))
+                .andExpect(jsonPath("$.vocab.length()", is(1)))
+                .andExpect(jsonPath("$.vocab[0].eng", is("safe stats")))
+                .andReturn();
+
+        JsonNode stats = objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("vocab").get(0).get("stats");
+        org.assertj.core.api.Assertions.assertThat(stats.get("seen").asInt()).isZero();
+        org.assertj.core.api.Assertions.assertThat(stats.get("correct").asInt()).isZero();
+        org.assertj.core.api.Assertions.assertThat(stats.get("wrong").asInt()).isEqualTo(1_000_000);
+        org.assertj.core.api.Assertions.assertThat(stats.get("streak").asInt()).isZero();
+        org.assertj.core.api.Assertions.assertThat(stats.get("bestStreak").asInt()).isZero();
+        org.assertj.core.api.Assertions.assertThat(stats.get("masteryLevel").asInt()).isEqualTo(5);
+        org.assertj.core.api.Assertions.assertThat(stats.path("lastReviewed").isMissingNode()
+                || stats.path("lastReviewed").isNull()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(stats.path("nextReview").isMissingNode()
+                || stats.path("nextReview").isNull()).isTrue();
+    }
+
+    @Test
+    void quizResultRequestClampsNonFiniteAndImpossibleNumbers() {
+        com.quizapp.vocab.QuizResultRequest nanRequest = new com.quizapp.vocab.QuizResultRequest(
+                "mixed",
+                -5,
+                -3,
+                8,
+                4,
+                Double.NaN,
+                999,
+                List.of()
+        );
+        com.quizapp.vocab.QuizResultRequest infiniteRequest = new com.quizapp.vocab.QuizResultRequest(
+                "mixed",
+                200_000,
+                999,
+                999,
+                999,
+                Double.POSITIVE_INFINITY,
+                999,
+                List.of(new com.quizapp.vocab.QuizAnswerRequest("focus", "mixed", "wrong", "tap trung", false))
+        );
+
+        org.assertj.core.api.Assertions.assertThat(nanRequest.challengeSeconds()).isZero();
+        org.assertj.core.api.Assertions.assertThat(nanRequest.totalQuestions()).isZero();
+        org.assertj.core.api.Assertions.assertThat(nanRequest.correctAnswers()).isZero();
+        org.assertj.core.api.Assertions.assertThat(nanRequest.wrongAnswers()).isZero();
+        org.assertj.core.api.Assertions.assertThat(nanRequest.score()).isZero();
+        org.assertj.core.api.Assertions.assertThat(nanRequest.maxCombo()).isZero();
+
+        org.assertj.core.api.Assertions.assertThat(infiniteRequest.challengeSeconds()).isEqualTo(86_400);
+        org.assertj.core.api.Assertions.assertThat(infiniteRequest.totalQuestions()).isEqualTo(500);
+        org.assertj.core.api.Assertions.assertThat(infiniteRequest.correctAnswers()).isEqualTo(500);
+        org.assertj.core.api.Assertions.assertThat(infiniteRequest.wrongAnswers()).isEqualTo(500);
+        org.assertj.core.api.Assertions.assertThat(infiniteRequest.score()).isZero();
+        org.assertj.core.api.Assertions.assertThat(infiniteRequest.maxCombo()).isEqualTo(500);
+    }
+
+    @Test
+    void malformedJsonAndTimestampsReturnBadRequestInsteadOfServerError() throws Exception {
+        mockMvc.perform(post("/api/quiz-results")
+                        .with(oauthUser("malformed-json@example.com"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"quizMode\":\"mixed\",\"score\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Malformed request body.")));
+
+        mockMvc.perform(post("/api/sync")
+                        .with(oauthUser("malformed-time@example.com"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "vocab": [
+                                    {
+                                      "eng": "bad timestamp",
+                                      "vie": "loi thoi gian",
+                                      "stats": {
+                                        "seen": 1,
+                                        "correct": 1,
+                                        "wrong": 0,
+                                        "streak": 1,
+                                        "bestStreak": 1,
+                                        "masteryLevel": 1,
+                                        "lastReviewed": "not-a-date"
+                                      }
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Malformed request body.")));
+    }
+
+    @Test
+    void analyticsEndpointsHandleEmptyAndCorruptedStatsWithoutServerError() throws Exception {
+        String email = "analytics-clamp@example.com";
+        createWord(email, "corrupted stats", "chi so loi");
+
+        try (var connection = dataSource.getConnection();
+             var statement = connection.createStatement()) {
+            statement.executeUpdate("""
+                    UPDATE word_stats
+                    SET seen = -10,
+                        correct = 5000000,
+                        wrong = -20,
+                        current_streak = -5,
+                        best_streak = -1,
+                        mastery_level = 99,
+                        next_review = TIMESTAMP '2020-01-01 00:00:00'
+                    """);
+        }
+
+        for (String path : List.of(
+                "/api/analytics/overview",
+                "/api/analytics/review-pressure",
+                "/api/analytics/weak-words",
+                "/api/analytics/accuracy-trend",
+                "/api/review/queue?limit=8"
+        )) {
+            mockMvc.perform(get(path).with(oauthUser(email)))
+                    .andExpect(status().isOk());
+        }
+
+        MvcResult overview = mockMvc.perform(get("/api/analytics/overview")
+                        .with(oauthUser(email)))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode averageAccuracy = objectMapper.readTree(overview.getResponse().getContentAsString())
+                .path("averageAccuracy");
+        org.assertj.core.api.Assertions.assertThat(averageAccuracy.asInt()).isBetween(0, 100);
+    }
+
     private void dropNotNull(java.sql.Statement statement, String table, String... columns) throws Exception {
         for (String column : columns) {
             statement.executeUpdate("ALTER TABLE " + table + " ALTER COLUMN " + column + " DROP NOT NULL");
@@ -348,6 +661,22 @@ class BackendHardeningTests {
 
         JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
         return created.get("id").asLong();
+    }
+
+    private int postSyncStatus(String email, String eng, String vie) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/sync")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "expectedRevision", 0,
+                                "vocab", List.of(Map.of(
+                                        "eng", eng,
+                                        "vie", vie,
+                                        "pos", "n"
+                                ))
+                        ))))
+                .andReturn();
+        return result.getResponse().getStatus();
     }
 
     private static org.springframework.test.web.servlet.request.RequestPostProcessor oauthUser(String email) {

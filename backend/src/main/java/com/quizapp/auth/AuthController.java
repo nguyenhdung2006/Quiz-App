@@ -44,6 +44,7 @@ public class AuthController {
         user.setGender(safe(request.gender()));
         user.setLearningGoal(safe(request.goal()));
         user.setBio(safe(request.bio()));
+        user.incrementSyncRevision();
         return ProfileDto.from(user);
     }
 

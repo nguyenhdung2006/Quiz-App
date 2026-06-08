@@ -1,6 +1,7 @@
 package com.quizapp.vocab;
 
 import com.quizapp.user.AppUser;
+import com.quizapp.user.AppUserRepository;
 import com.quizapp.user.ProfileDto;
 import com.quizapp.user.ProfileRequest;
 import java.time.Instant;
@@ -16,6 +17,7 @@ public class VocabularyService {
     private final QuizHistoryRepository quizHistory;
     private final AchievementService achievements;
     private final LearningProgressService progress;
+    private final AppUserRepository users;
 
     private static final List<WordRequest> STARTER_WORDS = List.of(
             starter("resilient", "kien cuong", "adj", "mindset"),
@@ -35,13 +37,15 @@ public class VocabularyService {
             WrongBankRepository wrongBank,
             QuizHistoryRepository quizHistory,
             AchievementService achievements,
-            LearningProgressService progress
+            LearningProgressService progress,
+            AppUserRepository users
     ) {
         this.words = words;
         this.wrongBank = wrongBank;
         this.quizHistory = quizHistory;
         this.achievements = achievements;
         this.progress = progress;
+        this.users = users;
     }
 
     @Transactional(readOnly = true)
@@ -58,75 +62,93 @@ public class VocabularyService {
 
     @Transactional
     public WordDto createWord(AppUser user, WordRequest request) {
+        AppUser syncUser = lockUserForRevision(user);
         String normalizedEng = normalizeEnglishForStorage(request.eng());
-        ensureNoDuplicateEnglish(user, normalizedEng, null);
+        ensureNoDuplicateEnglish(syncUser, normalizedEng, null);
 
         VocabularyWord word = new VocabularyWord();
-        word.setUser(user);
+        word.setUser(syncUser);
         applyWordRequest(word, request);
         WordDto created = WordDto.from(words.save(word));
-        if (words.findByUserOrderByCreatedAtDesc(user).size() == 1) {
-            achievements.unlock(user, "FIRST_WORD");
+        if (words.findByUserOrderByCreatedAtDesc(syncUser).size() == 1) {
+            achievements.unlock(syncUser, "FIRST_WORD");
         }
+        markCloudChanged(syncUser);
         return created;
     }
 
     @Transactional
     public WordDto updateWord(AppUser user, Long id, WordRequest request) {
-        VocabularyWord word = words.findByIdAndUser(id, user)
+        AppUser syncUser = lockUserForRevision(user);
+        VocabularyWord word = words.findByIdAndUser(id, syncUser)
                 .orElseThrow(() -> new IllegalArgumentException("Word not found."));
         String normalizedEng = normalizeEnglishForStorage(request.eng());
-        ensureNoDuplicateEnglish(user, normalizedEng, id);
+        ensureNoDuplicateEnglish(syncUser, normalizedEng, id);
 
         applyWordRequest(word, request);
-        return WordDto.from(words.save(word));
+        WordDto updated = WordDto.from(words.save(word));
+        markCloudChanged(syncUser);
+        return updated;
     }
 
     @Transactional
     public void deleteWord(AppUser user, Long id) {
-        words.findByIdAndUser(id, user).ifPresent(words::delete);
+        AppUser syncUser = lockUserForRevision(user);
+        words.findByIdAndUser(id, syncUser).ifPresent(word -> {
+            words.delete(word);
+            markCloudChanged(syncUser);
+        });
     }
 
     @Transactional
     public SyncResponse importStarterWords(AppUser user) {
+        AppUser syncUser = lockUserForRevision(user);
         for (WordRequest word : STARTER_WORDS) {
-            upsertByEnglish(user, word);
+            upsertByEnglish(syncUser, word);
         }
-        achievements.unlock(user, "FIRST_WORD");
-        return snapshot(user);
+        achievements.unlock(syncUser, "FIRST_WORD");
+        markCloudChanged(syncUser);
+        return snapshot(syncUser);
     }
 
     @Transactional
     public SyncResponse sync(AppUser user, SyncRequest request) {
-        applyProfile(user, request.profile());
+        AppUser syncUser = lockUserForRevision(user);
+        ensureExpectedRevision(syncUser, request.expectedRevision());
+
+        applyProfile(syncUser, request.profile());
 
         if (request.vocab() != null) {
             for (WordRequest incoming : request.vocab()) {
-                upsertByEnglish(user, incoming);
+                if (!isUsableSyncWord(incoming)) continue;
+                upsertByEnglish(syncUser, incoming);
             }
         }
 
         if (request.wrongWords() != null) {
             for (WordRequest incoming : request.wrongWords()) {
-                VocabularyWord word = upsertByEnglish(user, incoming);
-                wrongBank.findByUserAndWord(user, word).orElseGet(() -> {
+                if (!isUsableSyncWord(incoming)) continue;
+                VocabularyWord word = upsertByEnglish(syncUser, incoming);
+                wrongBank.findByUserAndWord(syncUser, word).orElseGet(() -> {
                     WrongBankEntry entry = new WrongBankEntry();
-                    entry.setUser(user);
+                    entry.setUser(syncUser);
                     entry.setWord(word);
                     return wrongBank.save(entry);
                 }).setMastered(incoming.mastered());
             }
         }
 
-        return snapshot(user);
+        markCloudChanged(syncUser);
+        return snapshot(syncUser);
     }
 
     @Transactional
     public SyncResponse recordQuizResult(AppUser user, QuizResultRequest request) {
         if (request.answers() == null) return snapshot(user);
+        AppUser syncUser = lockUserForRevision(user);
 
         QuizHistory history = new QuizHistory();
-        history.setUser(user);
+        history.setUser(syncUser);
         history.setQuizMode(defaultText(request.quizMode(), "mixed"));
         history.setChallengeSeconds(request.challengeSeconds());
         history.setTotalQuestions(Math.max(0, request.totalQuestions()));
@@ -138,7 +160,7 @@ public class VocabularyService {
         for (QuizAnswerRequest answer : request.answers()) {
             if (answer.eng() == null || answer.eng().isBlank()) continue;
 
-            words.findByUserAndEngIgnoreCase(user, answer.eng()).ifPresent(word -> {
+            words.findByUserAndEngIgnoreCase(syncUser, answer.eng()).ifPresent(word -> {
                 WordStats stats = ensureStats(word);
                 stats.setSeen(stats.getSeen() + 1);
                 stats.setLastReviewed(Instant.now());
@@ -148,15 +170,15 @@ public class VocabularyService {
                     stats.setCurrentStreak(stats.getCurrentStreak() + 1);
                     stats.setBestStreak(Math.max(stats.getBestStreak(), stats.getCurrentStreak()));
                     stats.setMasteryLevel(Math.min(5, stats.getMasteryLevel() + 1));
-                    wrongBank.findByUserAndWord(user, word).ifPresent(entry -> entry.setMastered(true));
+                    wrongBank.findByUserAndWord(syncUser, word).ifPresent(entry -> entry.setMastered(true));
                 } else {
                     stats.setWrong(stats.getWrong() + 1);
                     stats.setCurrentStreak(0);
                     stats.setMasteryLevel(Math.max(0, stats.getMasteryLevel() - 1));
                     word.setMastered(false);
-                    WrongBankEntry entry = wrongBank.findByUserAndWord(user, word).orElseGet(() -> {
+                    WrongBankEntry entry = wrongBank.findByUserAndWord(syncUser, word).orElseGet(() -> {
                         WrongBankEntry next = new WrongBankEntry();
-                        next.setUser(user);
+                        next.setUser(syncUser);
                         next.setWord(word);
                         return next;
                     });
@@ -185,22 +207,23 @@ public class VocabularyService {
         quizHistory.save(history);
 
         int earnedXp = Math.max(0, request.correctAnswers() * 12 + request.totalQuestions() * 3 + request.maxCombo());
-        user.setXp(user.getXp() + earnedXp);
-        user.setLevel(Math.max(1, user.getXp() / 250 + 1));
-        user.setBestStreak(Math.max(user.getBestStreak(), request.maxCombo()));
+        syncUser.setXp(syncUser.getXp() + earnedXp);
+        syncUser.setLevel(Math.max(1, syncUser.getXp() / 250 + 1));
+        syncUser.setBestStreak(Math.max(syncUser.getBestStreak(), request.maxCombo()));
 
-        achievements.unlock(user, "FIRST_QUIZ");
+        achievements.unlock(syncUser, "FIRST_QUIZ");
         if (request.totalQuestions() > 0 && request.correctAnswers() == request.totalQuestions()) {
-            achievements.unlock(user, "PERFECT_ROUND");
+            achievements.unlock(syncUser, "PERFECT_ROUND");
         }
         if (request.maxCombo() >= 10) {
-            achievements.unlock(user, "COMBO_10");
+            achievements.unlock(syncUser, "COMBO_10");
         }
         if ("daily".equalsIgnoreCase(defaultText(request.quizMode(), ""))) {
-            achievements.unlock(user, "DAILY_CHALLENGE");
+            achievements.unlock(syncUser, "DAILY_CHALLENGE");
         }
 
-        return snapshot(user);
+        markCloudChanged(syncUser);
+        return snapshot(syncUser);
     }
 
     @Transactional(readOnly = true)
@@ -210,6 +233,7 @@ public class VocabularyService {
                 .map(QuizHistoryDto::from)
                 .toList();
         return new SyncResponse(
+                user.getSyncRevision(),
                 ProfileDto.from(user),
                 listWords(user),
                 listWrongWords(user),
@@ -217,6 +241,51 @@ public class VocabularyService {
                 unlocked.stream().map(AchievementDto::from).toList(),
                 recentHistory
         );
+    }
+
+    private AppUser lockUserForRevision(AppUser user) {
+        if (user == null || user.getId() == null) {
+            throw new IllegalStateException("Authentication is required.");
+        }
+        return users.findByIdForSyncUpdate(user.getId())
+                .orElseThrow(() -> new IllegalStateException("User not found."));
+    }
+
+    private void ensureExpectedRevision(AppUser user, Long expectedRevision) {
+        long currentRevision = user.getSyncRevision();
+        if (expectedRevision == null || expectedRevision.longValue() != currentRevision) {
+            throw new SyncRevisionConflictException(expectedRevision, currentRevision);
+        }
+    }
+
+    private void markCloudChanged(AppUser user) {
+        user.incrementSyncRevision();
+    }
+
+    private boolean isUsableSyncWord(WordRequest request) {
+        if (request == null) return false;
+        String eng = normalizeEnglishForStorage(request.eng());
+        String vie = trim(request.vie());
+        return !eng.isBlank()
+                && !vie.isBlank()
+                && eng.length() <= 255
+                && vie.length() <= 255
+                && within(request.pos(), 50)
+                && within(request.tag(), 100)
+                && within(request.ipa(), 120)
+                && within(request.level(), 40)
+                && within(request.context(), 2_000)
+                && within(request.example(), 2_000)
+                && within(request.exampleMeaning(), 2_000)
+                && within(request.collocation(), 2_000)
+                && within(request.synonyms(), 2_000)
+                && within(request.antonyms(), 2_000)
+                && within(request.commonMistake(), 2_000)
+                && within(request.note(), 2_000);
+    }
+
+    private boolean within(String value, int maxLength) {
+        return value == null || value.length() <= maxLength;
     }
 
     private VocabularyWord upsertByEnglish(AppUser user, WordRequest request) {

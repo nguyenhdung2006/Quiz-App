@@ -6,13 +6,15 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 public record SyncRequest(
+        Long expectedRevision,
+
         @Valid
         ProfileRequest profile,
 
         @Size(max = 5_000, message = "Sync payload cannot include more than 5000 vocabulary words.")
-        List<@Valid WordRequest> vocab,
+        List<WordRequest> vocab,
 
         @Size(max = 5_000, message = "Sync payload cannot include more than 5000 wrong words.")
-        List<@Valid WordRequest> wrongWords
+        List<WordRequest> wrongWords
 ) {
 }

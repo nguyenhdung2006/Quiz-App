@@ -50,6 +50,9 @@ public class AppUser {
     @Column(name = "last_active_date")
     private LocalDate lastActiveDate;
 
+    @Column(name = "sync_revision", nullable = false)
+    private Long syncRevision = 0L;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -97,4 +100,11 @@ public class AppUser {
     public void setBio(String bio) { this.bio = bio; }
     public LocalDate getLastActiveDate() { return lastActiveDate; }
     public void setLastActiveDate(LocalDate lastActiveDate) { this.lastActiveDate = lastActiveDate; }
+    public long getSyncRevision() { return syncRevision == null ? 0L : syncRevision; }
+    public void setSyncRevision(long syncRevision) { this.syncRevision = Math.max(0L, syncRevision); }
+    public long incrementSyncRevision() {
+        long next = getSyncRevision() + 1L;
+        setSyncRevision(next);
+        return next;
+    }
 }

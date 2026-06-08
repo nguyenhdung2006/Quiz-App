@@ -50,20 +50,26 @@ function word(eng, vie, tag, index) {
 async function preparePage(page, options = {}) {
   const fatalConsole = [];
   const syncBodies = [];
+  const deleteRequests = [];
   let meRequestCount = 0;
+  let snapshotRequestCount = 0;
   const profile = options.profile || {
     name: "Smoke Tester",
     email: "",
     avatar: "images/icon.png"
   };
   const accountId = String(profile.email || "").trim().toLowerCase() || "local-guest";
-  const cloudSnapshot = options.cloudSnapshot || {
+  const baseCloudSnapshot = options.cloudSnapshot || {
     profile,
     vocab: [],
     wrongWords: [],
     progress: {},
     achievements: [],
     quizHistory: []
+  };
+  const cloudSnapshot = {
+    ...baseCloudSnapshot,
+    revision: options.revision ?? baseCloudSnapshot.revision ?? 0
   };
 
   page.on("console", (message) => {
@@ -97,14 +103,37 @@ async function preparePage(page, options = {}) {
       return;
     }
     if (url.endsWith("/api/snapshot")) {
+      snapshotRequestCount++;
+      if (options.snapshotFails) {
+        await route.fulfill({
+          status: options.snapshotStatus || 503,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Snapshot unavailable." })
+        });
+        return;
+      }
       await route.fulfill({ json: cloudSnapshot });
       return;
     }
     if (url.endsWith("/api/sync")) {
       syncBodies.push(route.request().postDataJSON());
+      if (options.syncConflict) {
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: "SYNC_REVISION_CONFLICT",
+            message: "Cloud data changed. Please refresh sync state.",
+            expectedRevision: route.request().postDataJSON()?.expectedRevision,
+            currentRevision: options.conflictRevision ?? ((cloudSnapshot.revision || 0) + 1)
+          })
+        });
+        return;
+      }
       let body = syncBodies[syncBodies.length - 1] || {};
       await route.fulfill({
         json: options.syncResponse || {
+          revision: (cloudSnapshot.revision || 0) + syncBodies.length,
           profile: { ...(cloudSnapshot.profile || profile), ...(body.profile || {}) },
           vocab: body.vocab || [],
           wrongWords: body.wrongWords || [],
@@ -116,6 +145,7 @@ async function preparePage(page, options = {}) {
       return;
     }
     if (method === "DELETE" && url.includes("/api/vocab/")) {
+      deleteRequests.push(url);
       await route.fulfill({
         status: options.deleteFails ? 500 : 204,
         body: ""
@@ -190,18 +220,24 @@ async function preparePage(page, options = {}) {
     if (seed.pendingDeletes) {
       localStorage.setItem(`quizAccount:${accountId}:cloudDeleteQueue`, JSON.stringify(seed.pendingDeletes));
     }
+    if (seed.syncMeta) {
+      localStorage.setItem(`quizAccount:${accountId}:cloudSyncMeta`, JSON.stringify(seed.syncMeta));
+    }
   }, {
     profile,
     vocab: options.vocab || [],
     wrongWords: options.wrongWords || [],
-    pendingDeletes: options.pendingDeletes || null
+    pendingDeletes: options.pendingDeletes || null,
+    syncMeta: options.syncMeta || null
   });
 
   await page.goto("index.html");
   await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
   Object.defineProperty(fatalConsole, "syncBodies", { value: syncBodies });
+  Object.defineProperty(fatalConsole, "deleteRequests", { value: deleteRequests });
   Object.defineProperty(fatalConsole, "accountId", { value: accountId });
   Object.defineProperty(fatalConsole, "meRequestCount", { get: () => meRequestCount });
+  Object.defineProperty(fatalConsole, "snapshotRequestCount", { get: () => snapshotRequestCount });
   return fatalConsole;
 }
 
@@ -337,7 +373,118 @@ test("logged-in empty local storage pulls cloud words before sync", async ({ pag
 
   await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
   expect(fatalConsole.syncBodies.at(-1).vocab.map(item => item.eng)).toContain("cloud-only");
+  expect(fatalConsole.syncBodies.at(-1).expectedRevision).toBe(0);
   expect(fatalConsole).toEqual([]);
+});
+
+test("sync revision conflict refreshes cloud snapshot without retrying push", async ({ page }) => {
+  const profile = { name: "Conflict Tester", email: "conflict@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    vocab: [{
+      ...word("local-conflict-word", "local", "sync", 70),
+      updatedAt: "2026-01-04T00:00:00.000Z"
+    }],
+    syncConflict: true,
+    conflictRevision: 8,
+    cloudSnapshot: {
+      revision: 7,
+      profile,
+      vocab: [],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect.poll(() => fatalConsole.syncBodies.length).toBe(1);
+  expect(fatalConsole.syncBodies[0].expectedRevision).toBe(7);
+  await expect.poll(() => fatalConsole.snapshotRequestCount).toBeGreaterThan(1);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("full cloud sync push is blocked until snapshot pull succeeds", async ({ page }) => {
+  const profile = { name: "Safe Sync", email: "safe-sync@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    snapshotFails: true
+  });
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Cloud unavailable");
+  await page.evaluate(() => window.quizCloud?.syncNow?.());
+  await page.waitForTimeout(300);
+
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  await expect.poll(() => page.evaluate(() => window.quizCloud?.state?.().hasPulledCloudSnapshot)).toBe(false);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale returning device does not push over newer cloud snapshot", async ({ page }) => {
+  const profile = { name: "Old Device", email: "old-device@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    vocab: [{
+      ...word("shared-word", "old local meaning", "sync", 61),
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      profile,
+      vocab: [{
+        ...word("shared-word", "new cloud meaning", "sync", 62),
+        id: 9001,
+        updatedAt: "2026-05-01T00:00:00.000Z"
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Sync paused to protect your data");
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  await expect.poll(() => page.evaluate(() => window.quizCloud?.state?.().hasPulledCloudSnapshot)).toBe(true);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("old sync metadata still allows push when cloud is not newer", async ({ page }) => {
+  const profile = { name: "Quiet Cloud", email: "quiet-cloud@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    vocab: [{
+      ...word("quiet-word", "local meaning", "sync", 63),
+      updatedAt: "2026-01-02T00:00:00.000Z"
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-02T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      profile,
+      vocab: [{
+        ...word("quiet-word", "cloud meaning", "sync", 64),
+        id: 9002,
+        updatedAt: "2026-01-01T00:00:00.000Z"
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  expect(fatalConsole.syncBodies.at(-1).vocab.map(item => item.eng)).toContain("quiet-word");
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
 test("auth bootstrap retries transient /api/me failure before applying profile", async ({ page }) => {
@@ -386,6 +533,85 @@ test("failed pending cloud delete shows paused sync status", async ({ page }) =>
   await expect(page.locator("#cloudSyncStatus")).toContainText("Delete pending - sync paused");
   await page.waitForTimeout(300);
   await expect(page.locator("#cloudSyncStatus")).not.toContainText("Synced");
+  const queued = await page.evaluate((accountId) => {
+    return JSON.parse(localStorage.getItem(`quizAccount:${accountId}:cloudDeleteQueue`) || "[]");
+  }, fatalConsole.accountId);
+  expect(queued).toHaveLength(1);
+  expect(queued[0]).toMatchObject({
+    wordId: "123",
+    attempts: 1,
+    lastStatus: "failed",
+    lastError: "HTTP 500"
+  });
+  expect(queued[0].queuedAt).toBeTruthy();
+  expect(queued[0].lastAttemptAt).toBeTruthy();
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("successful pending cloud delete clears migrated queue item", async ({ page }) => {
+  const profile = { name: "Delete Success", email: "delete-success@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    pendingDeletes: ["456"],
+    cloudSnapshot: {
+      profile,
+      vocab: [],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  expect(fatalConsole.deleteRequests.filter(url => url.includes("/api/vocab/456"))).toHaveLength(1);
+  const rawQueue = await page.evaluate((accountId) => {
+    return localStorage.getItem(`quizAccount:${accountId}:cloudDeleteQueue`);
+  }, fatalConsole.accountId);
+  expect(rawQueue).toBeNull();
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("delete queue dedupes and respects retry backoff after repeated failures", async ({ page }) => {
+  const profile = { name: "Delete Backoff", email: "delete-backoff@example.com", avatar: "images/icon.png" };
+  const now = new Date().toISOString();
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    pendingDeletes: [
+      {
+        wordId: "789",
+        queuedAt: now,
+        attempts: 2,
+        lastAttemptAt: new Date().toISOString(),
+        lastStatus: "failed",
+        lastError: "HTTP 500"
+      },
+      "789"
+    ],
+    cloudSnapshot: {
+      profile,
+      vocab: [],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Delete pending - sync paused");
+  expect(fatalConsole.deleteRequests.filter(url => url.includes("/api/vocab/789"))).toHaveLength(0);
+  const queued = await page.evaluate((accountId) => {
+    return JSON.parse(localStorage.getItem(`quizAccount:${accountId}:cloudDeleteQueue`) || "[]");
+  }, fatalConsole.accountId);
+  expect(queued).toHaveLength(1);
+  expect(queued[0]).toMatchObject({
+    wordId: "789",
+    attempts: 2,
+    lastStatus: "failed",
+    lastError: "HTTP 500"
+  });
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 

@@ -35,4 +35,19 @@ public record QuizResultRequest(
         @Size(max = 500, message = "Quiz result cannot include more than 500 answers.")
         List<@Valid QuizAnswerRequest> answers
 ) {
+    private static final int MAX_QUIZ_COUNT = 500;
+    private static final int MAX_CHALLENGE_SECONDS = 24 * 60 * 60;
+
+    public QuizResultRequest {
+        challengeSeconds = challengeSeconds == null ? null : clamp(challengeSeconds, 0, MAX_CHALLENGE_SECONDS);
+        totalQuestions = clamp(totalQuestions, 0, MAX_QUIZ_COUNT);
+        correctAnswers = clamp(correctAnswers, 0, totalQuestions);
+        wrongAnswers = clamp(wrongAnswers, 0, totalQuestions);
+        score = Double.isFinite(score) ? Math.max(0, Math.min(10, score)) : 0;
+        maxCombo = clamp(maxCombo, 0, totalQuestions);
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
 }

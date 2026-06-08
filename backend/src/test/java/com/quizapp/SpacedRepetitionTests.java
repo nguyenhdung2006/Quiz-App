@@ -79,6 +79,39 @@ class SpacedRepetitionTests {
     }
 
     @Test
+    void corruptedStatsAreClampedBeforeScheduling() {
+        SpacedRepetitionService service = new SpacedRepetitionService(null);
+        VocabularyWord word = wordWithStats(-5, 99);
+        WordStats existing = word.getStats();
+        existing.setSeen(-10);
+        existing.setCorrect(-20);
+        existing.setWrong(2_000_000);
+        existing.setBestStreak(-1);
+        Instant now = Instant.parse("2026-06-05T03:00:00Z");
+
+        WordStats stats = service.applyAnswer(word, true, now);
+
+        org.assertj.core.api.Assertions.assertThat(stats.getSeen()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(stats.getCorrect()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(stats.getWrong()).isEqualTo(1_000_000);
+        org.assertj.core.api.Assertions.assertThat(stats.getCurrentStreak()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(stats.getBestStreak()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(stats.getMasteryLevel()).isEqualTo(5);
+        org.assertj.core.api.Assertions.assertThat(stats.getNextReview()).isEqualTo(now.plus(Duration.ofDays(1)));
+    }
+
+    @Test
+    void nullReviewTimestampFallsBackSafely() {
+        SpacedRepetitionService service = new SpacedRepetitionService(null);
+        VocabularyWord word = wordWithStats(0, 0);
+
+        WordStats stats = service.applyAnswer(word, false, null);
+
+        org.assertj.core.api.Assertions.assertThat(stats.getLastReviewed()).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(stats.getNextReview()).isAfter(stats.getLastReviewed());
+    }
+
+    @Test
     void todayEndpointOnlyReturnsCurrentUsersDueWords() throws Exception {
         createWord("review-a@example.com", "negotiate", "dam phan", Instant.now().minus(Duration.ofDays(1)));
         createWord("review-b@example.com", "invoice", "hoa don", Instant.now().minus(Duration.ofDays(1)));

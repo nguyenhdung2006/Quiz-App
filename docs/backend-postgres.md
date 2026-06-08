@@ -45,6 +45,10 @@ database has been verified and baselined:
 4. Add the Flyway baseline marker intentionally.
 5. Only then set `FLYWAY_ENABLED=true` with `JPA_DDL_AUTO=validate`.
 
+See `docs/flyway-baseline-strategy.md` for the staged production baseline
+sequence. Keep `FLYWAY_BASELINE_ON_MIGRATE=false` except during the intentional
+one-time baseline window for an existing verified database.
+
 If you intentionally need the old manual schema path for a local PostgreSQL
 database, apply it before startup and keep Flyway disabled:
 

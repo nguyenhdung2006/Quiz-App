@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class LearningAnalyticsService {
+    private static final int MAX_SAFE_COUNT = 1_000_000;
     private final VocabularyRepository words;
     private final QuizHistoryRepository quizHistory;
     private final LearningInsightService insights;
@@ -207,23 +208,25 @@ public class LearningAnalyticsService {
 
     private int accuracy(int correct, long total) {
         if (total <= 0) return 0;
-        return (int) Math.round(correct * 100.0 / total);
+        long safeTotal = Math.min(MAX_SAFE_COUNT, total);
+        int safeCorrect = Math.max(0, Math.min(correct, (int) safeTotal));
+        return Math.max(0, Math.min(100, (int) Math.round(safeCorrect * 100.0 / safeTotal)));
     }
 
     private int correctCount(VocabularyWord word) {
         WordStats stats = word.getStats();
-        return stats == null ? 0 : stats.getCorrect();
+        return stats == null ? 0 : safeCount(stats.getCorrect());
     }
 
     private int wrongCount(VocabularyWord word) {
         WordStats stats = word.getStats();
-        return stats == null ? 0 : stats.getWrong();
+        return stats == null ? 0 : safeCount(stats.getWrong());
     }
 
     private int reviewCount(VocabularyWord word) {
         WordStats stats = word.getStats();
         if (stats == null) return 0;
-        return Math.max(stats.getSeen(), stats.getCorrect() + stats.getWrong());
+        return Math.max(safeCount(stats.getSeen()), safeCount(stats.getCorrect()) + safeCount(stats.getWrong()));
     }
 
     private boolean isMastered(VocabularyWord word) {
@@ -265,6 +268,10 @@ public class LearningAnalyticsService {
         return value == null || value.isBlank() ? fallback : value.trim();
     }
 
+    private int safeCount(int value) {
+        return Math.max(0, Math.min(MAX_SAFE_COUNT, value));
+    }
+
     private static class WordAccumulator {
         int wordCount;
         int correct;
@@ -274,8 +281,12 @@ public class LearningAnalyticsService {
             WordStats stats = word.getStats();
             wordCount++;
             if (stats == null) return;
-            correct += stats.getCorrect();
-            reviewCount += Math.max(stats.getSeen(), stats.getCorrect() + stats.getWrong());
+            correct += Math.max(0, Math.min(MAX_SAFE_COUNT, stats.getCorrect()));
+            reviewCount += Math.max(
+                    Math.max(0, Math.min(MAX_SAFE_COUNT, stats.getSeen())),
+                    Math.max(0, Math.min(MAX_SAFE_COUNT, stats.getCorrect()))
+                            + Math.max(0, Math.min(MAX_SAFE_COUNT, stats.getWrong()))
+            );
         }
     }
 
@@ -285,8 +296,9 @@ public class LearningAnalyticsService {
         long quizCount;
 
         void add(QuizHistory history) {
-            total += history.getTotalQuestions();
-            correct += history.getCorrectAnswers();
+            int safeTotal = Math.max(0, Math.min(MAX_SAFE_COUNT, history.getTotalQuestions()));
+            total += safeTotal;
+            correct += Math.max(0, Math.min(history.getCorrectAnswers(), safeTotal));
             quizCount++;
         }
     }

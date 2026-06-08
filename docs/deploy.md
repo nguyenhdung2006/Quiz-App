@@ -130,6 +130,10 @@ deploy. Use this safer rollout:
 5. Enable Flyway only after the baseline marker is correct.
 6. Keep `JPA_DDL_AUTO=validate`.
 
+See `docs/flyway-baseline-strategy.md` for the full staged production plan,
+including the one-time `FLYWAY_BASELINE_ON_MIGRATE=true` window and when to turn
+it back off.
+
 Minimum production database env after verification:
 
 ```text
