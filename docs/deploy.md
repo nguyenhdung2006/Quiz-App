@@ -305,6 +305,25 @@ After each deploy:
 8. Try AI Explain or AI Deck. With no `OPENAI_API_KEY`, confirm fallback UX appears. With a key, confirm rate limits still apply.
 9. Check backend logs for the startup summary and absence of secret values.
 
+## Public Beta Smoke Checklist
+
+Before inviting a small beta group:
+
+1. Run backend tests: `cd backend` then `.\mvnw.cmd test`.
+2. Run frontend checks: recursive `node --check frontend/js/*.js` and `npm run test:frontend`.
+3. Open the production frontend and confirm the beta label, footer, feedback link, and issue-report link are visible.
+4. Confirm the feedback links go only to the public GitHub issue flow and do not include user data.
+5. Confirm the frontend source does not contain API keys, database URLs, OAuth secrets, or private tokens.
+6. Open `https://YOUR_BACKEND_DOMAIN/actuator/health` and confirm `status: UP`.
+7. Open `https://YOUR_BACKEND_DOMAIN/actuator/info` and confirm it exposes only safe app, AI, and Flyway metadata.
+8. Sign in with Google, add one temporary word, refresh, and confirm sync status looks healthy.
+9. Run one quiz and confirm result/review state updates without console errors.
+10. Open Review Today and confirm due/empty states are clear.
+11. Open AI Deck and confirm users see the reminder to review/edit AI suggestions before saving.
+12. Test AI Deck and AI Explain. If `OPENAI_API_KEY` is unavailable or rate limited, confirm fallback/error copy is safe.
+13. Check the app at desktop, tablet, and 390px mobile width for no horizontal overflow.
+14. Remove any temporary beta-test vocabulary created during the smoke test.
+
 ## Troubleshooting
 
 OAuth redirect mismatch:

@@ -194,6 +194,10 @@ test("static app loads without fatal console errors", async ({ page }) => {
 
   await expect(page.locator(".appMain")).toBeVisible();
   await expect(page.locator(".sidebarBrand")).toContainText("WordArena");
+  await expect(page.locator(".betaPill")).toContainText("Beta preview");
+  await expect(page.locator(".appFooter")).toContainText("WordArena Beta");
+  await expect(page.locator(".appFooter")).toContainText("AI-assisted vocabulary learning");
+  await expect(page.locator(".appFooter a", { hasText: "Send feedback" })).toHaveAttribute("href", /github\.com\/nguyenhdung2006\/Quiz-App\/issues\/new/);
   expect(fatalConsole).toEqual([]);
 });
 
@@ -407,11 +411,13 @@ test("AI deck panel opens without calling a real AI service", async ({ page }) =
   const fatalConsole = await preparePage(page);
 
   await page.getByRole("button", { name: "AI Deck", exact: true }).click();
+  await expect(page.locator(".aiDeckWorkspace .trustNote")).toContainText("AI suggestions are drafts");
   await page.locator("#aiDeckBtn").click();
 
   await expect(page.locator("#learningStudio")).toBeVisible();
   await expect(page.locator("#aiDeckText")).toBeVisible();
   await expect(page.locator("#aiDeckGenerateBtn")).toBeVisible();
+  await expect(page.locator(".trustNote--studio")).toContainText("edit every generated word");
 
   expect(fatalConsole).toEqual([]);
 });

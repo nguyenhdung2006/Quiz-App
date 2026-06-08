@@ -171,6 +171,20 @@ body::before {
     0 14px 34px rgba(0, 0, 0, 0.52);
 }
 
+.betaPill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  margin: 2px 0 10px;
+  padding: 5px 11px;
+  border: 1px solid rgba(93, 242, 162, 0.3);
+  border-radius: 999px;
+  background: rgba(93, 242, 162, 0.1);
+  color: var(--green);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
 .heroPanel p {
   max-width: 720px;
   margin: 0 auto;
@@ -1965,6 +1979,24 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   line-height: 1.35;
 }
 
+.trustNote {
+  max-width: 760px;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(93, 242, 162, 0.18);
+  border-radius: var(--radius);
+  background: rgba(93, 242, 162, 0.07);
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.trustNote--studio {
+  max-width: none;
+  margin: 0 0 12px;
+}
+
 .studioOverlay {
   position: fixed;
   inset: 0;
@@ -2534,6 +2566,55 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   background: rgba(3, 10, 28, 0.24);
   color: var(--text-muted);
   font-weight: 750;
+}
+
+.appFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: min(1180px, 100%);
+  margin: 18px auto 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(158, 241, 255, 0.12);
+  border-radius: var(--radius);
+  background: rgba(9, 14, 30, 0.72);
+  color: var(--text-muted);
+  text-align: left;
+  box-shadow: var(--shadow-soft);
+}
+
+.appFooter div,
+.appFooter nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.appFooter strong {
+  color: #ffffff;
+}
+
+.appFooter span,
+.appFooter p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.appFooter a {
+  color: var(--cyan);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.appFooter a:hover,
+.appFooter a:focus-visible {
+  color: #ffffff;
+  text-decoration: underline;
 }
 
 .emptyStudio--action {
@@ -4348,7 +4429,8 @@ html[data-theme="light"] .studioPanel,
 html[data-theme="light"] .profileEditorPanel,
 html[data-theme="light"] .previewPanel,
 html[data-theme="light"] .modalContent,
-html[data-theme="light"] .profileMenu {
+html[data-theme="light"] .profileMenu,
+html[data-theme="light"] .appFooter {
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(246, 250, 255, 0.8)),
     var(--surface);
@@ -4394,7 +4476,8 @@ html[data-theme="light"] .studioPanel h2,
 html[data-theme="light"] .studioPanel h3,
 html[data-theme="light"] .studioPanel h4,
 html[data-theme="light"] .previewHeader h2,
-html[data-theme="light"] .previewCard h3 {
+html[data-theme="light"] .previewCard h3,
+html[data-theme="light"] .appFooter strong {
   color: var(--text);
   text-shadow: none;
 }
@@ -4427,7 +4510,10 @@ html[data-theme="light"] .startHereStep p,
 html[data-theme="light"] .startHereNext,
 html[data-theme="light"] .starterDeckPreviewCard span,
 html[data-theme="light"] .analyticsHero p,
-html[data-theme="light"] .profileMenu span {
+html[data-theme="light"] .profileMenu span,
+html[data-theme="light"] .trustNote,
+html[data-theme="light"] .appFooter span,
+html[data-theme="light"] .appFooter p {
   color: var(--text-muted);
 }
 
@@ -4539,6 +4625,11 @@ html[data-theme="light"] .reviewFeedback {
 
 html[data-theme="light"] .reviewStateCard--complete {
   background: rgba(8, 127, 82, 0.08);
+}
+
+html[data-theme="light"] .trustNote {
+  border-color: rgba(8, 127, 82, 0.2);
+  background: rgba(8, 127, 82, 0.06);
 }
 
 html[data-theme="light"] .selected {
@@ -4941,6 +5032,21 @@ html[data-theme="light"] .selected {
 
   .heroPanel p {
     font-size: 0.9rem;
+  }
+
+  .appFooter {
+    display: grid;
+    gap: 10px;
+    width: min(100%, calc(100vw - 16px));
+    margin-top: 12px;
+    padding: 12px;
+  }
+
+  .appFooter div,
+  .appFooter nav {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
   }
 
   .previewPanel {
