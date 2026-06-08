@@ -276,6 +276,24 @@ body::before {
   box-shadow: var(--shadow-soft), var(--glow-mid);
 }
 
+button:active,
+.utilityBtn:active,
+.miniBtn:active,
+.addBtn:active,
+.answer:active,
+.starterDeckPreviewCard:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+button,
+.utilityBtn,
+.miniBtn,
+.addBtn,
+.answer,
+.starterDeckPreviewCard {
+  touch-action: manipulation;
+}
+
 .profileAvatarSmall {
   width: 32px;
   height: 32px;
@@ -2399,9 +2417,9 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 }
 
 .aiDeckItem > input {
-  width: 18px;
-  height: 18px;
-  margin-top: 3px;
+  width: 20px;
+  height: 20px;
+  margin-top: 6px;
   accent-color: var(--cyan);
 }
 
@@ -4839,8 +4857,8 @@ html[data-theme="light"] .selected {
   .utilityBtn,
   .miniBtn,
   .syncStatus {
-    min-height: 32px;
-    padding: 6px 9px;
+    min-height: 40px;
+    padding: 8px 10px;
     font-size: 0.8rem;
   }
 
@@ -4886,6 +4904,12 @@ html[data-theme="light"] .selected {
     grid-template-columns: 1fr;
   }
 
+  .startHereActions .utilityBtn,
+  .startHereActions .miniBtn,
+  .starterDeckPreviewCard {
+    min-height: 46px;
+  }
+
   .heroPanel p {
     font-size: 0.9rem;
   }
@@ -4911,6 +4935,50 @@ html[data-theme="light"] .selected {
   #answers,
   .resultStats {
     grid-template-columns: 1fr;
+  }
+
+  .addActions,
+  .aiDeckActions,
+  .aiDeckBulkActions,
+  .csvActions,
+  .profileFormActions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .addActions .utilityBtn,
+  .addActions .miniBtn,
+  .addActions .addBtn,
+  .aiDeckActions .utilityBtn,
+  .aiDeckActions .miniBtn,
+  .aiDeckBulkActions .utilityBtn,
+  .aiDeckBulkActions .miniBtn,
+  .csvActions .utilityBtn,
+  .csvActions .miniBtn,
+  .profileFormActions > * {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .addWordBox input,
+  .addWordBox select,
+  .searchBox input,
+  .editingRow input,
+  .editingRow select,
+  .aiDeckField input,
+  .aiDeckField select,
+  .aiDeckOptions select,
+  #aiDeckText,
+  #modeSelect,
+  #quizDifficulty,
+  #challengeDifficulty {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  #aiDeckText {
+    min-height: 168px;
   }
 
   .profileStats,
@@ -4975,6 +5043,8 @@ html[data-theme="light"] .selected {
     width: calc(100vw - 24px);
     max-height: calc(100dvh - 24px);
     padding: 14px;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
   }
 
   .studioOverlay,
@@ -4985,16 +5055,25 @@ html[data-theme="light"] .selected {
 
   .studioTabs {
     margin: 14px 0;
-    padding-bottom: 8px;
+    padding: 2px 2px 10px;
     scroll-padding-inline: 4px;
   }
 
   .studioTab {
-    min-height: 42px;
+    min-height: 44px;
   }
 
   .studioCard {
     padding: 14px;
+  }
+
+  .studioClose,
+  .previewClose,
+  .profileEditorClose {
+    top: 10px;
+    right: 10px;
+    width: 44px;
+    height: 44px;
   }
 
   .studioHeader,
@@ -5031,8 +5110,24 @@ html[data-theme="light"] .selected {
   }
 
   .aiDeckItem {
-    gap: 9px;
-    padding: 10px;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .aiDeckItem > input {
+    width: 24px;
+    height: 24px;
+    margin: 8px 0 0 2px;
+  }
+
+  .aiDeckRowActions {
+    justify-content: stretch;
+  }
+
+  .aiDeckRowActions .miniBtn {
+    width: 100%;
+    min-height: 44px;
   }
 
   .weakWordStats,
@@ -5043,13 +5138,18 @@ html[data-theme="light"] .selected {
   .reviewActions {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
     justify-content: stretch;
     width: 100%;
   }
 
   .reviewActions button {
-    min-height: 44px;
+    min-height: 52px;
     padding-inline: 8px;
+  }
+
+  .reviewRatingBtn {
+    text-align: center;
   }
 
   .historyItem {
