@@ -72,10 +72,27 @@ return status;
 }
 
 function setSyncStatus(message, tone = "local") {
-let status = ensureSyncStatus();
-if (!status) return;
-status.textContent = message;
-status.className = `syncStatus syncStatus--${tone}`;
+  let status = ensureSyncStatus();
+  if (!status) return;
+  status.textContent = message;
+  status.className = `syncStatus syncStatus--${tone}`;
+  let retryBtn = document.getElementById("syncRetryBtn");
+  if (retryBtn) {
+    retryBtn.hidden = (tone === "syncing" || tone === "ok");
+  }
+}
+
+function initSyncRetry() {
+  let btn = document.getElementById("syncRetryBtn");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    if (typeof window.quizCloud?.syncNow === "function") {
+      btn.disabled = true;
+      Promise.resolve(window.quizCloud.syncNow()).finally(() => {
+        btn.disabled = false;
+      });
+    }
+  });
 }
 
 function cloudDeleteQueueKey() {
@@ -312,11 +329,11 @@ lastError: error?.message || "Network error"
 }
 }
 
-writePendingCloudDeletes(remaining);
-if (remaining.length) {
-setSyncStatus("Delete pending - sync paused", "warn");
-return false;
-}
+  writePendingCloudDeletes(remaining);
+  if (remaining.length) {
+    setSyncStatus(`Delete pending: ${remaining.length} item(s). Sync will retry automatically.`, "warn");
+    return false;
+  }
 return true;
 }
 
@@ -569,11 +586,11 @@ wrongWords: getWrongWords().map(toServerWord)
 })
 });
 
-if (response.status === 409) {
-await readJsonSafely(response);
-cloudSyncState.hasPulledCloudSnapshot = false;
-setSyncStatus("Cloud changed. Refreshing sync state...", "warn");
-await pullCloudSnapshot();
+  if (response.status === 409) {
+    await readJsonSafely(response);
+    cloudSyncState.hasPulledCloudSnapshot = false;
+    setSyncStatus("Sync conflict detected. Pulling latest cloud data...", "warn");
+    await pullCloudSnapshot();
 return;
 }
 
@@ -644,10 +661,13 @@ async function deleteCloudWord(word) {
 let id = word?.id;
 if (!id) return null;
 
-queuePendingCloudDelete(id);
-setSyncStatus("Delete pending - sync paused", "syncing");
-let flushed = await flushPendingCloudDeletes();
-if (!flushed) return null;
+  queuePendingCloudDelete(id);
+  setSyncStatus(`Deleting ${readPendingCloudDeletes().length} item(s)...`, "syncing");
+  let flushed = await flushPendingCloudDeletes();
+if (!flushed) {
+  console.warn("[SYNC] Cloud delete pending; retry will continue automatically.");
+  return null;
+}
 setSyncStatus("Synced", "ok");
 return {};
 }
@@ -1211,11 +1231,17 @@ if (pulled) syncCloudNow();
 return;
 }
 
-if (result.status === "unauthenticated") {
-if (REQUIRE_AUTH) redirectToLogin();
-else setSyncStatus("Offline/local mode", "local");
-return;
-}
+  if (result.status === "unauthenticated") {
+    if (REQUIRE_AUTH) redirectToLogin();
+    else {
+      let hasCached = cached.name || cached.email || cached.avatar;
+      setSyncStatus(
+        hasCached ? "Session expired. Please sign in again." : "Not signed in. Local mode.",
+        "local"
+      );
+    }
+    return;
+  }
 
 if (cached.name || cached.email || cached.avatar) {
 applyProfile(cached);
@@ -1640,6 +1666,7 @@ initPreview();
 initProfileEditor();
 initProfileMenu();
 ensureSyncStatus();
+initSyncRetry();
 loadAuthenticatedProfile();
 updateStats();
 

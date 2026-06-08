@@ -1,5 +1,6 @@
 package com.quizapp.review;
 
+import com.quizapp.health.HealthCounterService;
 import com.quizapp.user.AppUser;
 import com.quizapp.user.AppUserRepository;
 import com.quizapp.vocab.VocabularyRepository;
@@ -10,16 +11,22 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SpacedRepetitionService {
+    private static final Logger log = LoggerFactory.getLogger(SpacedRepetitionService.class);
     private static final int MAX_SAFE_COUNT = 1_000_000;
 
     private final VocabularyRepository words;
     private final AppUserRepository users;
+
+    @Autowired(required = false)
+    private HealthCounterService healthCounters;
 
     @Autowired
     public SpacedRepetitionService(VocabularyRepository words, AppUserRepository users) {
@@ -52,10 +59,18 @@ public class SpacedRepetitionService {
     public ReviewAnswerResponse answer(AppUser user, ReviewAnswerRequest request) {
         AppUser syncUser = lockUserForRevision(user);
         VocabularyWord word = words.findByIdAndUser(request.wordId(), syncUser)
-                .orElseThrow(() -> new IllegalArgumentException("Word not found."));
+                .orElseThrow(() -> {
+                    log.warn("[REVIEW] Invalid review payload - word not found userId={} wordId={}",
+                            syncUser.getId(), request.wordId());
+                    if (healthCounters != null) healthCounters.incrementReviewFailures();
+                    return new IllegalArgumentException("Word not found.");
+                });
         WordStats stats = applyAnswer(word, request.correct(), Instant.now());
         words.save(word);
         syncUser.incrementSyncRevision();
+        log.info("[REVIEW] Answer processed userId={} wordId={} correct={} mastery={}% streak={}",
+                syncUser.getId(), word.getId(), request.correct(),
+                masteryPercent(stats), stats.getCurrentStreak());
         return new ReviewAnswerResponse(
                 word.getId(),
                 masteryPercent(stats),

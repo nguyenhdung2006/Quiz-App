@@ -151,6 +151,7 @@ const AI_DECK_COOLDOWN_MS = 8000;
 let aiDeckGenerating = false;
 let aiDeckCooldownUntil = 0;
 let aiDeckCooldownTimer = null;
+let lastAiDeckRequest = null;
 let generatedCuratedDeckWords = [];
 const CURATED_DECK_ITEMS = Array.isArray(window.WORD_ARENA_CURATED_DECKS) ? window.WORD_ARENA_CURATED_DECKS : [];
 const CURATED_TOPIC_ALIASES = {
@@ -770,6 +771,40 @@ setAiDeckStatus(aiDeckCooldownStatus(message, wait), kind);
 aiDeckCooldownTimer = setTimeout(() => unlockAiDeckGenerateWhenReady(message, kind), Math.min(1000, remaining));
 }
 
+function ensureAiDeckRetryBtn() {
+let existing = document.getElementById("aiDeckRetryBtn");
+if (existing) return existing;
+let btn = document.createElement("button");
+btn.id = "aiDeckRetryBtn";
+btn.className = "miniBtn";
+btn.type = "button";
+btn.textContent = "Retry AI Deck";
+btn.hidden = true;
+btn.addEventListener("click", retryAiDeck);
+let status = document.getElementById("aiDeckStatus");
+if (status && status.parentNode) {
+status.parentNode.insertBefore(btn, status.nextSibling);
+}
+return btn;
+}
+
+function showAiDeckRetryBtn(visible) {
+let btn = ensureAiDeckRetryBtn();
+btn.hidden = !visible;
+}
+
+async function retryAiDeck() {
+if (!lastAiDeckRequest || aiDeckGenerating) return;
+showAiDeckRetryBtn(false);
+let textarea = document.getElementById("aiDeckText");
+if (textarea) textarea.value = lastAiDeckRequest.text;
+let levelSelect = document.getElementById("aiDeckTargetLevel");
+if (levelSelect) levelSelect.value = lastAiDeckRequest.options.targetLevel;
+let maxWordsSelect = document.getElementById("aiDeckMaxWords");
+if (maxWordsSelect) maxWordsSelect.value = String(lastAiDeckRequest.options.maxWords);
+await generateAiDeck();
+}
+
 function generatedToWord(item, source) {
 let rawLevel = cleanAiDeckValue(item.level || item.cefr || item.wordLevel).toUpperCase();
 return {
@@ -1121,6 +1156,8 @@ if (text.length > 5000) {
 toastStudio("Text is very large. Generation may take longer.", "warn");
 }
 
+lastAiDeckRequest = { text, options };
+showAiDeckRetryBtn(false);
 let previousGeneratedWords = generatedAiDeckWords;
 generatedAiDeckWords = [];
 renderAiDeckList();
@@ -1166,6 +1203,7 @@ let message = cleanAiDeckValue(error?.message, 180) || "AI deck generation faile
 let rateLimited = message.toLowerCase().includes("limit reached");
 setAiDeckSource(aiDeckSourceLabel(rateLimited ? "rate-limited" : "unavailable"));
 setAiDeckStatus(`${message} Your current vocabulary is unchanged.`, "warn");
+showAiDeckRetryBtn(true);
 cooldownStatusMessage = `${message} Your current vocabulary is unchanged.`;
 cooldownStatusKind = "warn";
 generatedAiDeckWords = previousGeneratedWords;

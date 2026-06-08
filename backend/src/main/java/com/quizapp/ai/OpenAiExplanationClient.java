@@ -12,11 +12,14 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class OpenAiExplanationClient implements AiExplanationClient {
+    private static final Logger log = LoggerFactory.getLogger(OpenAiExplanationClient.class);
     private static final int MAX_FIELD_LENGTH = 400;
     private static final int MAX_COLLOCATION_LENGTH = 80;
 
@@ -49,6 +52,7 @@ public class OpenAiExplanationClient implements AiExplanationClient {
     @Override
     public ExplainWrongAnswerResponse explain(ExplainWrongAnswerRequest request) {
         if (!isConfigured()) {
+            log.warn("[AI] OpenAI explanation client not configured");
             throw new IllegalStateException("OpenAI API key is not configured.");
         }
 
@@ -63,14 +67,18 @@ public class OpenAiExplanationClient implements AiExplanationClient {
 
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("[AI] OpenAI explanation API error status={}", response.statusCode());
                 throw new IllegalStateException("OpenAI request failed with status " + response.statusCode() + ".");
             }
 
+            log.info("[AI] OpenAI explanation API success word={}", request.word());
             return parseResponse(response.body(), request.word());
         } catch (IOException exception) {
+            log.error("[AI] OpenAI explanation IO error word={}", request.word(), exception);
             throw new IllegalStateException("OpenAI response could not be processed.", exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
+            log.error("[AI] OpenAI explanation interrupted word={}", request.word(), exception);
             throw new IllegalStateException("OpenAI request was interrupted.", exception);
         }
     }

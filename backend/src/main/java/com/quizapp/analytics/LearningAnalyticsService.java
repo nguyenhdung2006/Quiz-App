@@ -1,5 +1,6 @@
 package com.quizapp.analytics;
 
+import com.quizapp.health.HealthCounterService;
 import com.quizapp.user.AppUser;
 import com.quizapp.vocab.QuizHistory;
 import com.quizapp.vocab.QuizHistoryRepository;
@@ -15,15 +16,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class LearningAnalyticsService {
+    private static final Logger log = LoggerFactory.getLogger(LearningAnalyticsService.class);
     private static final int MAX_SAFE_COUNT = 1_000_000;
     private final VocabularyRepository words;
     private final QuizHistoryRepository quizHistory;
     private final LearningInsightService insights;
+
+    @Autowired(required = false)
+    private HealthCounterService healthCounters;
 
     public LearningAnalyticsService(
             VocabularyRepository words,
@@ -37,50 +45,62 @@ public class LearningAnalyticsService {
 
     @Transactional(readOnly = true)
     public AnalyticsOverviewDto overview(AppUser user) {
-        List<VocabularyWord> userWords = userWords(user);
-        List<QuizHistory> histories = histories(user);
-        ReviewPressureDto pressure = reviewPressure(user);
-        List<AccuracyTrendDto> trend = accuracyTrend(user);
-        TagPerformanceDto performance = tagPerformance(user);
+        log.info("[ANALYTICS] Generating overview userId={}", user.getId());
+        try {
+            List<VocabularyWord> userWords = userWords(user);
+            List<QuizHistory> histories = histories(user);
+            ReviewPressureDto pressure = reviewPressure(user);
+            List<AccuracyTrendDto> trend = accuracyTrend(user);
+            TagPerformanceDto performance = tagPerformance(user);
 
-        int mastered = (int) userWords.stream().filter(this::isMastered).count();
-        int struggling = (int) userWords.stream().filter(this::isStruggling).count();
-        int learning = (int) userWords.stream()
-                .filter(word -> !isMastered(word) && !isStruggling(word))
-                .count();
-        int weeklyXp = histories.stream()
-                .filter(history -> history.getCreatedAt() != null)
-                .filter(history -> !history.getCreatedAt().isBefore(Instant.now().minus(java.time.Duration.ofDays(7))))
-                .mapToInt(this::quizXp)
-                .sum();
+            int mastered = (int) userWords.stream().filter(this::isMastered).count();
+            int struggling = (int) userWords.stream().filter(this::isStruggling).count();
+            int learning = (int) userWords.stream()
+                    .filter(word -> !isMastered(word) && !isStruggling(word))
+                    .count();
+            int weeklyXp = histories.stream()
+                    .filter(history -> history.getCreatedAt() != null)
+                    .filter(history -> !history.getCreatedAt().isBefore(Instant.now().minus(java.time.Duration.ofDays(7))))
+                    .mapToInt(this::quizXp)
+                    .sum();
 
-        AnalyticsOverviewDto base = new AnalyticsOverviewDto(
-                userWords.size(),
-                mastered,
-                learning,
-                struggling,
-                pressure.dueToday(),
-                averageWordAccuracy(userWords),
-                quizHistory.countByUser(user),
-                user.getStreak(),
-                user.getXp(),
-                weeklyXp,
-                List.of()
-        );
+            AnalyticsOverviewDto base = new AnalyticsOverviewDto(
+                    userWords.size(),
+                    mastered,
+                    learning,
+                    struggling,
+                    pressure.dueToday(),
+                    averageWordAccuracy(userWords),
+                    quizHistory.countByUser(user),
+                    user.getStreak(),
+                    user.getXp(),
+                    weeklyXp,
+                    List.of()
+            );
 
-        return new AnalyticsOverviewDto(
-                base.totalWords(),
-                base.masteredWords(),
-                base.learningWords(),
-                base.strugglingWords(),
-                base.dueToday(),
-                base.averageAccuracy(),
-                base.totalQuizSessions(),
-                base.currentStreak(),
-                base.xp(),
-                base.weeklyXp(),
-                insights.generate(base, trend, pressure, performance)
-        );
+            AnalyticsOverviewDto result = new AnalyticsOverviewDto(
+                    base.totalWords(),
+                    base.masteredWords(),
+                    base.learningWords(),
+                    base.strugglingWords(),
+                    base.dueToday(),
+                    base.averageAccuracy(),
+                    base.totalQuizSessions(),
+                    base.currentStreak(),
+                    base.xp(),
+                    base.weeklyXp(),
+                    insights.generate(base, trend, pressure, performance)
+            );
+
+            log.info("[ANALYTICS] Overview generated userId={} totalWords={} mastered={} learning={} struggling={}",
+                    user.getId(), result.totalWords(), result.masteredWords(), result.learningWords(), result.strugglingWords());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("[ANALYTICS] Overview generation failed userId={} type={} message={}",
+                    user.getId(), ex.getClass().getSimpleName(), ex.getMessage());
+            if (healthCounters != null) healthCounters.incrementAnalyticsFailures();
+            throw ex;
+        }
     }
 
     @Transactional(readOnly = true)

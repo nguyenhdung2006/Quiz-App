@@ -836,7 +836,9 @@ renderTable();
 let topWrong = document.getElementById("totalWrongWordsTop");
 if (topWrong) topWrong.innerText = wrongWords.length;
 
-window.quizCloud?.deleteWord(word);
+Promise.resolve(window.quizCloud?.deleteWord(word)).catch((error) => {
+  console.warn("[SYNC] Cloud delete request failed; delete remains queued for retry.", error);
+});
 }
 
 function clearMastered() {

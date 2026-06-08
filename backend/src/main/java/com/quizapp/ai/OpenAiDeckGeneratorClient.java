@@ -15,11 +15,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class OpenAiDeckGeneratorClient implements AiDeckGeneratorClient {
+    private static final Logger log = LoggerFactory.getLogger(OpenAiDeckGeneratorClient.class);
     private static final Set<String> VALID_LEVELS = Set.of("A1", "A2", "B1", "B2", "C1", "C2");
     private static final int MAX_ENGLISH_LENGTH = 80;
     private static final int MAX_MEANING_LENGTH = 160;
@@ -56,6 +59,7 @@ public class OpenAiDeckGeneratorClient implements AiDeckGeneratorClient {
     @Override
     public List<GeneratedDeckWordDto> generate(GenerateDeckRequest request) {
         if (!isConfigured()) {
+            log.warn("[AI] OpenAI deck client not configured");
             throw new IllegalStateException("OpenAI API key is not configured.");
         }
 
@@ -70,14 +74,19 @@ public class OpenAiDeckGeneratorClient implements AiDeckGeneratorClient {
 
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                log.warn("[AI] OpenAI deck API error status={}", response.statusCode());
                 throw new IllegalStateException("OpenAI deck request failed with status " + response.statusCode() + ".");
             }
 
-            return parseResponse(response.body(), request);
+            List<GeneratedDeckWordDto> result = parseResponse(response.body(), request);
+            log.info("[AI] OpenAI deck API success itemsCount={}", result.size());
+            return result;
         } catch (IOException exception) {
+            log.error("[AI] OpenAI deck IO error", exception);
             throw new IllegalStateException("OpenAI deck response could not be processed.", exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
+            log.error("[AI] OpenAI deck interrupted", exception);
             throw new IllegalStateException("OpenAI deck request was interrupted.", exception);
         }
     }

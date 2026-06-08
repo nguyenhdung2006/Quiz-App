@@ -406,6 +406,32 @@ test("sync revision conflict refreshes cloud snapshot without retrying push", as
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
+test("retry sync button is visible when cloud is unavailable", async ({ page }) => {
+  const profile = { name: "Retry Vis", email: "retry-vis@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    snapshotFails: true
+  });
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Cloud unavailable");
+  await expect(page.locator("#syncRetryBtn")).toBeVisible();
+  await expect(page.locator("#syncRetryBtn")).not.toBeDisabled();
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("retry sync button is hidden when sync is healthy", async ({ page }) => {
+  const profile = { name: "Healthy Retry", email: "healthy-retry@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile
+  });
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect(page.locator("#syncRetryBtn")).toBeHidden();
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
 test("full cloud sync push is blocked until snapshot pull succeeds", async ({ page }) => {
   const profile = { name: "Safe Sync", email: "safe-sync@example.com", avatar: "images/icon.png" };
   const fatalConsole = await preparePage(page, {
@@ -530,7 +556,7 @@ test("failed pending cloud delete shows paused sync status", async ({ page }) =>
     }
   });
 
-  await expect(page.locator("#cloudSyncStatus")).toContainText("Delete pending - sync paused");
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Delete pending: 1 item");
   await page.waitForTimeout(300);
   await expect(page.locator("#cloudSyncStatus")).not.toContainText("Synced");
   const queued = await page.evaluate((accountId) => {
@@ -600,7 +626,7 @@ test("delete queue dedupes and respects retry backoff after repeated failures", 
     }
   });
 
-  await expect(page.locator("#cloudSyncStatus")).toContainText("Delete pending - sync paused");
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Delete pending: 1 item");
   expect(fatalConsole.deleteRequests.filter(url => url.includes("/api/vocab/789"))).toHaveLength(0);
   const queued = await page.evaluate((accountId) => {
     return JSON.parse(localStorage.getItem(`quizAccount:${accountId}:cloudDeleteQueue`) || "[]");
@@ -708,6 +734,29 @@ test("AI deck rate limit message clears loading state", async ({ page }) => {
   await expect(page.locator("#aiDeckSource")).toContainText("Rate limited");
   await expect(page.locator("#aiDeckGenerateBtn")).not.toHaveText("Generating...");
   await expect(page.locator("#aiDeckList")).toContainText("No generated words yet");
+  await expect(page.locator("#aiDeckRetryBtn")).toBeVisible();
+
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("AI deck rate limit retry button triggers new generation", async ({ page }) => {
+  const fatalConsole = await preparePage(page, {
+    aiDeckStatus: 429,
+    aiDeckResponse: {
+      error: "Rate limit exceeded",
+      message: "Too many AI requests. Please try again later.",
+      retryAfterSeconds: 45
+    }
+  });
+
+  await page.getByRole("button", { name: "AI Deck", exact: true }).click();
+  await page.locator("#aiDeckBtn").click();
+  await page.locator("#aiDeckText").fill("Another passage for retry testing.");
+  await page.locator("#aiDeckGenerateBtn").click();
+
+  await expect(page.locator("#aiDeckStatus")).toContainText("Daily AI limit reached");
+  await expect(page.locator("#aiDeckRetryBtn")).toBeVisible();
+  await expect(page.locator("#aiDeckRetryBtn")).not.toBeDisabled();
 
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
@@ -727,6 +776,7 @@ test("AI deck malformed response does not freeze the panel", async ({ page }) =>
   await expect(page.locator("#aiDeckSource")).toContainText("Unavailable");
   await expect(page.locator("#aiDeckGenerateBtn")).not.toHaveText("Generating...");
   await expect(page.locator("#aiDeckList")).toContainText("No generated words yet");
+  await expect(page.locator("#aiDeckRetryBtn")).toBeVisible();
 
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });

@@ -433,7 +433,9 @@ let detail = document.createElement("span");
 detail.textContent = fallbackMessage || response?.message || (correct ? "Saved as correct with the existing review API." : "Saved as incorrect with the existing review API.");
 feedback.append(title, detail);
 host.prepend(feedback);
+if (!fallbackMessage) {
 setTimeout(() => feedback.remove(), 3200);
+}
 }
 
 function renderLoading() {
@@ -480,7 +482,20 @@ setText("reviewTodayMeta", total
 host.appendChild(renderSessionOverview());
 
 if (reviewApiError) {
-host.appendChild(stateLine(reviewApiError, "warn"));
+let errorLine = stateLine(reviewApiError, "warn");
+host.appendChild(errorLine);
+if (!reviewQueue.length) {
+let retryBtn = document.createElement("button");
+retryBtn.className = "miniBtn";
+retryBtn.type = "button";
+retryBtn.textContent = "Retry Review";
+retryBtn.addEventListener("click", async () => {
+retryBtn.disabled = true;
+retryBtn.textContent = "Retrying...";
+await refresh();
+});
+host.appendChild(retryBtn);
+}
 }
 
 if (!reviewQueue.length) {
@@ -576,8 +591,10 @@ ensureSessionStarted();
 reviewSubmittingItems.add(itemKey);
 renderQueue();
 let response = null;
+let submitError = "";
 try {
 response = reviewSource === "Cloud" ? await postAnswer(item, correct) : null;
+submitError = reviewApiError;
 applyLocalAnswer(item, correct, response);
 reviewSession.reviewed += 1;
 if (rating === "again") reviewSession.again += 1;
@@ -588,7 +605,7 @@ await refresh();
 } finally {
 reviewSubmittingItems.delete(itemKey);
 renderQueue();
-renderFeedback(response, correct, reviewApiError, rating);
+renderFeedback(response, correct, submitError, rating);
 }
 }
 

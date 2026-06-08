@@ -1,5 +1,6 @@
 package com.quizapp.vocab;
 
+import com.quizapp.health.HealthCounterService;
 import com.quizapp.user.AppUser;
 import com.quizapp.user.AppUserRepository;
 import com.quizapp.user.ProfileDto;
@@ -7,17 +8,24 @@ import com.quizapp.user.ProfileRequest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class VocabularyService {
+    private static final Logger log = LoggerFactory.getLogger(VocabularyService.class);
     private final VocabularyRepository words;
     private final WrongBankRepository wrongBank;
     private final QuizHistoryRepository quizHistory;
     private final AchievementService achievements;
     private final LearningProgressService progress;
     private final AppUserRepository users;
+
+    @Autowired(required = false)
+    private HealthCounterService healthCounters;
 
     private static final List<WordRequest> STARTER_WORDS = List.of(
             starter("resilient", "kien cuong", "adj", "mindset"),
@@ -74,6 +82,7 @@ public class VocabularyService {
             achievements.unlock(syncUser, "FIRST_WORD");
         }
         markCloudChanged(syncUser);
+        log.info("[SYNC] Word created userId={} word={}", syncUser.getId(), created.eng());
         return created;
     }
 
@@ -88,6 +97,7 @@ public class VocabularyService {
         applyWordRequest(word, request);
         WordDto updated = WordDto.from(words.save(word));
         markCloudChanged(syncUser);
+        log.info("[SYNC] Word updated userId={} wordId={}", syncUser.getId(), id);
         return updated;
     }
 
@@ -97,23 +107,27 @@ public class VocabularyService {
         words.findByIdAndUser(id, syncUser).ifPresent(word -> {
             words.delete(word);
             markCloudChanged(syncUser);
+            log.info("[SYNC] Word deleted userId={} wordId={}", syncUser.getId(), id);
         });
     }
 
     @Transactional
     public SyncResponse importStarterWords(AppUser user) {
         AppUser syncUser = lockUserForRevision(user);
+        log.info("[SNAPSHOT] Importing starter words userId={}", syncUser.getId());
         for (WordRequest word : STARTER_WORDS) {
             upsertByEnglish(syncUser, word);
         }
         achievements.unlock(syncUser, "FIRST_WORD");
         markCloudChanged(syncUser);
+        log.info("[SNAPSHOT] Starter words imported successfully userId={}", syncUser.getId());
         return snapshot(syncUser);
     }
 
     @Transactional
     public SyncResponse sync(AppUser user, SyncRequest request) {
         AppUser syncUser = lockUserForRevision(user);
+        log.info("[SYNC] Push start userId={} expectedRevision={}", syncUser.getId(), request.expectedRevision());
         ensureExpectedRevision(syncUser, request.expectedRevision());
 
         applyProfile(syncUser, request.profile());
@@ -139,108 +153,131 @@ public class VocabularyService {
         }
 
         markCloudChanged(syncUser);
-        return snapshot(syncUser);
+        SyncResponse result = snapshot(syncUser);
+        log.info("[SYNC] Push success userId={} newRevision={}", syncUser.getId(), result.revision());
+        return result;
     }
 
     @Transactional
     public SyncResponse recordQuizResult(AppUser user, QuizResultRequest request) {
         if (request.answers() == null) return snapshot(user);
         AppUser syncUser = lockUserForRevision(user);
+        log.info("[QUIZ] Recording quiz result userId={} mode={} total={} correct={}",
+                syncUser.getId(), request.quizMode(), request.totalQuestions(), request.correctAnswers());
+        try {
+            QuizHistory history = new QuizHistory();
+            history.setUser(syncUser);
+            history.setQuizMode(defaultText(request.quizMode(), "mixed"));
+            history.setChallengeSeconds(request.challengeSeconds());
+            history.setTotalQuestions(Math.max(0, request.totalQuestions()));
+            history.setCorrectAnswers(Math.max(0, request.correctAnswers()));
+            history.setWrongAnswers(Math.max(0, request.wrongAnswers()));
+            history.setScore(Math.max(0, Math.min(10, request.score())));
+            history.setMaxCombo(Math.max(0, request.maxCombo()));
 
-        QuizHistory history = new QuizHistory();
-        history.setUser(syncUser);
-        history.setQuizMode(defaultText(request.quizMode(), "mixed"));
-        history.setChallengeSeconds(request.challengeSeconds());
-        history.setTotalQuestions(Math.max(0, request.totalQuestions()));
-        history.setCorrectAnswers(Math.max(0, request.correctAnswers()));
-        history.setWrongAnswers(Math.max(0, request.wrongAnswers()));
-        history.setScore(Math.max(0, Math.min(10, request.score())));
-        history.setMaxCombo(Math.max(0, request.maxCombo()));
+            for (QuizAnswerRequest answer : request.answers()) {
+                if (answer.eng() == null || answer.eng().isBlank()) continue;
 
-        for (QuizAnswerRequest answer : request.answers()) {
-            if (answer.eng() == null || answer.eng().isBlank()) continue;
+                words.findByUserAndEngIgnoreCase(syncUser, answer.eng()).ifPresent(word -> {
+                    WordStats stats = ensureStats(word);
+                    stats.setSeen(stats.getSeen() + 1);
+                    stats.setLastReviewed(Instant.now());
 
-            words.findByUserAndEngIgnoreCase(syncUser, answer.eng()).ifPresent(word -> {
-                WordStats stats = ensureStats(word);
-                stats.setSeen(stats.getSeen() + 1);
-                stats.setLastReviewed(Instant.now());
+                    if (answer.correct()) {
+                        stats.setCorrect(stats.getCorrect() + 1);
+                        stats.setCurrentStreak(stats.getCurrentStreak() + 1);
+                        stats.setBestStreak(Math.max(stats.getBestStreak(), stats.getCurrentStreak()));
+                        stats.setMasteryLevel(Math.min(5, stats.getMasteryLevel() + 1));
+                        wrongBank.findByUserAndWord(syncUser, word).ifPresent(entry -> entry.setMastered(true));
+                    } else {
+                        stats.setWrong(stats.getWrong() + 1);
+                        stats.setCurrentStreak(0);
+                        stats.setMasteryLevel(Math.max(0, stats.getMasteryLevel() - 1));
+                        word.setMastered(false);
+                        WrongBankEntry entry = wrongBank.findByUserAndWord(syncUser, word).orElseGet(() -> {
+                            WrongBankEntry next = new WrongBankEntry();
+                            next.setUser(syncUser);
+                            next.setWord(word);
+                            return next;
+                        });
+                        entry.setMastered(false);
+                        wrongBank.save(entry);
+                    }
 
-                if (answer.correct()) {
-                    stats.setCorrect(stats.getCorrect() + 1);
-                    stats.setCurrentStreak(stats.getCurrentStreak() + 1);
-                    stats.setBestStreak(Math.max(stats.getBestStreak(), stats.getCurrentStreak()));
-                    stats.setMasteryLevel(Math.min(5, stats.getMasteryLevel() + 1));
-                    wrongBank.findByUserAndWord(syncUser, word).ifPresent(entry -> entry.setMastered(true));
-                } else {
-                    stats.setWrong(stats.getWrong() + 1);
-                    stats.setCurrentStreak(0);
-                    stats.setMasteryLevel(Math.max(0, stats.getMasteryLevel() - 1));
-                    word.setMastered(false);
-                    WrongBankEntry entry = wrongBank.findByUserAndWord(syncUser, word).orElseGet(() -> {
-                        WrongBankEntry next = new WrongBankEntry();
-                        next.setUser(syncUser);
-                        next.setWord(word);
-                        return next;
-                    });
-                    entry.setMastered(false);
-                    wrongBank.save(entry);
-                }
+                    if (stats.getCurrentStreak() >= 5) {
+                        word.setMastered(true);
+                        stats.setMasteryLevel(5);
+                    }
 
-                if (stats.getCurrentStreak() >= 5) {
-                    word.setMastered(true);
-                    stats.setMasteryLevel(5);
-                }
+                    stats.setNextReview(progress.nextReview(stats, answer.correct()));
 
-                stats.setNextReview(progress.nextReview(stats, answer.correct()));
+                    QuizHistoryAnswer savedAnswer = new QuizHistoryAnswer();
+                    savedAnswer.setWord(word);
+                    savedAnswer.setQuestionMode(defaultText(answer.questionMode(), "mixed"));
+                    savedAnswer.setPrompt(word.getEng());
+                    savedAnswer.setSelectedAnswer(trim(answer.selectedAnswer()));
+                    savedAnswer.setCorrectAnswer(trim(answer.correctAnswer()));
+                    savedAnswer.setCorrect(answer.correct());
+                    history.addAnswer(savedAnswer);
+                });
+            }
 
-                QuizHistoryAnswer savedAnswer = new QuizHistoryAnswer();
-                savedAnswer.setWord(word);
-                savedAnswer.setQuestionMode(defaultText(answer.questionMode(), "mixed"));
-                savedAnswer.setPrompt(word.getEng());
-                savedAnswer.setSelectedAnswer(trim(answer.selectedAnswer()));
-                savedAnswer.setCorrectAnswer(trim(answer.correctAnswer()));
-                savedAnswer.setCorrect(answer.correct());
-                history.addAnswer(savedAnswer);
-            });
+            quizHistory.save(history);
+
+            int earnedXp = Math.max(0, request.correctAnswers() * 12 + request.totalQuestions() * 3 + request.maxCombo());
+            syncUser.setXp(syncUser.getXp() + earnedXp);
+            syncUser.setLevel(Math.max(1, syncUser.getXp() / 250 + 1));
+            syncUser.setBestStreak(Math.max(syncUser.getBestStreak(), request.maxCombo()));
+
+            achievements.unlock(syncUser, "FIRST_QUIZ");
+            if (request.totalQuestions() > 0 && request.correctAnswers() == request.totalQuestions()) {
+                achievements.unlock(syncUser, "PERFECT_ROUND");
+            }
+            if (request.maxCombo() >= 10) {
+                achievements.unlock(syncUser, "COMBO_10");
+            }
+            if ("daily".equalsIgnoreCase(defaultText(request.quizMode(), ""))) {
+                achievements.unlock(syncUser, "DAILY_CHALLENGE");
+            }
+
+            markCloudChanged(syncUser);
+            SyncResponse result = snapshot(syncUser);
+            log.info("[QUIZ] Quiz result recorded successfully userId={} earnedXp={}", syncUser.getId(), earnedXp);
+            return result;
+        } catch (RuntimeException ex) {
+            log.error("[QUIZ] Quiz recording failed userId={} type={} message={}",
+                    syncUser.getId(), ex.getClass().getSimpleName(), ex.getMessage());
+            if (healthCounters != null) healthCounters.incrementQuizFailures();
+            throw ex;
         }
-
-        quizHistory.save(history);
-
-        int earnedXp = Math.max(0, request.correctAnswers() * 12 + request.totalQuestions() * 3 + request.maxCombo());
-        syncUser.setXp(syncUser.getXp() + earnedXp);
-        syncUser.setLevel(Math.max(1, syncUser.getXp() / 250 + 1));
-        syncUser.setBestStreak(Math.max(syncUser.getBestStreak(), request.maxCombo()));
-
-        achievements.unlock(syncUser, "FIRST_QUIZ");
-        if (request.totalQuestions() > 0 && request.correctAnswers() == request.totalQuestions()) {
-            achievements.unlock(syncUser, "PERFECT_ROUND");
-        }
-        if (request.maxCombo() >= 10) {
-            achievements.unlock(syncUser, "COMBO_10");
-        }
-        if ("daily".equalsIgnoreCase(defaultText(request.quizMode(), ""))) {
-            achievements.unlock(syncUser, "DAILY_CHALLENGE");
-        }
-
-        markCloudChanged(syncUser);
-        return snapshot(syncUser);
     }
 
     @Transactional(readOnly = true)
     public SyncResponse snapshot(AppUser user) {
-        List<UserAchievement> unlocked = achievements.listUnlocked(user);
-        List<QuizHistoryDto> recentHistory = quizHistory.findTop10ByUserOrderByCreatedAtDesc(user).stream()
-                .map(QuizHistoryDto::from)
-                .toList();
-        return new SyncResponse(
-                user.getSyncRevision(),
-                ProfileDto.from(user),
-                listWords(user),
-                listWrongWords(user),
-                progress.progress(user, unlocked.size()),
-                unlocked.stream().map(AchievementDto::from).toList(),
-                recentHistory
-        );
+        log.info("[SNAPSHOT] Pull start userId={}", user.getId());
+        try {
+            List<UserAchievement> unlocked = achievements.listUnlocked(user);
+            List<QuizHistoryDto> recentHistory = quizHistory.findTop10ByUserOrderByCreatedAtDesc(user).stream()
+                    .map(QuizHistoryDto::from)
+                    .toList();
+            SyncResponse result = new SyncResponse(
+                    user.getSyncRevision(),
+                    ProfileDto.from(user),
+                    listWords(user),
+                    listWrongWords(user),
+                    progress.progress(user, unlocked.size()),
+                    unlocked.stream().map(AchievementDto::from).toList(),
+                    recentHistory
+            );
+            log.info("[SNAPSHOT] Pull success userId={} revision={} vocabCount={}",
+                    user.getId(), result.revision(), result.vocab().size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.error("[SNAPSHOT] Pull failed userId={} type={} message={}",
+                    user.getId(), ex.getClass().getSimpleName(), ex.getMessage());
+            if (healthCounters != null) healthCounters.incrementSnapshotFailures();
+            throw ex;
+        }
     }
 
     private AppUser lockUserForRevision(AppUser user) {
@@ -254,6 +291,8 @@ public class VocabularyService {
     private void ensureExpectedRevision(AppUser user, Long expectedRevision) {
         long currentRevision = user.getSyncRevision();
         if (expectedRevision == null || expectedRevision.longValue() != currentRevision) {
+            log.warn("[SYNC] Revision conflict userId={} expected={} actual={}",
+                    user.getId(), expectedRevision, currentRevision);
             throw new SyncRevisionConflictException(expectedRevision, currentRevision);
         }
     }
