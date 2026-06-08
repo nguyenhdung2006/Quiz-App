@@ -3,6 +3,7 @@
 const AUTH_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 const REQUIRE_AUTH = window.quizIsProductionFrontend ? window.quizIsProductionFrontend() : false;
 const CLOUD_DELETE_QUEUE_KEY = "cloudDeleteQueue";
+const AUTH_PROFILE_RETRY_DELAYS = [500, 1000];
 let cloudSyncReady = false;
 let cloudSyncTimer = null;
 let applyingCloudSnapshot = false;
@@ -740,6 +741,47 @@ let target = new URL("login.html", window.location.href);
 window.location.replace(target.href);
 }
 
+function wait(ms) {
+return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchCurrentUserOnce() {
+let response = await fetch(`${AUTH_API_ORIGIN}/api/me`, {
+credentials: "include"
+});
+
+if (response.status === 401 || response.status === 403) {
+return { status: "unauthenticated" };
+}
+
+if (!response.ok) {
+return { status: "transientFailure", httpStatus: response.status };
+}
+
+let profile = await response.json();
+return profile?.authenticated
+? { status: "authenticated", profile }
+: { status: "unauthenticated" };
+}
+
+async function fetchCurrentUserWithRetry() {
+for (let attempt = 0; attempt <= AUTH_PROFILE_RETRY_DELAYS.length; attempt++) {
+try {
+let result = await fetchCurrentUserOnce();
+if (result.status !== "transientFailure") return result;
+} catch (error) {
+// Retry below; a warm session can outlive a brief network or backend hiccup.
+}
+
+if (attempt < AUTH_PROFILE_RETRY_DELAYS.length) {
+setSyncStatus("Cloud session is temporarily unavailable. Retrying...", "warn");
+await wait(AUTH_PROFILE_RETRY_DELAYS[attempt]);
+}
+}
+
+return { status: "transientFailure" };
+}
+
 const APP_PAGE_LABELS = {
 dashboard: { eyebrow: "Workspace", title: "Dashboard" },
 vocabulary: { eyebrow: "Word Bank", title: "Vocabulary" },
@@ -903,42 +945,32 @@ if (!REQUIRE_AUTH && (cached.name || cached.email || cached.avatar)) {
 applyProfile(cached);
 }
 
-try {
-let response = await fetch(`${AUTH_API_ORIGIN}/api/me`, {
-credentials: "include"
-});
+setSyncStatus("Checking session...", "syncing");
+let result = await fetchCurrentUserWithRetry();
 
-if (response.status === 401 || response.status === 403) {
-if (REQUIRE_AUTH) redirectToLogin();
-return;
-}
-
-if (!response.ok) {
-if (REQUIRE_AUTH) redirectToLogin();
-return;
-}
-
-let profile = await response.json();
-if (profile?.authenticated) {
-applyProfile(profile);
+if (result.status === "authenticated") {
+applyProfile(result.profile);
 refreshAccountData();
 cloudSyncReady = true;
 let pulled = await pullCloudSnapshot();
 if (pulled) syncCloudNow();
-} else if (REQUIRE_AUTH) {
-redirectToLogin();
-}
-} catch (error) {
-if (REQUIRE_AUTH) {
-redirectToLogin();
 return;
 }
+
+if (result.status === "unauthenticated") {
+if (REQUIRE_AUTH) redirectToLogin();
+else setSyncStatus("Offline/local mode", "local");
+return;
+}
+
+if (cached.name || cached.email || cached.avatar) {
+applyProfile(cached);
+}
 if (sessionStorage.getItem("backendLoginWarned") !== "true") {
-toast("Backend login sync is offline. Local profile and words still work.", "warn", 3200);
+toast("Cloud session is temporarily unavailable. Your local words are still safe.", "warn", 3600);
 sessionStorage.setItem("backendLoginWarned", "true");
 }
-setSyncStatus("Offline/local mode", "local");
-}
+setSyncStatus("Cloud session temporarily unavailable", "warn");
 }
 
 function getEditableProfile() {

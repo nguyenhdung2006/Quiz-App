@@ -50,6 +50,7 @@ function word(eng, vie, tag, index) {
 async function preparePage(page, options = {}) {
   const fatalConsole = [];
   const syncBodies = [];
+  let meRequestCount = 0;
   const profile = options.profile || {
     name: "Smoke Tester",
     email: "",
@@ -74,6 +75,20 @@ async function preparePage(page, options = {}) {
     const url = route.request().url();
     const method = route.request().method();
     if (url.endsWith("/api/me")) {
+      meRequestCount++;
+      const response = Array.isArray(options.meResponses)
+        ? options.meResponses[Math.min(meRequestCount - 1, options.meResponses.length - 1)]
+        : null;
+      if (response) {
+        await route.fulfill({
+          status: response.status || 200,
+          contentType: response.contentType || "application/json",
+          body: response.body !== undefined
+            ? response.body
+            : JSON.stringify(response.json || {})
+        });
+        return;
+      }
       await route.fulfill({
         json: options.authenticated
           ? { authenticated: true, ...profile }
@@ -90,7 +105,7 @@ async function preparePage(page, options = {}) {
       let body = syncBodies[syncBodies.length - 1] || {};
       await route.fulfill({
         json: options.syncResponse || {
-          profile: body.profile || cloudSnapshot.profile || profile,
+          profile: { ...(cloudSnapshot.profile || profile), ...(body.profile || {}) },
           vocab: body.vocab || [],
           wrongWords: body.wrongWords || [],
           progress: {},
@@ -186,6 +201,7 @@ async function preparePage(page, options = {}) {
   await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
   Object.defineProperty(fatalConsole, "syncBodies", { value: syncBodies });
   Object.defineProperty(fatalConsole, "accountId", { value: accountId });
+  Object.defineProperty(fatalConsole, "meRequestCount", { get: () => meRequestCount });
   return fatalConsole;
 }
 
@@ -322,6 +338,31 @@ test("logged-in empty local storage pulls cloud words before sync", async ({ pag
   await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
   expect(fatalConsole.syncBodies.at(-1).vocab.map(item => item.eng)).toContain("cloud-only");
   expect(fatalConsole).toEqual([]);
+});
+
+test("auth bootstrap retries transient /api/me failure before applying profile", async ({ page }) => {
+  const profile = { name: "Retry Tester", email: "retry@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    profile,
+    meResponses: [
+      { status: 500, json: { message: "Temporary backend error." } },
+      { status: 200, json: { authenticated: true, ...profile } }
+    ],
+    cloudSnapshot: {
+      profile,
+      vocab: [],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect.poll(() => fatalConsole.meRequestCount).toBe(2);
+  await expect(page.locator("#profileMenuEmail")).toContainText("retry@example.com");
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  expect(page.url()).toContain("index.html");
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
 test("failed pending cloud delete shows paused sync status", async ({ page }) => {
