@@ -267,7 +267,7 @@ let cloudUpdated = parseTime(cloudSyncState.cloudSnapshotUpdatedAt);
 if (!cloudUpdated) return false;
 
 let lastSync = parseTime(cloudSyncState.lastSuccessfulSyncAt);
-if (!lastSync) return cloudUpdated > 0;
+if (!lastSync) return false;
 
 let staleAge = Date.now() - lastSync;
 return staleAge > STALE_SYNC_THRESHOLD_MS && cloudUpdated > lastSync;
