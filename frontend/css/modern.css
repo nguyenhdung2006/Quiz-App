@@ -2902,6 +2902,15 @@ button:disabled,
   color: var(--text-primary, #f8fafc);
 }
 
+#posInput option,
+#levelInput option,
+#filterPos option,
+#filterTag option,
+#filterMastery option {
+  color: #111827;
+  background-color: #ffffff;
+}
+
 .addWordBox input::placeholder,
 .searchBox input::placeholder {
   color: rgba(224, 240, 255, 0.52);
