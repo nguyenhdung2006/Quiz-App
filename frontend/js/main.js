@@ -74,6 +74,13 @@ updateDifficulty();
 
 renderTable();
 
+/* Enhance vocabulary selects with custom dark dropdowns */
+enhanceSelect(document.getElementById("posInput"));
+enhanceSelect(document.getElementById("levelInput"));
+enhanceSelect(document.getElementById("filterPos"));
+enhanceSelect(document.getElementById("filterTag"));
+enhanceSelect(document.getElementById("filterMastery"));
+
 /* ENTER ADD WORD */
 
 engInput.addEventListener("keypress", function (e) {

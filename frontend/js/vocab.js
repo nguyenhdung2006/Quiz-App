@@ -265,9 +265,15 @@ noteInput
 if (input) input.value = "";
 });
 
-if (posInput) posInput.value = "interjection";
+if (posInput) {
+  posInput.value = "interjection";
+  posInput.dispatchEvent(new Event("change", { bubbles: true }));
+}
 let levelInput = document.getElementById("levelInput");
-if (levelInput) levelInput.value = "A1";
+if (levelInput) {
+  levelInput.value = "A1";
+  levelInput.dispatchEvent(new Event("change", { bubbles: true }));
+}
 engInput?.focus();
 }
 
@@ -377,6 +383,7 @@ select.appendChild(option);
 });
 
 select.value = values.includes(current) ? current : "";
+select.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function refreshFilterOptions() {
@@ -870,4 +877,114 @@ function removeWrongWord(eng) {
 wrongWords = wrongWords.filter(w => w.eng !== eng);
 save();
 renderMistakeTable();
+}
+
+function enhanceSelect(select) {
+  if (!select || select.dataset.customEnhanced) return;
+  select.dataset.customEnhanced = "true";
+
+  let wrapper = document.createElement("div");
+  wrapper.className = "customSelectWrapper";
+
+  let trigger = document.createElement("button");
+  trigger.className = "customSelectTrigger";
+  trigger.type = "button";
+
+  let label = document.createElement("span");
+  label.className = "customSelectLabel";
+
+  let arrow = document.createElement("span");
+  arrow.className = "customSelectArrow";
+  arrow.textContent = "\u25BC";
+
+  trigger.append(label, arrow);
+
+  let dropdown = document.createElement("ul");
+  dropdown.className = "customSelectDropdown";
+
+  let needsRebuild = false;
+
+  function buildOptions() {
+    dropdown.innerHTML = "";
+    for (let i = 0; i < select.options.length; i++) {
+      let opt = select.options[i];
+      let li = document.createElement("li");
+      li.textContent = opt.text;
+      li.dataset.value = opt.value;
+      li.dataset.index = i;
+      if (opt.selected) li.classList.add("is-selected");
+      li.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        select.selectedIndex = Number(this.dataset.index);
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        closeDropdown();
+        trigger.focus();
+      });
+      dropdown.appendChild(li);
+    }
+    needsRebuild = false;
+  }
+
+  function updateLabel() {
+    let opt = select.options[select.selectedIndex];
+    label.textContent = opt ? opt.text : "";
+  }
+
+  function openDropdown() {
+    if (needsRebuild) buildOptions();
+    dropdown.classList.add("is-open");
+    arrow.classList.add("is-open");
+    trigger.setAttribute("aria-expanded", "true");
+  }
+
+  function closeDropdown() {
+    dropdown.classList.remove("is-open");
+    arrow.classList.remove("is-open");
+    trigger.setAttribute("aria-expanded", "false");
+  }
+
+  select.addEventListener("change", function () {
+    updateLabel();
+    let items = dropdown.querySelectorAll("li");
+    for (let li of items) {
+      li.classList.toggle("is-selected", li.dataset.value === select.value);
+    }
+  });
+
+  trigger.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (dropdown.classList.contains("is-open")) {
+      closeDropdown();
+    } else {
+      openDropdown();
+    }
+  });
+
+  trigger.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      closeDropdown();
+      trigger.focus();
+    }
+  });
+
+  document.addEventListener("click", function (e) {
+    if (!wrapper.contains(e.target)) {
+      closeDropdown();
+    }
+  });
+
+  let observer = new MutationObserver(function () {
+    needsRebuild = true;
+    updateLabel();
+  });
+  observer.observe(select, { childList: true, subtree: true });
+
+  select.parentNode.insertBefore(wrapper, select);
+  wrapper.appendChild(select);
+  wrapper.appendChild(trigger);
+  wrapper.appendChild(dropdown);
+
+  select.style.cssText = "position:absolute;opacity:0;pointer-events:none;width:100%;height:100%;top:0;left:0;";
+
+  updateLabel();
 }
