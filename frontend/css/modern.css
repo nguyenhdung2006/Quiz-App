@@ -2541,8 +2541,8 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 }
 
 .aiDeckField select option {
-  background: #ffffff;
-  color: #111827;
+  background: var(--bg-secondary, #111827);
+  color: var(--text-primary, #f8fafc);
 }
 
 .aiDeckField input:focus,
@@ -2898,8 +2898,8 @@ button:disabled,
 #modeSelect option,
 #quizDifficulty option,
 #challengeDifficulty option {
-  background: #ffffff;
-  color: #111827;
+  background: var(--bg-secondary, #111827);
+  color: var(--text-primary, #f8fafc);
 }
 
 .addWordBox input::placeholder,
@@ -3006,8 +3006,8 @@ button:disabled,
 }
 
 .filterCluster select option {
-  background: #ffffff;
-  color: #111827;
+  background: var(--bg-secondary, #111827);
+  color: var(--text-primary, #f8fafc);
 }
 
 .favoriteFilter {
@@ -3466,8 +3466,8 @@ thead th:last-child {
 }
 
 .editingRow select option {
-  background: #ffffff;
-  color: #111827;
+  background: var(--bg-secondary, #111827);
+  color: var(--text-primary, #f8fafc);
 }
 
 .editMetaCell,
