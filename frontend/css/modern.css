@@ -785,7 +785,7 @@ button,
 
 .appMain {
   width: min(1180px, calc(100vw - 292px));
-  margin-left: 248px;
+  margin-left: max(248px, calc((100vw - 976px) / 2));
   padding-top: 68px;
 }
 
@@ -4670,6 +4670,48 @@ html[data-theme="light"] .selected {
   color: white;
 }
 
+@media (max-width: 1320px) {
+  .addWordBox,
+  .learningDetailsGrid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .formField--primary {
+    grid-column: span 3;
+  }
+
+  .formField--tag,
+  .formField--compact {
+    grid-column: span 2;
+  }
+
+  .formField--wide,
+  .learningDetails .formField--wide {
+    grid-column: span 6;
+  }
+
+  .learningDetails .formField--primary {
+    grid-column: span 3;
+  }
+
+  .tableTools {
+    grid-template-columns: 1fr;
+  }
+
+  .filterCluster {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    width: 100%;
+  }
+
+  .filterCluster label,
+  .filterCluster select,
+  .filterCluster .favoriteFilter {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 @media (max-width: 1180px) {
   .todayFocusPanel,
   .playerHub,
@@ -4757,6 +4799,7 @@ html[data-theme="light"] .selected {
   .sectionHeader,
   .addWordBox,
   .tableTools,
+  .table-container,
   .quizOptions,
   .practiceActions,
   .wordCountLine {
