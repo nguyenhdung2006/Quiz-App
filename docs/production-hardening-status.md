@@ -2,7 +2,7 @@
 
 Consolidated status of all production hardening features implemented for WordArena.
 
-Last updated: 2026-06-09
+Last updated: 2026-06-09 (incident fixes documented)
 
 ---
 
@@ -20,6 +20,7 @@ Last updated: 2026-06-09
 | 8 | Structured logging | Done | 8 log prefixes (`[SYNC]`, `[AUTH]`, `[AI]`, `[REVIEW]`, `[SNAPSHOT]`, `[ANALYTICS]`, `[QUIZ]`, `[ERROR]`) across all service classes |
 | 9 | Error surface UI | Done | Improved sync/auth error messaging, retry buttons (Sync Retry, AI Deck Retry, Review Retry), persistent submit error feedback, delete queue status in sync UI |
 | 10 | Basic health monitoring | Done | `/api/health`, `/api/health/summary`, `/actuator/health`, `/actuator/info` with in-memory counters; logging hygiene (no PII emails, no misleading `[AUTH]` tag on generic errors) |
+| 11 | Production incident documentation | Done | Documented in `docs/deploy.md#production-incident-fixes`: missing `sync_revision` column (manual SQL), PgBouncer `prepareThreshold=0`, first-sync deadlock fix (`!lastSync → return false`), secret audit, smoke test results, future deploy checklist |
 
 ---
 
@@ -214,6 +215,55 @@ Full table in `docs/deploy.md`. Key settings:
 | CRDT/event sourcing sync | Fundamental architectural change; not needed for single-device-primary use case |
 | Content moderation | No AI-generated content review or user content moderation |
 | Per-user breakdown of health counters | Adds complexity not yet justified |
+
+---
+
+## 8. Production Incident Record
+
+Summary of production incidents documented in `docs/deploy.md#production-incident-fixes`.
+
+### 8.1 Missing `app_users.sync_revision` Column
+
+- **Symptom:** Backend 500s on sync; app startup failure with
+  `JPA_DDL_AUTO=validate`.
+- **Root cause:** Supabase created before `sync_revision` entity field existed.
+- **Fix:** Manual SQL: `ALTER TABLE app_users ADD COLUMN IF NOT EXISTS
+  sync_revision BIGINT NOT NULL DEFAULT 0;`
+- **Prevention:** Planned migration or manual SQL before deploying entity
+  changes. `JPA_DDL_AUTO=validate` catches future drift.
+
+### 8.2 PgBouncer `prepareThreshold=0`
+
+- **Symptom:** `ERROR: prepared statement "S_1" does not exist` on any DB query.
+- **Root cause:** Supabase pooler (PgBouncer transaction mode, port 6543)
+  conflicts with JDBC server-side prepared statement caching.
+- **Fix:** Append `?prepareThreshold=0` to `DATABASE_URL`.
+- **Prevention:** Verify `DATABASE_URL` after every env/pooler change.
+
+### 8.3 First-Sync Deadlock (Stale Guard)
+
+- **Symptom:** "Sync paused to protect your data" on first login; `/api/sync`
+  never called.
+- **Root cause:** `if (!lastSync) return cloudUpdated > 0;` — returned stale
+  when cloud had data but `lastSuccessfulSyncAt` was null.
+- **Fix:** Changed to `if (!lastSync) return false;` in `app.js:270`.
+- **What remains active:** 7-day stale guard, `sync_revision` / 409 conflicts,
+  pull-before-push, delete queue blocking.
+- **Prevention:** First-sync path tests added; stale guard logic should be
+  reviewed if new sync-blocking conditions are added.
+
+### 8.4 GitHub Secret Audit
+
+- **Result:** No real `.env` files committed. Only `.env.example` and
+  `backend/.env.example` are tracked.
+- **Mechanisms:** GitHub Secret Protection / Push Protection enabled.
+- **Rule:** Never commit real `.env` files or screenshot secret configuration
+  pages.
+
+### 8.5 Production Smoke Test (June 9, 2026)
+
+All public endpoints verified after fixes. Full results in
+`docs/deploy.md#production-incident-fixes`. No broken endpoints detected.
 
 ---
 
