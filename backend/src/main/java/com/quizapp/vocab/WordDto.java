@@ -1,9 +1,11 @@
 package com.quizapp.vocab;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public record WordDto(
         Long id,
+        UUID wordUid,
         String eng,
         String vie,
         String pos,
@@ -26,6 +28,7 @@ public record WordDto(
     public static WordDto from(VocabularyWord word) {
         return new WordDto(
                 word.getId(),
+                word.getWordUid(),
                 word.getEng(),
                 word.getVie(),
                 word.getPos(),

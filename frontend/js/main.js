@@ -2,6 +2,7 @@ let vocab = readLocalArray("vocab");
 let wrongWords = readLocalArray("wrongWords");
 vocab = vocab.map(normalizeWord).filter(w => w.eng && w.vie);
 wrongWords = wrongWords.map(normalizeWord).filter(w => w.eng && w.vie);
+save();
 
 let totalWords = document.getElementById("totalWords");
 

@@ -79,6 +79,7 @@ return getWords()
 .filter(isDue)
 .map(word => ({
 wordId: word.id || null,
+wordUid: word.wordUid || null,
 eng: word.eng,
 vie: word.vie,
 tag: word.tag || "untagged",
@@ -100,6 +101,7 @@ localWord: word
 
 function findLocalWord(item) {
 return getWords().find(word =>
+(item.wordUid && word.wordUid === item.wordUid) ||
 (item.wordId && word.id === item.wordId) ||
 String(word.eng || "").trim().toLowerCase() === String(item.eng || item.word || "").trim().toLowerCase()
 );
@@ -110,6 +112,7 @@ let localWord = item.localWord || findLocalWord(item);
 return {
 ...item,
 wordId: item.wordId || item.id || localWord?.id || null,
+wordUid: item.wordUid || item.word_uid || localWord?.wordUid || null,
 eng: item.eng || item.word || localWord?.eng || "",
 vie: item.vie || item.meaning || localWord?.vie || "",
 tag: item.tag || localWord?.tag || "untagged",
@@ -122,7 +125,7 @@ localWord
 }
 
 function reviewItemKey(item, index = 0) {
-return String(item.wordId || item.eng || index);
+return String(item.wordUid || item.wordId || item.eng || index);
 }
 
 async function fetchQueue() {
@@ -185,6 +188,7 @@ return due.toISOString();
 
 function applyLocalAnswer(item, correct, serverResponse = null) {
 let word = item.localWord || getWords().find(candidate =>
+candidate.wordUid === item.wordUid ||
 candidate.id === item.wordId || candidate.eng === item.eng
 );
 if (!word) return;

@@ -66,3 +66,19 @@ node --check frontend\js\review-today.js
 node --check frontend\js\analytics-dashboard.js
 node --check frontend\js\login.js
 ```
+# Sync V2 Verification
+
+Backend:
+
+- `.\mvnw.cmd test` covers Sync V2 through `SyncContractV2Tests`.
+- Covered invariants: required contract version, required `wordUid`, stable UID rename, tombstone precedence, idempotent repeated deletion, direct delete tombstone creation, atomic duplicate-English rollback, user isolation, existing CSRF/auth regressions.
+
+Frontend:
+
+- Run `node --check` against changed files: `frontend/js/app.js`, `frontend/js/vocab.js`, `frontend/js/main.js`, `frontend/js/quiz.js`, `frontend/js/review-today.js`.
+- Run `npm run test:frontend` for Playwright smoke coverage.
+
+PostgreSQL:
+
+- CI starts PostgreSQL 16 and runs `SPRING_PROFILES_ACTIVE=prod ./mvnw -B -Dtest=QuizApplicationTests test` with Flyway enabled and Hibernate `ddl-auto=validate`.
+- This verifies ordered V1 -> V3 migrations against PostgreSQL in CI. It does not execute a production or staging migration.

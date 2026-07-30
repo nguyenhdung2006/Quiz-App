@@ -1056,3 +1056,17 @@ Multi-device usage: Risky. The app avoids the most obvious empty wipe, but stale
 Delete safety: Much improved after idempotent backend delete, but queue diagnostics are still weak.
 
 Production readiness: Improving, but not fully mature. The next work should be guardrails and tests, not new features.
+# 2026-07-31 Sync V2 Follow-Up
+
+Implemented hardening items:
+
+- `SyncService` requires `syncContractVersion: 2`.
+- `expectedRevision` is required; stale revisions return `409 SYNC_REVISION_CONFLICT` before mutation.
+- Full sync locks the `AppUser` row with pessimistic write locking.
+- Sync identity is `wordUid`, not English.
+- `wrongWords` request data is ignored for upsert/create.
+- Deletions are modeled as `deletions: [{ wordUid }]`.
+- Tombstones are returned in snapshots and override live payloads.
+- Revision increments at most once per sync and does not increment for idempotent repeated deletes/no-op tombstone payloads.
+
+Remaining operational gap: a real staging database rehearsal was not executed locally in this workspace. CI now provides PostgreSQL migration plus Hibernate validate coverage.

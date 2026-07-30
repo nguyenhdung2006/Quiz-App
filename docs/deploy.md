@@ -598,3 +598,10 @@ AI not configured:
 
 - Missing `OPENAI_API_KEY` is expected to fall back safely.
 - Set `AI_MODEL` only if you need a model other than the default.
+# Sync V2 Deployment Note
+
+Before deploying this change, apply Flyway migrations through V3 in staging/production with `SPRING_PROFILES_ACTIVE=prod`, `spring.flyway.enabled=true`, and `spring.jpa.hibernate.ddl-auto=validate`.
+
+Client/server compatibility is strict: deployed frontends must send `syncContractVersion: 2`, `wordUid` for every sync vocabulary item, and `deletions` for pending deletes. Legacy clients that omit the contract version receive `400 SYNC_CLIENT_UPGRADE_REQUIRED` and must be refreshed/upgraded.
+
+No manual tombstone cleanup job is included. Tombstones are retained to protect multi-device delete integrity.

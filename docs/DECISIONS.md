@@ -30,3 +30,14 @@ Reasons:
 - Current developer workflow depends on zero-setup local backend startup.
 - PostgreSQL-specific migrations should not break quick H2 tests.
 - Production and local behavior must be explicit and documented.
+# 2026-07-31: Sync Contract V2 Uses Stable UUID Identity And Tombstones
+
+Decision: keep numeric `vocabulary.id` as the database primary key, add `vocabulary.word_uid UUID` as the logical sync identity, and store deletes in `word_tombstones` rather than soft-deleting vocabulary rows.
+
+Rationale:
+
+- Numeric IDs are not stable for offline-created words or cross-device sync.
+- English text can change and must not be the Sync V2 identity.
+- Tombstones allow stale devices to learn that a word was deleted even after the live row has been hard-deleted.
+
+Rejected for this increment: CRDTs, vector clocks, event sourcing, tombstone garbage collection, and per-field merge. The product currently needs a single server-authoritative revision with pessimistic locking, not a distributed conflict-resolution system.

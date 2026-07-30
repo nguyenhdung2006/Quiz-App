@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import javax.sql.DataSource;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -246,9 +247,11 @@ class BackendHardeningTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "syncContractVersion": 2,
                                   "expectedRevision": 0,
                                   "vocab": [
                                     {
+                                      "wordUid": "00000000-0000-4000-8000-000000000101",
                                       "eng": "revision word",
                                       "vie": "tu phien ban",
                                       "pos": "n"
@@ -271,9 +274,11 @@ class BackendHardeningTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "syncContractVersion": 2,
                                   "expectedRevision": 0,
                                   "vocab": [
                                     {
+                                      "wordUid": "00000000-0000-4000-8000-000000000102",
                                       "eng": "first revision word",
                                       "vie": "tu dau",
                                       "pos": "n"
@@ -289,9 +294,11 @@ class BackendHardeningTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "syncContractVersion": 2,
                                   "expectedRevision": 0,
                                   "vocab": [
                                     {
+                                      "wordUid": "00000000-0000-4000-8000-000000000103",
                                       "eng": "stale overwrite",
                                       "vie": "ghi de cu",
                                       "pos": "n"
@@ -320,8 +327,10 @@ class BackendHardeningTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "syncContractVersion": 2,
                                   "vocab": [
                                     {
+                                      "wordUid": "00000000-0000-4000-8000-000000000104",
                                       "eng": "missing revision word",
                                       "vie": "thieu phien ban",
                                       "pos": "n"
@@ -486,13 +495,11 @@ class BackendHardeningTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "syncContractVersion": 2,
                                   "expectedRevision": 0,
                                   "vocab": [
                                     {
-                                      "eng": "",
-                                      "vie": "bad"
-                                    },
-                                    {
+                                      "wordUid": "00000000-0000-4000-8000-000000000105",
                                       "eng": "safe stats",
                                       "vie": "thong ke an toan",
                                       "pos": "n",
@@ -671,15 +678,19 @@ class BackendHardeningTests {
                 .andReturn();
         long revision = objectMapper.readTree(snapshotResult.getResponse().getContentAsString())
                 .path("revision").asLong();
+        String wordUid = objectMapper.readTree(snapshotResult.getResponse().getContentAsString())
+                .path("vocab").path(0).path("wordUid").asText();
 
         mockMvc.perform(post("/api/sync")
                         .with(oauthUser(email))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "syncContractVersion": 2,
                                   "expectedRevision": %d,
                                   "vocab": [
                                     {
+                                      "wordUid": "%s",
                                       "eng": "focus",
                                       "vie": "tap trung",
                                       "pos": "v",
@@ -698,6 +709,7 @@ class BackendHardeningTests {
                                   ],
                                   "wrongWords": [
                                     {
+                                      "wordUid": "%s",
                                       "eng": "focus",
                                       "vie": "tap trung",
                                       "pos": "v",
@@ -705,7 +717,7 @@ class BackendHardeningTests {
                                     }
                                   ]
                                 }
-                                """.formatted(revision)))
+                                """.formatted(revision, wordUid, UUID.randomUUID())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.vocab[0].mastered", is(false)))
                 .andExpect(jsonPath("$.vocab[0].stats.seen", is(0)))
@@ -769,8 +781,11 @@ class BackendHardeningTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "syncContractVersion": 2,
+                                  "expectedRevision": 0,
                                   "vocab": [
                                     {
+                                      "wordUid": "00000000-0000-4000-8000-000000000106",
                                       "eng": "bad timestamp",
                                       "vie": "loi thoi gian",
                                       "stats": {
@@ -857,8 +872,10 @@ class BackendHardeningTests {
                         .with(oauthUser(email))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
+                                "syncContractVersion", 2,
                                 "expectedRevision", 0,
                                 "vocab", List.of(Map.of(
+                                        "wordUid", UUID.randomUUID().toString(),
                                         "eng", eng,
                                         "vie", vie,
                                         "pos", "n"

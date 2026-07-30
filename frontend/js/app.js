@@ -116,13 +116,20 @@ return [];
 }
 
 function normalizeDeleteQueueItem(item, now = new Date().toISOString()) {
-let wordId = typeof item === "object" && item !== null ? item.wordId : item;
-wordId = String(wordId || "").trim();
-if (!wordId) return null;
+let wordUid = typeof item === "object" && item !== null ? item.wordUid : "";
+let legacyWordId = typeof item === "object" && item !== null ? (item.legacyWordId || item.wordId || item.id) : item;
+wordUid = String(wordUid || "").trim();
+legacyWordId = String(legacyWordId || "").trim();
+if (!wordUid && legacyWordId) {
+let legacyWord = [...getVocab(), ...getWrongWords()].find(word => String(word?.id || "") === legacyWordId);
+wordUid = String(legacyWord?.wordUid || "").trim();
+}
+if (!wordUid && !legacyWordId) return null;
 
 let attempts = Number(item?.attempts || 0);
 return {
-wordId,
+wordUid: wordUid || null,
+legacyWordId: legacyWordId || null,
 queuedAt: item?.queuedAt || now,
 attempts: Number.isFinite(attempts) && attempts > 0 ? Math.floor(attempts) : 0,
 lastAttemptAt: item?.lastAttemptAt || null,
@@ -138,9 +145,10 @@ for (let item of Array.isArray(items) ? items : []) {
 let clean = normalizeDeleteQueueItem(item, now);
 if (!clean) continue;
 
-let existing = byId.get(clean.wordId);
+let key = clean.wordUid ? `uid:${clean.wordUid}` : `legacy:${clean.legacyWordId}`;
+let existing = byId.get(key);
 if (!existing || clean.attempts > existing.attempts) {
-byId.set(clean.wordId, { ...(existing || {}), ...clean });
+byId.set(key, { ...(existing || {}), ...clean });
 }
 }
 return Array.from(byId.values());
@@ -279,10 +287,12 @@ setSyncStatus("Sync paused to protect your data", "warn");
 return false;
 }
 
-function queuePendingCloudDelete(id) {
-if (!id) return [];
+function queuePendingCloudDelete(word) {
+let clean = normalizeWord(word || {});
+if (!clean.wordUid && !clean.id) return [];
 return writePendingCloudDeletes([...readPendingCloudDeletes(), {
-wordId: id,
+wordUid: clean.wordUid || null,
+legacyWordId: clean.id || null,
 queuedAt: new Date().toISOString(),
 attempts: 0,
 lastAttemptAt: null,
@@ -306,7 +316,10 @@ continue;
 
 let attemptedAt = new Date().toISOString();
 try {
-let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/vocab/${encodeURIComponent(item.wordId)}`, {
+let path = item.wordUid
+? `/api/vocab/uid/${encodeURIComponent(item.wordUid)}`
+: `/api/vocab/${encodeURIComponent(item.legacyWordId)}`;
+let response = await API_FETCH(`${AUTH_API_ORIGIN}${path}`, {
 method: "DELETE"
 });
 if (!response.ok && response.status !== 404) {
@@ -341,6 +354,7 @@ function toServerWord(word) {
 let clean = normalizeWord(word);
 return {
 id: clean.id,
+wordUid: clean.wordUid,
 eng: clean.eng,
 vie: clean.vie,
 pos: clean.pos,
@@ -368,6 +382,7 @@ nextReview: clean.stats.nextReview || null
 function fromServerWord(word) {
 return normalizeWord({
 id: word?.id || null,
+wordUid: word?.wordUid || word?.word_uid,
 eng: word?.eng,
 vie: word?.vie,
 pos: word?.pos,
@@ -390,11 +405,20 @@ stats: word?.stats
 }
 
 function wordMergeKey(word) {
+let wordUid = String(word?.wordUid || word?.word_uid || "").trim();
+if (wordUid) return `uid:${wordUid}`;
 let eng = typeof normalizeEnglishKey === "function"
 ? normalizeEnglishKey(word?.eng)
 : String(word?.eng || "").trim().toLowerCase().replace(/\s+/g, " ");
 let id = word?.id ? `id:${word.id}` : "";
 return eng ? `eng:${eng}` : id;
+}
+
+function wordLegacyEnglishKey(word) {
+let eng = typeof normalizeEnglishKey === "function"
+? normalizeEnglishKey(word?.eng)
+: String(word?.eng || "").trim().toLowerCase().replace(/\s+/g, " ");
+return eng ? `eng:${eng}` : "";
 }
 
 function wordUpdatedTime(word) {
@@ -450,21 +474,66 @@ return mergeWordFields(cloudWord, localWord);
 
 function mergeWordLists(localList, cloudList) {
 let merged = new Map();
+let legacyEnglishKeys = new Map();
 
 for (let word of Array.isArray(localList) ? localList : []) {
 let clean = normalizeWord(word);
 let key = wordMergeKey(clean);
-if (key && clean.eng && clean.vie) merged.set(key, clean);
+if (key && clean.eng && clean.vie) {
+merged.set(key, clean);
+let legacyKey = wordLegacyEnglishKey(clean);
+if (legacyKey && (clean._localGeneratedWordUid || !clean.id)) legacyEnglishKeys.set(legacyKey, key);
+}
 }
 
 for (let word of Array.isArray(cloudList) ? cloudList : []) {
 let clean = fromServerWord(word);
 let key = wordMergeKey(clean);
 if (!key || !clean.eng || !clean.vie) continue;
-merged.set(key, chooseMergedWord(merged.get(key), clean));
+let existingKey = key;
+let adoptedLegacy = false;
+if (!merged.has(existingKey)) {
+let legacyKey = wordLegacyEnglishKey(clean);
+let legacyExistingKey = legacyEnglishKeys.get(legacyKey);
+if (legacyExistingKey && merged.has(legacyExistingKey)) {
+existingKey = legacyExistingKey;
+adoptedLegacy = true;
+}
+}
+let chosen = chooseMergedWord(merged.get(existingKey), clean);
+if (adoptedLegacy && clean.wordUid) {
+chosen.wordUid = clean.wordUid;
+chosen._localGeneratedWordUid = false;
+merged.delete(existingKey);
+merged.set(key, chosen);
+} else {
+merged.set(key, chosen);
+}
 }
 
 return Array.from(merged.values());
+}
+
+function tombstoneUidSet(snapshot) {
+return new Set((Array.isArray(snapshot?.tombstones) ? snapshot.tombstones : [])
+.map(item => String(item?.wordUid || item?.word_uid || "").trim())
+.filter(Boolean));
+}
+
+function applyTombstonesToLocal(snapshot) {
+let deletedUids = tombstoneUidSet(snapshot);
+if (!deletedUids.size) return deletedUids;
+
+vocab = getVocab().map(normalizeWord).filter(word => !deletedUids.has(word.wordUid));
+wrongWords = getWrongWords().map(normalizeWord).filter(word => !deletedUids.has(word.wordUid));
+writePendingCloudDeletes(readPendingCloudDeletes().filter(item => !item.wordUid || !deletedUids.has(item.wordUid)));
+return deletedUids;
+}
+
+function pendingDeletionPayload() {
+return readPendingCloudDeletes()
+.filter(item => item.wordUid)
+.map(item => ({ wordUid: item.wordUid }));
 }
 
 function profilePayload() {
@@ -488,9 +557,16 @@ writeCloudSyncMeta({ lastKnownRevision: null });
 
 applyingCloudSnapshot = true;
 try {
+let deletedUids = applyTombstonesToLocal(snapshot);
 if (snapshot.profile) applyProfile(snapshot.profile);
-if (Array.isArray(snapshot.vocab)) vocab = mergeWordLists(getVocab(), snapshot.vocab);
-if (Array.isArray(snapshot.wrongWords)) wrongWords = mergeWordLists(getWrongWords(), snapshot.wrongWords);
+if (Array.isArray(snapshot.vocab)) {
+let cloudVocab = snapshot.vocab.filter(word => !deletedUids.has(String(word?.wordUid || word?.word_uid || "").trim()));
+vocab = mergeWordLists(getVocab(), cloudVocab);
+}
+if (Array.isArray(snapshot.wrongWords)) {
+let cloudWrong = snapshot.wrongWords.filter(word => !deletedUids.has(String(word?.wordUid || word?.word_uid || "").trim()));
+wrongWords = mergeWordLists(getWrongWords(), cloudWrong);
+}
 if (snapshot.progress) latestProgressSummary = snapshot.progress;
 if (Array.isArray(snapshot.achievements)) latestAchievements = snapshot.achievements;
 save();
@@ -508,7 +584,7 @@ cloudSyncState.pullInFlight = (async () => {
 setSyncStatus("Waiting for cloud snapshot...", "syncing");
 
 try {
-if (!await flushPendingCloudDeletes()) return false;
+await flushPendingCloudDeletes();
 let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/snapshot`);
 
 if (!response.ok) {
@@ -556,7 +632,7 @@ return null;
 }
 }
 
-async function syncCloudNow() {
+async function syncCloudNow(options = {}) {
 if (!cloudSyncReady || applyingCloudSnapshot) return;
 
 try {
@@ -571,14 +647,16 @@ return;
 }
 if (isStaleDeviceRisk()) return blockStaleSyncPush();
 setSyncStatus("Syncing...", "syncing");
-if (!await flushPendingCloudDeletes()) return;
+await flushPendingCloudDeletes();
 let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/sync`, {
 method: "POST",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({
+syncContractVersion: 2,
 expectedRevision: cloudSyncState.lastKnownRevision,
 profile: profilePayload(),
 vocab: getVocab().map(toServerWord),
+deletions: pendingDeletionPayload(),
 wrongWords: getWrongWords().map(toServerWord)
 })
 });
@@ -587,7 +665,18 @@ wrongWords: getWrongWords().map(toServerWord)
     await readJsonSafely(response);
     cloudSyncState.hasPulledCloudSnapshot = false;
     setSyncStatus("Sync conflict detected. Pulling latest cloud data...", "warn");
-    await pullCloudSnapshot();
+    let pulled = await pullCloudSnapshot();
+    if (pulled && !options.retrying) await syncCloudNow({ retrying: true });
+return;
+}
+
+if (response.status === 400) {
+let error = await readJsonSafely(response);
+if (error?.error === "SYNC_CLIENT_UPGRADE_REQUIRED") {
+setSyncStatus("Please refresh the app before syncing.", "warn");
+return;
+}
+setSyncStatus("Sync validation failed", "warn");
 return;
 }
 
@@ -654,10 +743,10 @@ return updated ? fromServerWord(updated) : null;
 }
 
 async function deleteCloudWord(word) {
-let id = word?.id;
-if (!id) return null;
+let clean = normalizeWord(word || {});
+if (!clean.wordUid && !clean.id) return null;
 
-  queuePendingCloudDelete(id);
+  queuePendingCloudDelete(clean);
   setSyncStatus(`Deleting ${readPendingCloudDeletes().length} item(s)...`, "syncing");
   let flushed = await flushPendingCloudDeletes();
 if (!flushed) {

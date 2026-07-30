@@ -60,4 +60,11 @@ Production cross-site deployment must keep:
 - `SESSION_COOKIE_SECURE=true`
 - `CORS_ALLOWED_ORIGINS` set to the exact frontend origins
 - `FRONTEND_URL` set to the exact frontend URL
+# Sync V2 Security Boundary
+
+Sync V2 keeps OAuth2 session authentication and CSRF requirements unchanged. All unsafe sync and CRUD requests still require a valid session and `X-XSRF-TOKEN`.
+
+Authorization remains per authenticated `AppUser`: `wordUid` is unique only within a user boundary, and tombstone lookups are scoped by `(user_id, word_uid)`. A user can reuse the same UUID value as another user without reading, deleting, or blocking that user's data.
+
+The server ignores client-supplied `wrongWords` for vocabulary creation/update and ignores client-managed progress stats/mastery in sync payloads. This prevents stale or forged client payloads from creating vocabulary through the wrong-bank channel or overwriting server-managed learning progress.
 

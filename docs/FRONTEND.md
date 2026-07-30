@@ -30,4 +30,21 @@ await window.quizApiFetch(`${apiOrigin}/logout`, { method: "POST" });
 ```
 
 After the request completes or fails locally, the frontend clears local profile state, clears in-memory CSRF state, and redirects to `login.html?loggedOut=true`.
+# Sync V2 Local Identity
+
+Frontend words now carry a stable `wordUid`. `normalizeWord()` creates a UUID for legacy/local words and `main.js` persists normalized data on startup so offline-created identity survives rename, refresh, and later login.
+
+Merge behavior:
+
+- Prefer `wordUid` for all cloud/local merge keys.
+- Use English only as a legacy adoption fallback when a local/generated UID has not yet been reconciled with cloud identity.
+- Apply server `tombstones` before merging live `vocab` and `wrongWords`.
+- Remove tombstoned `wordUid`s from local vocabulary, wrong-bank data, and the pending delete queue.
+
+Offline delete behavior:
+
+- New queue entries are `{ wordUid, legacyWordId, queuedAt, attempts, lastAttemptAt, lastStatus, lastError }`.
+- Direct fast-path delete uses `DELETE /api/vocab/uid/{wordUid}` when possible.
+- Full sync also sends pending `{ wordUid }` deletion intents in `deletions`, so failed direct deletes do not block normal sync.
+- On `409 SYNC_REVISION_CONFLICT`, the frontend pulls a snapshot, applies tombstones, rebuilds the payload, and retries once.
 

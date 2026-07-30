@@ -143,9 +143,15 @@ async function preparePage(page, options = {}) {
       let body = syncBodies[syncBodies.length - 1] || {};
       await route.fulfill({
         json: options.syncResponse || {
+          syncContractVersion: 2,
           revision: (cloudSnapshot.revision || 0) + syncBodies.length,
           profile: { ...(cloudSnapshot.profile || profile), ...(body.profile || {}) },
           vocab: body.vocab || [],
+          tombstones: (body.deletions || []).map(item => ({
+            wordUid: item.wordUid,
+            deletedAt: "2026-01-01T00:00:00.000Z",
+            deletedRevision: (cloudSnapshot.revision || 0) + syncBodies.length
+          })),
           wrongWords: body.wrongWords || [],
           progress: {},
           achievements: [],
@@ -528,7 +534,7 @@ test("logged-in empty local storage pulls cloud words before sync", async ({ pag
   expect(fatalConsole).toEqual([]);
 });
 
-test("sync revision conflict refreshes cloud snapshot without retrying push", async ({ page }) => {
+test("sync revision conflict pulls cloud snapshot and retries rebuilt push once", async ({ page }) => {
   const profile = { name: "Conflict Tester", email: "conflict@example.com", avatar: "images/icon.png" };
   const fatalConsole = await preparePage(page, {
     authenticated: true,
@@ -550,8 +556,9 @@ test("sync revision conflict refreshes cloud snapshot without retrying push", as
     }
   });
 
-  await expect.poll(() => fatalConsole.syncBodies.length).toBe(1);
+  await expect.poll(() => fatalConsole.syncBodies.length).toBe(2);
   expect(fatalConsole.syncBodies[0].expectedRevision).toBe(7);
+  expect(fatalConsole.syncBodies[1].expectedRevision).toBe(7);
   await expect.poll(() => fatalConsole.snapshotRequestCount).toBeGreaterThan(1);
   await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
@@ -689,7 +696,7 @@ test("auth bootstrap retries transient /api/me failure before applying profile",
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
-test("failed pending cloud delete shows paused sync status", async ({ page }) => {
+test("failed direct cloud delete is carried by full sync deletions", async ({ page }) => {
   const profile = { name: "Delete Tester", email: "delete@example.com", avatar: "images/icon.png" };
   const fatalConsole = await preparePage(page, {
     authenticated: true,
@@ -707,21 +714,15 @@ test("failed pending cloud delete shows paused sync status", async ({ page }) =>
     }
   });
 
-  await expect(page.locator("#cloudSyncStatus")).toContainText("Delete pending: 1 item");
-  await page.waitForTimeout(300);
-  await expect(page.locator("#cloudSyncStatus")).not.toContainText("Synced");
-  const queued = await page.evaluate((accountId) => {
-    return JSON.parse(localStorage.getItem(`quizAccount:${accountId}:cloudDeleteQueue`) || "[]");
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  expect(fatalConsole.deleteRequests.some(url => url.includes("/api/vocab/uid/"))).toBeTruthy();
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  expect(fatalConsole.syncBodies.at(-1).deletions).toHaveLength(1);
+  expect(fatalConsole.syncBodies.at(-1).deletions[0].wordUid).toBeTruthy();
+  const rawQueue = await page.evaluate((accountId) => {
+    return localStorage.getItem(`quizAccount:${accountId}:cloudDeleteQueue`);
   }, fatalConsole.accountId);
-  expect(queued).toHaveLength(1);
-  expect(queued[0]).toMatchObject({
-    wordId: "123",
-    attempts: 1,
-    lastStatus: "failed",
-    lastError: "HTTP 500"
-  });
-  expect(queued[0].queuedAt).toBeTruthy();
-  expect(queued[0].lastAttemptAt).toBeTruthy();
+  expect(rawQueue).toBeNull();
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
@@ -753,19 +754,23 @@ test("successful pending cloud delete clears migrated queue item", async ({ page
 test("delete queue dedupes and respects retry backoff after repeated failures", async ({ page }) => {
   const profile = { name: "Delete Backoff", email: "delete-backoff@example.com", avatar: "images/icon.png" };
   const now = new Date().toISOString();
+  const wordUid = "00000000-0000-4000-8000-000000000789";
   const fatalConsole = await preparePage(page, {
     authenticated: true,
     profile,
     pendingDeletes: [
       {
-        wordId: "789",
+        wordUid,
         queuedAt: now,
         attempts: 2,
         lastAttemptAt: new Date().toISOString(),
         lastStatus: "failed",
         lastError: "HTTP 500"
       },
-      "789"
+      {
+        wordUid,
+        attempts: 1
+      }
     ],
     cloudSnapshot: {
       profile,
@@ -777,18 +782,15 @@ test("delete queue dedupes and respects retry backoff after repeated failures", 
     }
   });
 
-  await expect(page.locator("#cloudSyncStatus")).toContainText("Delete pending: 1 item");
-  expect(fatalConsole.deleteRequests.filter(url => url.includes("/api/vocab/789"))).toHaveLength(0);
-  const queued = await page.evaluate((accountId) => {
-    return JSON.parse(localStorage.getItem(`quizAccount:${accountId}:cloudDeleteQueue`) || "[]");
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  expect(fatalConsole.deleteRequests.filter(url => url.includes(wordUid))).toHaveLength(0);
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  expect(fatalConsole.syncBodies.at(-1).deletions).toHaveLength(1);
+  expect(fatalConsole.syncBodies.at(-1).deletions[0].wordUid).toBe(wordUid);
+  const rawQueue = await page.evaluate((accountId) => {
+    return localStorage.getItem(`quizAccount:${accountId}:cloudDeleteQueue`);
   }, fatalConsole.accountId);
-  expect(queued).toHaveLength(1);
-  expect(queued[0]).toMatchObject({
-    wordId: "789",
-    attempts: 2,
-    lastStatus: "failed",
-    lastError: "HTTP 500"
-  });
+  expect(rawQueue).toBeNull();
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 

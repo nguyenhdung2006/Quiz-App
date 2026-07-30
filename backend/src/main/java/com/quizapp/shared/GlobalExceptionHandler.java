@@ -4,6 +4,8 @@ import com.quizapp.ai.AiRateLimitError;
 import com.quizapp.ai.AiRateLimitExceededException;
 import com.quizapp.health.HealthCounterService;
 import com.quizapp.vocab.SyncConflictResponse;
+import com.quizapp.vocab.SyncClientUpgradeRequiredException;
+import com.quizapp.vocab.SyncClientUpgradeResponse;
 import com.quizapp.vocab.SyncRevisionConflictException;
 import java.util.Comparator;
 import java.util.List;
@@ -81,6 +83,17 @@ public class GlobalExceptionHandler {
                         exception.getExpectedRevision(),
                         exception.getCurrentRevision()
                 ));
+    }
+
+    @ExceptionHandler(SyncClientUpgradeRequiredException.class)
+    ResponseEntity<SyncClientUpgradeResponse> handleSyncClientUpgradeRequired(
+            SyncClientUpgradeRequiredException exception
+    ) {
+        log.warn("[SYNC] Client upgrade required: {}", exception.getMessage());
+        if (healthCounters != null) healthCounters.incrementValidationErrors();
+        return ResponseEntity
+                .badRequest()
+                .body(SyncClientUpgradeResponse.standard());
     }
 
     @ExceptionHandler(AiRateLimitExceededException.class)

@@ -52,3 +52,41 @@ All unsafe API requests must send `X-XSRF-TOKEN` with the token obtained from `G
 - `POST /api/ai/explain-wrong-answer`
 - `POST /api/ai/generate-deck`
 
+## Sync Contract V2
+
+`POST /api/sync` now requires `syncContractVersion: 2` and `expectedRevision`. Missing or wrong contract version returns `400` with `error: "SYNC_CLIENT_UPGRADE_REQUIRED"`. Missing or stale `expectedRevision` returns `409` with `error: "SYNC_REVISION_CONFLICT"` and performs no mutation.
+
+Vocabulary items in sync must include `wordUid` (UUID). The numeric `id` remains the database primary key and direct CRUD compatibility identifier, but sync identity is `wordUid`; English text is not used as a Sync V2 upsert key. `wrongWords` in the request is deprecated and ignored for vocabulary creation or updates.
+
+Request shape:
+
+```json
+{
+  "syncContractVersion": 2,
+  "expectedRevision": 3,
+  "profile": {},
+  "vocab": [
+    {
+      "wordUid": "7b8f0d4a-0c87-4e44-9f53-1455f67c4a30",
+      "eng": "focus",
+      "vie": "tap trung",
+      "pos": "v"
+    }
+  ],
+  "deletions": [
+    {
+      "wordUid": "2a13ee3f-30f3-40e2-a47a-502688fd0f3a"
+    }
+  ],
+  "wrongWords": []
+}
+```
+
+Response includes `syncContractVersion`, `revision`, live `vocab`, and `tombstones`. Tombstones win over live records with the same `wordUid`.
+
+Direct CRUD changes:
+
+- `POST /api/vocab` accepts optional `wordUid` and returns it.
+- `PUT /api/vocab/{id}` rejects attempts to change an existing `wordUid`.
+- `DELETE /api/vocab/{id}` creates a tombstone and hard-deletes the live row.
+- `DELETE /api/vocab/uid/{wordUid}` is available for frontend fast-path deletion by stable identity.

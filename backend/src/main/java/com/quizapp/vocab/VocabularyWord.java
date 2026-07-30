@@ -16,16 +16,23 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(
         name = "vocabulary",
-        uniqueConstraints = @UniqueConstraint(name = "ux_vocabulary_user_eng", columnNames = {"user_id", "eng"})
+        uniqueConstraints = {
+                @UniqueConstraint(name = "ux_vocabulary_user_eng", columnNames = {"user_id", "eng"}),
+                @UniqueConstraint(name = "ux_vocabulary_user_word_uid", columnNames = {"user_id", "word_uid"})
+        }
 )
 public class VocabularyWord {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "word_uid", nullable = false)
+    private UUID wordUid;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id")
@@ -83,6 +90,9 @@ public class VocabularyWord {
 
     @PrePersist
     void prePersist() {
+        if (wordUid == null) {
+            wordUid = UUID.randomUUID();
+        }
         Instant now = Instant.now();
         createdAt = now;
         updatedAt = now;
@@ -94,6 +104,13 @@ public class VocabularyWord {
     }
 
     public Long getId() { return id; }
+    public UUID getWordUid() { return wordUid; }
+    public void setWordUid(UUID wordUid) {
+        if (this.wordUid != null && wordUid != null && !this.wordUid.equals(wordUid)) {
+            throw new IllegalArgumentException("wordUid cannot be changed.");
+        }
+        if (wordUid != null) this.wordUid = wordUid;
+    }
     public AppUser getUser() { return user; }
     public void setUser(AppUser user) { this.user = user; }
     public String getEng() { return eng; }

@@ -4,10 +4,13 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.util.UUID;
 
 public record WordRequest(
         @Positive
         Long id,
+
+        UUID wordUid,
 
         @NotBlank(message = "English word is required.")
         @Size(max = 255, message = "English word must be 255 characters or less.")

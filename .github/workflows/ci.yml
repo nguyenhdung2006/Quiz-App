@@ -8,6 +8,20 @@ jobs:
   verify:
     name: Backend tests and frontend checks
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: quizapp_ci
+          POSTGRES_USER: quizapp_ci
+          POSTGRES_PASSWORD: quizapp_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quizapp_ci -d quizapp_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repository
@@ -31,6 +45,19 @@ jobs:
         run: |
           chmod +x mvnw
           ./mvnw -B -Dtest=ProductionDatabaseSafetyGuardTests test
+
+      - name: Run PostgreSQL Flyway migration and Hibernate validate
+        working-directory: backend
+        env:
+          SPRING_PROFILES_ACTIVE: prod
+          DATABASE_URL: jdbc:postgresql://localhost:5432/quizapp_ci
+          DATABASE_USERNAME: quizapp_ci
+          DATABASE_PASSWORD: quizapp_ci
+          GOOGLE_CLIENT_ID: test-client-id
+          GOOGLE_CLIENT_SECRET: test-client-secret
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -Dtest=QuizApplicationTests test
 
       - name: Set up Node
         uses: actions/setup-node@v4

@@ -3,8 +3,6 @@ package com.quizapp.vocab;
 import com.quizapp.health.HealthCounterService;
 import com.quizapp.user.AppUser;
 import com.quizapp.user.AppUserRepository;
-import com.quizapp.user.ProfileDto;
-import com.quizapp.user.ProfileRequest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -23,6 +21,8 @@ public class VocabularyService {
     private final AchievementService achievements;
     private final LearningProgressService progress;
     private final AppUserRepository users;
+    private final WordTombstoneRepository tombstones;
+    private final SyncService syncService;
 
     @Autowired(required = false)
     private HealthCounterService healthCounters;
@@ -46,7 +46,9 @@ public class VocabularyService {
             QuizHistoryRepository quizHistory,
             AchievementService achievements,
             LearningProgressService progress,
-            AppUserRepository users
+            AppUserRepository users,
+            WordTombstoneRepository tombstones,
+            SyncService syncService
     ) {
         this.words = words;
         this.wrongBank = wrongBank;
@@ -54,6 +56,8 @@ public class VocabularyService {
         this.achievements = achievements;
         this.progress = progress;
         this.users = users;
+        this.tombstones = tombstones;
+        this.syncService = syncService;
     }
 
     @Transactional(readOnly = true)
@@ -73,6 +77,14 @@ public class VocabularyService {
         AppUser syncUser = lockUserForRevision(user);
         String normalizedEng = normalizeEnglishForStorage(request.eng());
         ensureNoDuplicateEnglish(syncUser, normalizedEng, null);
+        if (request.wordUid() != null) {
+            if (tombstones.existsByUserAndWordUid(syncUser, request.wordUid())) {
+                throw new IllegalArgumentException("Deleted wordUid cannot be reused.");
+            }
+            words.findByUserAndWordUid(syncUser, request.wordUid()).ifPresent(existing -> {
+                throw new IllegalArgumentException("wordUid already exists.");
+            });
+        }
 
         VocabularyWord word = new VocabularyWord();
         word.setUser(syncUser);
@@ -103,12 +115,12 @@ public class VocabularyService {
 
     @Transactional
     public void deleteWord(AppUser user, Long id) {
-        AppUser syncUser = lockUserForRevision(user);
-        words.findByIdAndUser(id, syncUser).ifPresent(word -> {
-            words.delete(word);
-            markCloudChanged(syncUser);
-            log.info("[SYNC] Word deleted userId={} wordId={}", syncUser.getId(), id);
-        });
+        syncService.deleteWord(user, id);
+    }
+
+    @Transactional
+    public void deleteWordByUid(AppUser user, java.util.UUID wordUid) {
+        syncService.deleteWordByUid(user, wordUid);
     }
 
     @Transactional
@@ -126,30 +138,7 @@ public class VocabularyService {
 
     @Transactional
     public SyncResponse sync(AppUser user, SyncRequest request) {
-        AppUser syncUser = lockUserForRevision(user);
-        log.info("[SYNC] Push start userId={} expectedRevision={}", syncUser.getId(), request.expectedRevision());
-        ensureExpectedRevision(syncUser, request.expectedRevision());
-
-        applyProfile(syncUser, request.profile());
-
-        if (request.vocab() != null) {
-            for (WordRequest incoming : request.vocab()) {
-                if (!isUsableSyncWord(incoming)) continue;
-                upsertByEnglish(syncUser, incoming);
-            }
-        }
-
-        if (request.wrongWords() != null) {
-            for (WordRequest incoming : request.wrongWords()) {
-                if (!isUsableSyncWord(incoming)) continue;
-                upsertByEnglish(syncUser, incoming);
-            }
-        }
-
-        markCloudChanged(syncUser);
-        SyncResponse result = snapshot(syncUser);
-        log.info("[SYNC] Push success userId={} newRevision={}", syncUser.getId(), result.revision());
-        return result;
+        return syncService.sync(user, request);
     }
 
     @Transactional
@@ -281,30 +270,7 @@ public class VocabularyService {
 
     @Transactional(readOnly = true)
     public SyncResponse snapshot(AppUser user) {
-        log.info("[SNAPSHOT] Pull start userId={}", user.getId());
-        try {
-            List<UserAchievement> unlocked = achievements.listUnlocked(user);
-            List<QuizHistoryDto> recentHistory = quizHistory.findTop10ByUserOrderByCreatedAtDesc(user).stream()
-                    .map(QuizHistoryDto::from)
-                    .toList();
-            SyncResponse result = new SyncResponse(
-                    user.getSyncRevision(),
-                    ProfileDto.from(user),
-                    listWords(user),
-                    listWrongWords(user),
-                    progress.progress(user, unlocked.size()),
-                    unlocked.stream().map(AchievementDto::from).toList(),
-                    recentHistory
-            );
-            log.info("[SNAPSHOT] Pull success userId={} revision={} vocabCount={}",
-                    user.getId(), result.revision(), result.vocab().size());
-            return result;
-        } catch (RuntimeException ex) {
-            log.error("[SNAPSHOT] Pull failed userId={} type={} message={}",
-                    user.getId(), ex.getClass().getSimpleName(), ex.getMessage());
-            if (healthCounters != null) healthCounters.incrementSnapshotFailures();
-            throw ex;
-        }
+        return syncService.snapshot(user);
     }
 
     private AppUser lockUserForRevision(AppUser user) {
@@ -315,43 +281,8 @@ public class VocabularyService {
                 .orElseThrow(() -> new IllegalStateException("User not found."));
     }
 
-    private void ensureExpectedRevision(AppUser user, Long expectedRevision) {
-        long currentRevision = user.getSyncRevision();
-        if (expectedRevision == null || expectedRevision.longValue() != currentRevision) {
-            log.warn("[SYNC] Revision conflict userId={} expected={} actual={}",
-                    user.getId(), expectedRevision, currentRevision);
-            throw new SyncRevisionConflictException(expectedRevision, currentRevision);
-        }
-    }
-
     private void markCloudChanged(AppUser user) {
         user.incrementSyncRevision();
-    }
-
-    private boolean isUsableSyncWord(WordRequest request) {
-        if (request == null) return false;
-        String eng = normalizeEnglishForStorage(request.eng());
-        String vie = trim(request.vie());
-        return !eng.isBlank()
-                && !vie.isBlank()
-                && eng.length() <= 255
-                && vie.length() <= 255
-                && within(request.pos(), 50)
-                && within(request.tag(), 100)
-                && within(request.ipa(), 120)
-                && within(request.level(), 40)
-                && within(request.context(), 2_000)
-                && within(request.example(), 2_000)
-                && within(request.exampleMeaning(), 2_000)
-                && within(request.collocation(), 2_000)
-                && within(request.synonyms(), 2_000)
-                && within(request.antonyms(), 2_000)
-                && within(request.commonMistake(), 2_000)
-                && within(request.note(), 2_000);
-    }
-
-    private boolean within(String value, int maxLength) {
-        return value == null || value.length() <= maxLength;
     }
 
     private VocabularyWord upsertByEnglish(AppUser user, WordRequest request) {
@@ -373,6 +304,7 @@ public class VocabularyService {
             throw new IllegalArgumentException("English and Vietnamese are required.");
         }
 
+        word.setWordUid(request.wordUid());
         word.setEng(eng);
         word.setVie(vie);
         word.setPos(defaultText(request.pos(), "n"));
@@ -481,17 +413,7 @@ public class VocabularyService {
             case "curious" -> "Say curious about something.";
             default -> "Check the example before using this word in writing.";
         };
-        return new WordRequest(null, eng, vie, pos, tag, ipa, level, tag, example, "", collocation, "", "", commonMistake, "", false, false, null);
-    }
-
-    private void applyProfile(AppUser user, ProfileRequest profile) {
-        if (profile == null) return;
-        if (!trim(profile.name()).isBlank()) user.setDisplayName(trim(profile.name()));
-        if (!trim(profile.avatar()).isBlank()) user.setAvatarUrl(trim(profile.avatar()));
-        user.setBirthday(profile.birthday());
-        user.setGender(trim(profile.gender()));
-        user.setLearningGoal(trim(profile.goal()));
-        user.setBio(trim(profile.bio()));
+        return new WordRequest(null, null, eng, vie, pos, tag, ipa, level, tag, example, "", collocation, "", "", commonMistake, "", false, false, null);
     }
 
     private String defaultText(String value, String fallback) {

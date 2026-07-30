@@ -122,8 +122,6 @@ class ProductionDatabaseSafetyGuardTests {
                     .as("migration versions must be contiguous from V1")
                     .isEqualTo(index + 1);
 
-            String sql = Files.readString(migrations.get(index)).toLowerCase();
-            assertThat(sql).doesNotContain("tombstone");
         }
     }
 

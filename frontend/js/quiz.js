@@ -446,7 +446,7 @@ correctCount++;
 updateCombo(true);
 
 if (isPracticeMode) {
-let word = wrongWords.find(w => w.eng === q.eng);
+let word = wrongWords.find(w => typeof sameWordIdentity === "function" ? sameWordIdentity(w, q) : w.eng === q.eng);
 if (word) {
 word.mastered = true;
 }
@@ -454,7 +454,7 @@ word.mastered = true;
 } else {
 updateCombo(false);
 
-wrongWords = wrongWords.filter(w => w.eng !== q.eng);
+wrongWords = wrongWords.filter(w => typeof sameWordIdentity === "function" ? !sameWordIdentity(w, q) : w.eng !== q.eng);
 wrongWords.push({
 ...q,
 mastered: false

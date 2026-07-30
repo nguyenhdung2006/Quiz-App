@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS app_users (
 CREATE TABLE IF NOT EXISTS vocabulary (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+    word_uid UUID NOT NULL,
     eng VARCHAR(255) NOT NULL,
     vie VARCHAR(255) NOT NULL,
     pos VARCHAR(50) NOT NULL DEFAULT 'n',
@@ -48,8 +49,19 @@ CREATE TABLE IF NOT EXISTS vocabulary (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT ux_vocabulary_user_eng UNIQUE (user_id, eng),
+    CONSTRAINT ux_vocabulary_user_word_uid UNIQUE (user_id, word_uid),
     CONSTRAINT ck_vocabulary_eng_not_blank CHECK (BTRIM(eng) <> ''),
     CONSTRAINT ck_vocabulary_vie_not_blank CHECK (BTRIM(vie) <> '')
+);
+
+CREATE TABLE IF NOT EXISTS word_tombstones (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+    word_uid UUID NOT NULL,
+    deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_revision BIGINT NOT NULL,
+    CONSTRAINT ux_word_tombstones_user_word_uid UNIQUE (user_id, word_uid),
+    CONSTRAINT ck_word_tombstones_revision CHECK (deleted_revision >= 0)
 );
 
 CREATE TABLE IF NOT EXISTS word_stats (
@@ -164,6 +176,7 @@ ALTER TABLE app_users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NO
 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS user_id BIGINT REFERENCES app_users(id) ON DELETE CASCADE;
+ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS word_uid UUID;
 ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS eng VARCHAR(255);
 ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS vie VARCHAR(255);
 ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS pos VARCHAR(50) DEFAULT 'n';
@@ -172,6 +185,15 @@ ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS favorite BOOLEAN DEFAULT FALSE;
 ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS mastered BOOLEAN DEFAULT FALSE;
 ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE vocabulary ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+UPDATE vocabulary
+SET word_uid = (
+    SUBSTRING(MD5(user_id::TEXT || ':' || id::TEXT) FROM 1 FOR 8) || '-' ||
+    SUBSTRING(MD5(user_id::TEXT || ':' || id::TEXT) FROM 9 FOR 4) || '-' ||
+    '4' || SUBSTRING(MD5(user_id::TEXT || ':' || id::TEXT) FROM 14 FOR 3) || '-' ||
+    '8' || SUBSTRING(MD5(user_id::TEXT || ':' || id::TEXT) FROM 18 FOR 3) || '-' ||
+    SUBSTRING(MD5(user_id::TEXT || ':' || id::TEXT) FROM 21 FOR 12)
+)::UUID
+WHERE word_uid IS NULL AND user_id IS NOT NULL AND id IS NOT NULL;
 
 ALTER TABLE word_stats ADD COLUMN IF NOT EXISTS word_id BIGINT REFERENCES vocabulary(id) ON DELETE CASCADE;
 ALTER TABLE word_stats ADD COLUMN IF NOT EXISTS seen INTEGER DEFAULT 0;
@@ -186,12 +208,14 @@ ALTER TABLE word_stats ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT N
 ALTER TABLE word_stats ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 CREATE INDEX IF NOT EXISTS idx_vocabulary_user ON vocabulary(user_id);
+CREATE INDEX IF NOT EXISTS idx_vocabulary_user_word_uid ON vocabulary(user_id, word_uid);
 CREATE INDEX IF NOT EXISTS idx_vocabulary_user_lower_eng ON vocabulary(user_id, LOWER(eng));
 CREATE INDEX IF NOT EXISTS idx_vocabulary_user_tag ON vocabulary(user_id, tag);
 CREATE INDEX IF NOT EXISTS idx_word_stats_next_review ON word_stats(next_review);
 CREATE INDEX IF NOT EXISTS idx_wrong_bank_user ON wrong_bank(user_id);
 CREATE INDEX IF NOT EXISTS idx_quiz_history_user_created ON quiz_history(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_quiz_answers_history ON quiz_history_answers(quiz_history_id);
+CREATE INDEX IF NOT EXISTS idx_word_tombstones_user_revision ON word_tombstones(user_id, deleted_revision);
 
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$

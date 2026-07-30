@@ -16,11 +16,32 @@ function normalizeEnglishKey(value) {
 return cleanText(value).toLowerCase().replace(/\s+/g, " ");
 }
 
+function sameWordIdentity(left, right) {
+let leftUid = cleanText(left?.wordUid || left?.word_uid);
+let rightUid = cleanText(right?.wordUid || right?.word_uid);
+if (leftUid && rightUid) return leftUid === rightUid;
+return normalizeEnglishKey(left?.eng) === normalizeEnglishKey(right?.eng);
+}
+
 function stampWordUpdatedAt(word, timestamp = new Date().toISOString()) {
 if (word && typeof word === "object") {
 word.updatedAt = timestamp;
 }
 return word;
+}
+
+function createWordUid() {
+if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+let bytes = new Uint8Array(16);
+if (window.crypto?.getRandomValues) {
+window.crypto.getRandomValues(bytes);
+} else {
+for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+}
+bytes[6] = (bytes[6] & 0x0f) | 0x40;
+bytes[8] = (bytes[8] & 0x3f) | 0x80;
+let hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function validateWordFields(word) {
@@ -32,9 +53,12 @@ return "";
 
 function normalizeWord(word) {
 let stats = word?.stats || {};
+let existingWordUid = cleanText(word?.wordUid || word?.word_uid || word?.uid);
 
 return {
 id: word?.id || null,
+wordUid: existingWordUid || createWordUid(),
+_localGeneratedWordUid: Boolean(word?._localGeneratedWordUid || !existingWordUid),
 eng: cleanText(word?.eng),
 vie: cleanText(word?.vie),
 pos: cleanText(word?.pos || "n") || "n",
@@ -191,7 +215,7 @@ return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function recordWordResult(word, isCorrect) {
-let target = vocab.find(w => w.eng === word.eng);
+let target = vocab.find(w => sameWordIdentity(w, word));
 if (!target) return;
 
 let reviewedAt = new Date().toISOString();
@@ -746,10 +770,10 @@ alert("Word already exists!");
 return;
 }
 
-let oldEng = current.eng;
+let oldWord = normalizeWord(current);
 stampWordUpdatedAt(next);
 vocab[i] = next;
-wrongWords = wrongWords.map(word => word.eng === oldEng ? normalizeWord({ ...word, ...next }) : word);
+wrongWords = wrongWords.map(word => sameWordIdentity(word, oldWord) ? normalizeWord({ ...word, ...next }) : word);
 editingWordIndex = null;
 
 save();
@@ -798,7 +822,7 @@ word.stats.masteryLevel = Math.max(3, Number(word.stats.masteryLevel || 0) + 1);
 word.stats.lastReviewed = new Date().toISOString();
 word.stats.nextReview = nextReviewDate(word.stats, true);
 word.mastered = word.stats.masteryLevel >= 5;
-wrongWords = wrongWords.filter(item => item.eng !== word.eng);
+wrongWords = wrongWords.filter(item => !sameWordIdentity(item, word));
 syncWordUpdate(i);
 }
 
@@ -815,7 +839,7 @@ word.stats.lastReviewed = new Date().toISOString();
 word.stats.nextReview = nextReviewDate(word.stats, false);
 word.mastered = false;
 
-if (!wrongWords.some(item => item.eng === word.eng)) {
+if (!wrongWords.some(item => sameWordIdentity(item, word))) {
 wrongWords.push(normalizeWord(word));
 }
 
@@ -827,7 +851,7 @@ let word = vocab[i];
 vocab.splice(i, 1);
 
 if (word) {
-wrongWords = wrongWords.filter(w => w.eng !== word.eng);
+wrongWords = wrongWords.filter(w => !sameWordIdentity(w, word));
 }
 
 save();

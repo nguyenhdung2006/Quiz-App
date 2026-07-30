@@ -4,6 +4,7 @@ import com.quizapp.user.AppUser;
 import com.quizapp.user.CurrentUserService;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -48,6 +49,11 @@ public class VocabularyController {
     @DeleteMapping("/vocab/{id}")
     void delete(@AuthenticationPrincipal OAuth2User principal, @PathVariable Long id) {
         vocabulary.deleteWord(currentUsers.requireUser(principal), id);
+    }
+
+    @DeleteMapping("/vocab/uid/{wordUid}")
+    void deleteByUid(@AuthenticationPrincipal OAuth2User principal, @PathVariable UUID wordUid) {
+        vocabulary.deleteWordByUid(currentUsers.requireUser(principal), wordUid);
     }
 
     @GetMapping("/wrong-words")
