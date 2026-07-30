@@ -1,6 +1,7 @@
 const AUTH_CONFIG = {
     apiOrigin: window.quizApiOrigin ? window.quizApiOrigin() : ""
 };
+const API_FETCH = window.quizApiFetch || fetch.bind(window);
 
 AUTH_CONFIG.googleOAuthStartPath = `${AUTH_CONFIG.apiOrigin}/oauth2/authorization/google`;
 
@@ -11,9 +12,7 @@ async function showCurrentGoogleSession() {
     if (!googleLoginBtn) return;
 
     try {
-        const response = await fetch(`${AUTH_CONFIG.apiOrigin}/api/me`, {
-            credentials: "include"
-        });
+        const response = await API_FETCH(`${AUTH_CONFIG.apiOrigin}/api/me`);
         if (!response.ok) return;
 
         const profile = await response.json();

@@ -56,7 +56,7 @@ variables in the hosting platform.
 | `BACKEND_URL` | Frontend deploy yes | Public backend origin for frontend config. |
 | `CORS_ALLOWED_ORIGINS` | Optional | Comma-separated frontend origins. Defaults to `FRONTEND_URL` or local origins. |
 | `OAUTH_SUCCESS_REDIRECT_URI` | Optional | Override success redirect if needed. |
-| `OAUTH_LOGOUT_REDIRECT_URI` | Optional | Override logout redirect if needed. |
+| `OAUTH_LOGOUT_REDIRECT_URI` | Removed | Logout now uses `POST /logout` with CSRF and returns `204`; the frontend redirects to `login.html?loggedOut=true`. |
 | `SESSION_COOKIE_SAME_SITE` | Production yes | Use `none` for Vercel frontend + Render backend. Local default is `lax`. |
 | `SESSION_COOKIE_SECURE` | Production yes | Use `true` for HTTPS production. Local default is `false`. |
 | `SESSION_COOKIE_PATH` | Optional | Defaults to `/`. |

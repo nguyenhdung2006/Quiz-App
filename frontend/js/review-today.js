@@ -1,5 +1,6 @@
 (function () {
 const REVIEW_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
+const API_FETCH = window.quizApiFetch || fetch.bind(window);
 
 let reviewQueue = [];
 let reviewSource = "Local";
@@ -126,9 +127,7 @@ return String(item.wordId || item.eng || index);
 
 async function fetchQueue() {
 try {
-let response = await fetch(`${REVIEW_API_ORIGIN}/api/review/queue?limit=8`, {
-credentials: "include"
-});
+let response = await API_FETCH(`${REVIEW_API_ORIGIN}/api/review/queue?limit=8`);
 if (!response.ok) {
 return { items: null, error: `Cloud review queue failed (${response.status}). Showing local queue.` };
 }
@@ -144,9 +143,8 @@ return { items: null, error: "Cloud review queue is unavailable. Showing local q
 async function postAnswer(item, correct) {
 if (!item.wordId) return null;
 try {
-let response = await fetch(`${REVIEW_API_ORIGIN}/api/review/answer`, {
+let response = await API_FETCH(`${REVIEW_API_ORIGIN}/api/review/answer`, {
 method: "POST",
-credentials: "include",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({
 wordId: item.wordId,

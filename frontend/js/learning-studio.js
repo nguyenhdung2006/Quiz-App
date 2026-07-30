@@ -145,6 +145,7 @@ return String(value || "")
 
 let generatedAiDeckWords = [];
 const AI_DECK_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
+const API_FETCH = window.quizApiFetch || fetch.bind(window);
 const AI_DECK_POS_OPTIONS = ["n", "v", "adj", "adv", "conj", "prep", "idiom", "phrase"];
 const AI_DECK_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 const AI_DECK_COOLDOWN_MS = 8000;
@@ -862,9 +863,8 @@ maxWords: Number.isFinite(maxWords) ? maxWords : 20
 async function requestAiDeck(text, options = {}) {
 let response;
 try {
-response = await fetch(`${AI_DECK_API_ORIGIN}/api/ai/generate-deck`, {
+response = await API_FETCH(`${AI_DECK_API_ORIGIN}/api/ai/generate-deck`, {
 method: "POST",
-credentials: "include",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({
 text,

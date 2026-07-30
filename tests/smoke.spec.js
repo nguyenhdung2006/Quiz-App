@@ -80,6 +80,16 @@ async function preparePage(page, options = {}) {
   await page.route("http://localhost:8080/api/**", async (route) => {
     const url = route.request().url();
     const method = route.request().method();
+    if (url.endsWith("/api/csrf")) {
+      await route.fulfill({
+        json: {
+          headerName: "X-XSRF-TOKEN",
+          parameterName: "_csrf",
+          token: "smoke-csrf-token"
+        }
+      });
+      return;
+    }
     if (url.endsWith("/api/me")) {
       meRequestCount++;
       const response = Array.isArray(options.meResponses)
@@ -240,6 +250,147 @@ async function preparePage(page, options = {}) {
   Object.defineProperty(fatalConsole, "snapshotRequestCount", { get: () => snapshotRequestCount });
   return fatalConsole;
 }
+
+async function loadConfigOnly(page) {
+  await page.goto("about:blank");
+  await page.evaluate(() => {
+    window.QUIZ_APP_CONFIG = { apiOrigin: "http://localhost:8080" };
+  });
+  await page.addScriptTag({ path: "frontend/js/config.js" });
+}
+
+test("api client adds csrf only to trusted unsafe backend requests", async ({ page }) => {
+  await loadConfigOnly(page);
+
+  const calls = await page.evaluate(async () => {
+    const seen = [];
+    window.fetch = async (url, options = {}) => {
+      const headers = Object.fromEntries(new Headers(options.headers || {}).entries());
+      seen.push({
+        url: String(url),
+        method: options.method || "GET",
+        credentials: options.credentials || "",
+        headers,
+        hasBody: Boolean(options.body)
+      });
+
+      if (String(url).endsWith("/api/csrf")) {
+        return new Response(JSON.stringify({
+          headerName: "X-XSRF-TOKEN",
+          parameterName: "_csrf",
+          token: "token-one"
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    };
+
+    await window.quizApiFetch("http://localhost:8080/api/read");
+    await window.quizApiFetch("http://localhost:8080/api/write", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Custom": "keep-me" },
+      body: JSON.stringify({ ok: true })
+    });
+    await window.quizApiFetch("http://localhost:8080/api/edit", { method: "PUT" });
+    await window.quizApiFetch("https://third-party.example/api/write", { method: "POST" });
+    return seen;
+  });
+
+  expect(calls.map(call => call.url)).toEqual([
+    "http://localhost:8080/api/read",
+    "http://localhost:8080/api/csrf",
+    "http://localhost:8080/api/write",
+    "http://localhost:8080/api/edit",
+    "https://third-party.example/api/write"
+  ]);
+  expect(calls[0]).toMatchObject({ method: "GET", credentials: "include" });
+  expect(calls[0].headers["x-xsrf-token"]).toBeUndefined();
+  expect(calls[2].headers["x-xsrf-token"]).toBe("token-one");
+  expect(calls[2].headers["x-custom"]).toBe("keep-me");
+  expect(calls[3].headers["x-xsrf-token"]).toBe("token-one");
+  expect(calls[4].credentials).toBe("");
+  expect(calls[4].headers["x-xsrf-token"]).toBeUndefined();
+});
+
+test("api client preserves FormData headers and does not retry unsafe 403", async ({ page }) => {
+  await loadConfigOnly(page);
+
+  const calls = await page.evaluate(async () => {
+    const seen = [];
+    window.fetch = async (url, options = {}) => {
+      const headers = Object.fromEntries(new Headers(options.headers || {}).entries());
+      seen.push({
+        url: String(url),
+        method: options.method || "GET",
+        headers,
+        bodyType: options.body?.constructor?.name || ""
+      });
+
+      if (String(url).endsWith("/api/csrf")) {
+        return new Response(JSON.stringify({
+          headerName: "X-XSRF-TOKEN",
+          parameterName: "_csrf",
+          token: "token-form"
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+
+      return new Response(JSON.stringify({ message: "Forbidden." }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" }
+      });
+    };
+
+    const form = new FormData();
+    form.append("file", new Blob(["hello"], { type: "text/plain" }), "hello.txt");
+    await window.quizApiFetch("http://localhost:8080/api/upload", {
+      method: "POST",
+      body: form
+    });
+    return seen;
+  });
+
+  const unsafeCalls = calls.filter(call => call.url.endsWith("/api/upload"));
+  expect(unsafeCalls).toHaveLength(1);
+  expect(unsafeCalls[0].headers["x-xsrf-token"]).toBe("token-form");
+  expect(unsafeCalls[0].headers["content-type"]).toBeUndefined();
+  expect(unsafeCalls[0].bodyType).toBe("FormData");
+});
+
+test("api client refreshes csrf token after explicit clear", async ({ page }) => {
+  await loadConfigOnly(page);
+
+  const writes = await page.evaluate(async () => {
+    let tokenIndex = 0;
+    const sentTokens = [];
+    window.fetch = async (url, options = {}) => {
+      const requestUrl = String(url);
+      if (requestUrl.endsWith("/api/csrf")) {
+        tokenIndex += 1;
+        return new Response(JSON.stringify({
+          headerName: "X-XSRF-TOKEN",
+          parameterName: "_csrf",
+          token: `token-${tokenIndex}`
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+
+      sentTokens.push(new Headers(options.headers || {}).get("X-XSRF-TOKEN"));
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    };
+
+    await window.quizApiFetch("http://localhost:8080/api/write", { method: "POST" });
+    window.quizCsrf.clear();
+    await window.quizApiFetch("http://localhost:8080/api/write", { method: "DELETE" });
+    return sentTokens;
+  });
+
+  expect(writes).toEqual(["token-1", "token-2"]);
+});
 
 test("static app loads without fatal console errors", async ({ page }) => {
   const fatalConsole = await preparePage(page);

@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -115,6 +116,7 @@ class AiDeckGeneratorTests {
     @Test
     void generateDeckRequiresAuthentication() throws Exception {
         mockMvc.perform(post("/api/ai/generate-deck")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "text", "Useful vocabulary appears in this text."
@@ -123,11 +125,12 @@ class AiDeckGeneratorTests {
     }
 
     private static RequestPostProcessor oauthUser(String email) {
-        return oauth2Login().attributes(attributes -> {
+        RequestPostProcessor oauthLogin = oauth2Login().attributes(attributes -> {
             attributes.put("email", email);
             attributes.put("sub", "sub-" + email);
             attributes.put("name", "AI Deck User");
             attributes.put("picture", "https://example.com/avatar.png");
         });
+        return request -> csrf().postProcessRequest(oauthLogin.postProcessRequest(request));
     }
 }

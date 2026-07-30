@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -26,6 +27,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 @SpringBootTest(properties = {
         "GOOGLE_CLIENT_ID=test-client-id",
@@ -866,12 +868,13 @@ class BackendHardeningTests {
         return result.getResponse().getStatus();
     }
 
-    private static org.springframework.test.web.servlet.request.RequestPostProcessor oauthUser(String email) {
-        return oauth2Login().attributes(attributes -> {
+    private static RequestPostProcessor oauthUser(String email) {
+        RequestPostProcessor oauthLogin = oauth2Login().attributes(attributes -> {
             attributes.put("email", email);
             attributes.put("sub", "sub-" + email);
             attributes.put("name", "Test User");
             attributes.put("picture", "https://example.com/avatar.png");
         });
+        return request -> csrf().postProcessRequest(oauthLogin.postProcessRequest(request));
     }
 }

@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -185,11 +186,12 @@ class LearningAnalyticsTests {
     }
 
     private static RequestPostProcessor oauthUser(String email) {
-        return oauth2Login().attributes(attributes -> {
+        RequestPostProcessor oauthLogin = oauth2Login().attributes(attributes -> {
             attributes.put("email", email);
             attributes.put("sub", "sub-" + email);
             attributes.put("name", "Analytics User");
             attributes.put("picture", "https://example.com/avatar.png");
         });
+        return request -> csrf().postProcessRequest(oauthLogin.postProcessRequest(request));
     }
 }

@@ -1,5 +1,6 @@
 (function () {
 const ANALYTICS_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
+const API_FETCH = window.quizApiFetch || fetch.bind(window);
 
 let latestAnalytics = null;
 let cloudAnalyticsError = "";
@@ -205,9 +206,7 @@ return insights.slice(0, 4);
 
 async function fetchJson(path) {
 try {
-let response = await fetch(`${ANALYTICS_API_ORIGIN}${path}`, {
-credentials: "include"
-});
+let response = await API_FETCH(`${ANALYTICS_API_ORIGIN}${path}`);
 if (!response.ok) {
 cloudAnalyticsError = `Cloud analytics request failed (${response.status}). Showing local data.`;
 return null;

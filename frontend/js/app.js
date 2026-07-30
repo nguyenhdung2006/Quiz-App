@@ -1,6 +1,7 @@
 // App polish layer: preview guide, search, backup, and small UX helpers.
 (function () {
 const AUTH_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
+const API_FETCH = window.quizApiFetch || fetch.bind(window);
 const REQUIRE_AUTH = window.quizIsProductionFrontend ? window.quizIsProductionFrontend() : false;
 const CLOUD_DELETE_QUEUE_KEY = "cloudDeleteQueue";
 const AUTH_PROFILE_RETRY_DELAYS = [500, 1000];
@@ -305,9 +306,8 @@ continue;
 
 let attemptedAt = new Date().toISOString();
 try {
-let response = await fetch(`${AUTH_API_ORIGIN}/api/vocab/${encodeURIComponent(item.wordId)}`, {
-method: "DELETE",
-credentials: "include"
+let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/vocab/${encodeURIComponent(item.wordId)}`, {
+method: "DELETE"
 });
 if (!response.ok && response.status !== 404) {
 remaining.push({
@@ -509,9 +509,7 @@ setSyncStatus("Waiting for cloud snapshot...", "syncing");
 
 try {
 if (!await flushPendingCloudDeletes()) return false;
-let response = await fetch(`${AUTH_API_ORIGIN}/api/snapshot`, {
-credentials: "include"
-});
+let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/snapshot`);
 
 if (!response.ok) {
 setSyncStatus("Cloud unavailable", "warn");
@@ -574,9 +572,8 @@ return;
 if (isStaleDeviceRisk()) return blockStaleSyncPush();
 setSyncStatus("Syncing...", "syncing");
 if (!await flushPendingCloudDeletes()) return;
-let response = await fetch(`${AUTH_API_ORIGIN}/api/sync`, {
+let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/sync`, {
 method: "POST",
-credentials: "include",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({
 expectedRevision: cloudSyncState.lastKnownRevision,
@@ -624,10 +621,9 @@ async function requestJson(path, options = {}) {
 if (!cloudSyncReady || applyingCloudSnapshot) return null;
 
 try {
-let response = await fetch(`${AUTH_API_ORIGIN}${path}`, {
-credentials: "include",
-headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-...options
+let response = await API_FETCH(`${AUTH_API_ORIGIN}${path}`, {
+...options,
+headers: { "Content-Type": "application/json", ...(options.headers || {}) }
 });
 
 if (!response.ok) return null;
@@ -707,9 +703,8 @@ correct: selectedAnswer === correctAnswer
 };
 });
 
-let response = await fetch(`${AUTH_API_ORIGIN}/api/quiz-results`, {
+let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/quiz-results`, {
 method: "POST",
-credentials: "include",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({
 quizMode: window.currentQuizKind || modeSelect?.value || currentMode || "mixed",
@@ -1018,9 +1013,7 @@ return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function fetchCurrentUserOnce() {
-let response = await fetch(`${AUTH_API_ORIGIN}/api/me`, {
-credentials: "include"
-});
+let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/me`);
 
 if (response.status === 401 || response.status === 403) {
 return { status: "unauthenticated" };
@@ -1224,6 +1217,7 @@ if (result.status === "authenticated") {
 applyProfile(result.profile);
 resetCloudSyncStateForAccount();
 refreshAccountData();
+await window.quizCsrf?.refresh?.();
 cloudSyncReady = true;
 cloudSyncState.syncReady = true;
 let pulled = await pullCloudSnapshot();
@@ -1403,9 +1397,18 @@ if (event.key === "Escape") closeMenu();
 });
 
 logoutButtons.forEach(button => {
-button.addEventListener("click", () => {
+button.addEventListener("click", async () => {
+button.disabled = true;
+closeMenu();
+try {
+await API_FETCH(`${AUTH_API_ORIGIN}/logout`, { method: "POST" });
+} catch (error) {
+// Local cleanup and redirect still keep the visible app state consistent.
+} finally {
+window.quizCsrf?.clear?.();
 localStorage.removeItem("quizUserProfile");
-window.location.href = `${AUTH_API_ORIGIN}/logout`;
+window.location.href = new URL("login.html?loggedOut=true", window.location.href).href;
+}
 });
 });
 

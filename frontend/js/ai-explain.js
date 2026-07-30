@@ -1,5 +1,6 @@
 (function () {
 const AI_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
+const API_FETCH = window.quizApiFetch || fetch.bind(window);
 const AI_EXPLAIN_COOLDOWN_MS = 7000;
 const aiExplainCooldowns = new WeakMap();
 
@@ -63,10 +64,9 @@ source: "local-fallback"
 
 async function requestExplanation(request) {
 try {
-let response = await fetch(`${AI_API_ORIGIN}/api/ai/explain-wrong-answer`, {
+let response = await API_FETCH(`${AI_API_ORIGIN}/api/ai/explain-wrong-answer`, {
 method: "POST",
 headers: { "Content-Type": "application/json" },
-credentials: "include",
 body: JSON.stringify(request)
 });
 
