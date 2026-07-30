@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.quizapp.review.SpacedRepetitionService;
 import com.quizapp.vocab.VocabularyWord;
 import com.quizapp.vocab.WordStats;
+import javax.sql.DataSource;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -40,6 +41,9 @@ class SpacedRepetitionTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private DataSource dataSource;
 
     @Test
     void correctAnswerAtStreakOneSchedulesOneDay() {
@@ -196,7 +200,14 @@ class SpacedRepetitionTests {
                 .andReturn();
 
         JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
-        return created.get("id").asLong();
+        long wordId = created.get("id").asLong();
+        try (var connection = dataSource.getConnection();
+             var statement = connection.prepareStatement("UPDATE word_stats SET next_review = ? WHERE word_id = ?")) {
+            statement.setObject(1, java.sql.Timestamp.from(nextReview));
+            statement.setLong(2, wordId);
+            statement.executeUpdate();
+        }
+        return wordId;
     }
 
     private static RequestPostProcessor oauthUser(String email) {

@@ -2,6 +2,16 @@
 
 Date: 2026-06-08
 
+Update: 2026-07-30 - P0 business integrity lockdown changed the backend trust
+boundary for quiz and sync progress data. `/api/quiz-results` now recomputes
+totals, correctness, score, combo, XP, stats, wrong-bank state, and
+score-driven achievements from server-owned vocabulary answers. `/api/sync`,
+`POST /api/vocab`, `PUT /api/vocab/{id}`, starter import, and wrong-word sync
+continue to accept editable word content, but ignore client-supplied
+`mastered`, `stats`, and wrong-bank mastery/progress fields. Sections below
+describe the original audit; where they mention client stats overwriting server
+stats, that behavior has been superseded by the July 30 lockdown.
+
 ## Scope
 
 This is an audit-first reliability review of WordArena sync behavior. No sync code, storage format, backend API contract, database schema, or production data was changed.

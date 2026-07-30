@@ -10,7 +10,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import javax.sql.DataSource;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,6 +36,9 @@ class LearningAnalyticsTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private DataSource dataSource;
 
     @Test
     void analyticsEndpointsAggregateLearningDataAndInsights() throws Exception {
@@ -69,14 +74,14 @@ class LearningAnalyticsTests {
                 .andExpect(jsonPath("$.masteredWords", is(1)))
                 .andExpect(jsonPath("$.strugglingWords", greaterThanOrEqualTo(2)))
                 .andExpect(jsonPath("$.totalQuizSessions", is(1)))
-                .andExpect(jsonPath("$.weeklyXp", is(28)))
+                .andExpect(jsonPath("$.weeklyXp", is(3)))
                 .andExpect(jsonPath("$.insights[*].message", hasItem(containsString("business"))))
                 .andExpect(jsonPath("$.insights[*].message", hasItem(containsString("vie"))));
 
         mockMvc.perform(get("/api/analytics/accuracy-trend")
                         .with(oauthUser(email)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].accuracy", is(20)))
+                .andExpect(jsonPath("$[0].accuracy", is(0)))
                 .andExpect(jsonPath("$[0].quizCount", is(1)));
 
         mockMvc.perform(get("/api/analytics/weak-words")
@@ -131,11 +136,52 @@ class LearningAnalyticsTests {
         request.put("mastered", mastered);
         request.put("stats", stats);
 
-        mockMvc.perform(post("/api/vocab")
+        var result = mockMvc.perform(post("/api/vocab")
                         .with(oauthUser(email))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
+        long wordId = created.get("id").asLong();
+        try (var connection = dataSource.getConnection();
+             var statement = connection.prepareStatement("""
+                     UPDATE vocabulary
+                     SET mastered = ?
+                     WHERE id = ?
+                     """)) {
+            statement.setBoolean(1, mastered);
+            statement.setLong(2, wordId);
+            statement.executeUpdate();
+        }
+
+        try (var connection = dataSource.getConnection();
+             var statement = connection.prepareStatement("""
+                     UPDATE word_stats
+                     SET seen = ?,
+                         correct = ?,
+                         wrong = ?,
+                         current_streak = ?,
+                         best_streak = ?,
+                         mastery_level = ?,
+                         next_review = ?
+                     WHERE word_id = ?
+                     """)) {
+            statement.setInt(1, seen);
+            statement.setInt(2, correct);
+            statement.setInt(3, wrong);
+            statement.setInt(4, mastered ? 5 : 0);
+            statement.setInt(5, mastered ? 5 : 0);
+            statement.setInt(6, mastered ? 5 : 1);
+            if (nextReview == null) {
+                statement.setObject(7, null);
+            } else {
+                statement.setObject(7, java.sql.Timestamp.from(nextReview));
+            }
+            statement.setLong(8, wordId);
+            statement.executeUpdate();
+        }
     }
 
     private static RequestPostProcessor oauthUser(String email) {

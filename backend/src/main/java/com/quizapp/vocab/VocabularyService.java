@@ -142,13 +142,7 @@ public class VocabularyService {
         if (request.wrongWords() != null) {
             for (WordRequest incoming : request.wrongWords()) {
                 if (!isUsableSyncWord(incoming)) continue;
-                VocabularyWord word = upsertByEnglish(syncUser, incoming);
-                wrongBank.findByUserAndWord(syncUser, word).orElseGet(() -> {
-                    WrongBankEntry entry = new WrongBankEntry();
-                    entry.setUser(syncUser);
-                    entry.setWord(word);
-                    return wrongBank.save(entry);
-                }).setMastered(incoming.mastered());
+                upsertByEnglish(syncUser, incoming);
             }
         }
 
@@ -169,74 +163,56 @@ public class VocabularyService {
             history.setUser(syncUser);
             history.setQuizMode(defaultText(request.quizMode(), "mixed"));
             history.setChallengeSeconds(request.challengeSeconds());
-            history.setTotalQuestions(Math.max(0, request.totalQuestions()));
-            history.setCorrectAnswers(Math.max(0, request.correctAnswers()));
-            history.setWrongAnswers(Math.max(0, request.wrongAnswers()));
-            history.setScore(Math.max(0, Math.min(10, request.score())));
-            history.setMaxCombo(Math.max(0, request.maxCombo()));
+            int verifiedTotal = 0;
+            int verifiedCorrect = 0;
+            int verifiedMaxCombo = 0;
+            int currentCombo = 0;
 
             for (QuizAnswerRequest answer : request.answers()) {
                 if (answer.eng() == null || answer.eng().isBlank()) continue;
 
-                words.findByUserAndEngIgnoreCase(syncUser, answer.eng()).ifPresent(word -> {
-                    WordStats stats = ensureStats(word);
-                    stats.setSeen(stats.getSeen() + 1);
-                    stats.setLastReviewed(Instant.now());
+                VocabularyWord word = words.findByUserAndEngIgnoreCase(syncUser, answer.eng()).orElse(null);
+                if (word == null) continue;
 
-                    if (answer.correct()) {
-                        stats.setCorrect(stats.getCorrect() + 1);
-                        stats.setCurrentStreak(stats.getCurrentStreak() + 1);
-                        stats.setBestStreak(Math.max(stats.getBestStreak(), stats.getCurrentStreak()));
-                        stats.setMasteryLevel(Math.min(5, stats.getMasteryLevel() + 1));
-                        wrongBank.findByUserAndWord(syncUser, word).ifPresent(entry -> entry.setMastered(true));
-                    } else {
-                        stats.setWrong(stats.getWrong() + 1);
-                        stats.setCurrentStreak(0);
-                        stats.setMasteryLevel(Math.max(0, stats.getMasteryLevel() - 1));
-                        word.setMastered(false);
-                        WrongBankEntry entry = wrongBank.findByUserAndWord(syncUser, word).orElseGet(() -> {
-                            WrongBankEntry next = new WrongBankEntry();
-                            next.setUser(syncUser);
-                            next.setWord(word);
-                            return next;
-                        });
-                        entry.setMastered(false);
-                        wrongBank.save(entry);
-                    }
+                String questionMode = normalizeQuestionMode(answer.questionMode());
+                String serverCorrectAnswer = correctAnswerFor(word, questionMode);
+                boolean answerIsCorrect = answersMatch(answer.selectedAnswer(), serverCorrectAnswer);
+                verifiedTotal++;
+                if (answerIsCorrect) {
+                    verifiedCorrect++;
+                    currentCombo++;
+                    verifiedMaxCombo = Math.max(verifiedMaxCombo, currentCombo);
+                } else {
+                    currentCombo = 0;
+                }
 
-                    if (stats.getCurrentStreak() >= 5) {
-                        word.setMastered(true);
-                        stats.setMasteryLevel(5);
-                    }
-
-                    stats.setNextReview(progress.nextReview(stats, answer.correct()));
-
-                    QuizHistoryAnswer savedAnswer = new QuizHistoryAnswer();
-                    savedAnswer.setWord(word);
-                    savedAnswer.setQuestionMode(defaultText(answer.questionMode(), "mixed"));
-                    savedAnswer.setPrompt(word.getEng());
-                    savedAnswer.setSelectedAnswer(trim(answer.selectedAnswer()));
-                    savedAnswer.setCorrectAnswer(trim(answer.correctAnswer()));
-                    savedAnswer.setCorrect(answer.correct());
-                    history.addAnswer(savedAnswer);
-                });
+                applyVerifiedAnswer(syncUser, history, word, answer, questionMode, serverCorrectAnswer, answerIsCorrect);
             }
+
+            int verifiedWrong = verifiedTotal - verifiedCorrect;
+            history.setTotalQuestions(verifiedTotal);
+            history.setCorrectAnswers(verifiedCorrect);
+            history.setWrongAnswers(verifiedWrong);
+            history.setScore(scoreFor(verifiedCorrect, verifiedTotal));
+            history.setMaxCombo(verifiedMaxCombo);
 
             quizHistory.save(history);
 
-            int earnedXp = Math.max(0, request.correctAnswers() * 12 + request.totalQuestions() * 3 + request.maxCombo());
+            int earnedXp = quizXp(verifiedCorrect, verifiedTotal, verifiedMaxCombo);
             syncUser.setXp(syncUser.getXp() + earnedXp);
             syncUser.setLevel(Math.max(1, syncUser.getXp() / 250 + 1));
-            syncUser.setBestStreak(Math.max(syncUser.getBestStreak(), request.maxCombo()));
+            syncUser.setBestStreak(Math.max(syncUser.getBestStreak(), verifiedMaxCombo));
 
-            achievements.unlock(syncUser, "FIRST_QUIZ");
-            if (request.totalQuestions() > 0 && request.correctAnswers() == request.totalQuestions()) {
+            if (verifiedTotal > 0) {
+                achievements.unlock(syncUser, "FIRST_QUIZ");
+            }
+            if (verifiedTotal > 0 && verifiedCorrect == verifiedTotal) {
                 achievements.unlock(syncUser, "PERFECT_ROUND");
             }
-            if (request.maxCombo() >= 10) {
+            if (verifiedMaxCombo >= 10) {
                 achievements.unlock(syncUser, "COMBO_10");
             }
-            if ("daily".equalsIgnoreCase(defaultText(request.quizMode(), ""))) {
+            if (verifiedTotal > 0 && "daily".equalsIgnoreCase(defaultText(request.quizMode(), ""))) {
                 achievements.unlock(syncUser, "DAILY_CHALLENGE");
             }
 
@@ -250,6 +226,57 @@ public class VocabularyService {
             if (healthCounters != null) healthCounters.incrementQuizFailures();
             throw ex;
         }
+    }
+
+    private void applyVerifiedAnswer(
+            AppUser user,
+            QuizHistory history,
+            VocabularyWord word,
+            QuizAnswerRequest answer,
+            String questionMode,
+            String serverCorrectAnswer,
+            boolean answerIsCorrect
+    ) {
+        WordStats stats = ensureStats(word);
+        stats.setSeen(stats.getSeen() + 1);
+        stats.setLastReviewed(Instant.now());
+
+        if (answerIsCorrect) {
+            stats.setCorrect(stats.getCorrect() + 1);
+            stats.setCurrentStreak(stats.getCurrentStreak() + 1);
+            stats.setBestStreak(Math.max(stats.getBestStreak(), stats.getCurrentStreak()));
+            stats.setMasteryLevel(Math.min(5, stats.getMasteryLevel() + 1));
+            wrongBank.findByUserAndWord(user, word).ifPresent(entry -> entry.setMastered(true));
+        } else {
+            stats.setWrong(stats.getWrong() + 1);
+            stats.setCurrentStreak(0);
+            stats.setMasteryLevel(Math.max(0, stats.getMasteryLevel() - 1));
+            word.setMastered(false);
+            WrongBankEntry entry = wrongBank.findByUserAndWord(user, word).orElseGet(() -> {
+                WrongBankEntry next = new WrongBankEntry();
+                next.setUser(user);
+                next.setWord(word);
+                return next;
+            });
+            entry.setMastered(false);
+            wrongBank.save(entry);
+        }
+
+        if (stats.getCurrentStreak() >= 5) {
+            word.setMastered(true);
+            stats.setMasteryLevel(5);
+        }
+
+        stats.setNextReview(progress.nextReview(stats, answerIsCorrect));
+
+        QuizHistoryAnswer savedAnswer = new QuizHistoryAnswer();
+        savedAnswer.setWord(word);
+        savedAnswer.setQuestionMode(questionMode);
+        savedAnswer.setPrompt(promptFor(word, questionMode));
+        savedAnswer.setSelectedAnswer(trim(answer.selectedAnswer()));
+        savedAnswer.setCorrectAnswer(serverCorrectAnswer);
+        savedAnswer.setCorrect(answerIsCorrect);
+        history.addAnswer(savedAnswer);
     }
 
     @Transactional(readOnly = true)
@@ -361,19 +388,7 @@ public class VocabularyService {
         word.setCommonMistake(trim(request.commonMistake()));
         word.setNote(trim(request.note()));
         word.setFavorite(request.favorite());
-        word.setMastered(request.mastered());
-
-        WordStats stats = ensureStats(word);
-        if (request.stats() != null) {
-            stats.setSeen(request.stats().seen());
-            stats.setCorrect(request.stats().correct());
-            stats.setWrong(request.stats().wrong());
-            stats.setCurrentStreak(request.stats().streak());
-            stats.setBestStreak(request.stats().bestStreak());
-            stats.setMasteryLevel(request.stats().masteryLevel());
-            stats.setLastReviewed(request.stats().lastReviewed());
-            stats.setNextReview(request.stats().nextReview());
-        }
+        ensureStats(word);
     }
 
     private void ensureNoDuplicateEnglish(AppUser user, String normalizedEng, Long currentWordId) {
@@ -482,6 +497,36 @@ public class VocabularyService {
     private String defaultText(String value, String fallback) {
         String clean = trim(value);
         return clean.isBlank() ? fallback : clean;
+    }
+
+    private String normalizeQuestionMode(String value) {
+        String mode = defaultText(value, "eng").toLowerCase(Locale.ROOT);
+        return "vie".equals(mode) ? "vie" : "eng";
+    }
+
+    private String promptFor(VocabularyWord word, String questionMode) {
+        return "vie".equals(questionMode) ? word.getVie() : word.getEng();
+    }
+
+    private String correctAnswerFor(VocabularyWord word, String questionMode) {
+        return "vie".equals(questionMode) ? word.getEng() : word.getVie();
+    }
+
+    private boolean answersMatch(String selectedAnswer, String correctAnswer) {
+        return normalizeAnswerForComparison(selectedAnswer).equals(normalizeAnswerForComparison(correctAnswer));
+    }
+
+    private String normalizeAnswerForComparison(String value) {
+        return trim(value).replaceAll("\\s+", " ");
+    }
+
+    private double scoreFor(int correctAnswers, int totalQuestions) {
+        if (totalQuestions <= 0) return 0;
+        return Math.round((correctAnswers * 10.0 / totalQuestions) * 100.0) / 100.0;
+    }
+
+    private int quizXp(int correctAnswers, int totalQuestions, int maxCombo) {
+        return Math.max(0, correctAnswers * 12 + totalQuestions * 3 + maxCombo);
     }
 
     private String trim(String value) {

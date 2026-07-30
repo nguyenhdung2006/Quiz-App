@@ -2,7 +2,7 @@
 
 Consolidated status of all production hardening features implemented for WordArena.
 
-Last updated: 2026-06-09 (incident fixes documented)
+Last updated: 2026-07-30 (P0 business integrity lockdown documented)
 
 ---
 
@@ -14,13 +14,22 @@ Last updated: 2026-06-09 (incident fixes documented)
 | 2 | Stale device guard | Done | Stale device detection on auth bootstrap; warns user and pulls fresh snapshot instead of pushing |
 | 3 | `sync_revision` / optimistic concurrency | Done | Monotonic revision counter on `AppUser`; push sends expected revision; 409 Conflict on mismatch forces pull-and-retry |
 | 4 | Delete queue hardening | Done | `cloudDeleteQueue` in localStorage with attempts/backoff/lastError/lastStatus; blocks full sync while pending; idempotent backend DELETE |
-| 5 | Backend validation / clamp | Done | `sanitizeStats()` clamps all numeric fields to `[0, 1_000_000]`; `MAX_SAFE_COUNT` guard in review/analytics; `isUsableSyncWord()` filters malformed sync payloads |
+| 5 | Backend validation / integrity lock | Done | `/api/quiz-results` recomputes quiz totals, correctness, score, combo, XP, stats, wrong-bank state, and score-driven achievements from server vocabulary; sync/CRUD/import ignore client-owned `stats` and `mastered`; `MAX_SAFE_COUNT` guard remains in review/analytics; `isUsableSyncWord()` filters malformed sync payloads |
 | 6 | Supabase schema audit | Done | Read-only audit of 8 tables against entities, `database/schema.sql`, and code assumptions; 15 SQL queries ready for manual Supabase execution (see `docs/schema-audit.md`) |
 | 7 | Flyway baseline strategy | Done | Staged rollout plan documented; rehearsal executed locally against PostgreSQL 17 (PASS). Flyway disabled by default (`FLYWAY_ENABLED=false`). See `docs/flyway-baseline-strategy.md` |
 | 8 | Structured logging | Done | 8 log prefixes (`[SYNC]`, `[AUTH]`, `[AI]`, `[REVIEW]`, `[SNAPSHOT]`, `[ANALYTICS]`, `[QUIZ]`, `[ERROR]`) across all service classes |
 | 9 | Error surface UI | Done | Improved sync/auth error messaging, retry buttons (Sync Retry, AI Deck Retry, Review Retry), persistent submit error feedback, delete queue status in sync UI |
 | 10 | Basic health monitoring | Done | `/api/health`, `/api/health/summary`, `/actuator/health`, `/actuator/info` with in-memory counters; logging hygiene (no PII emails, no misleading `[AUTH]` tag on generic errors) |
 | 11 | Production incident documentation | Done | Documented in `docs/deploy.md#production-incident-fixes`: missing `sync_revision` column (manual SQL), PgBouncer `prepareThreshold=0`, first-sync deadlock fix (`!lastSync → return false`), secret audit, smoke test results, future deploy checklist |
+
+---
+
+## P0 Update - 2026-07-30 Business Integrity Lockdown
+
+- `POST /api/quiz-results` now treats client summary fields and answer correctness flags as untrusted. The backend resolves each submitted answer against the current user's vocabulary, recomputes correctness from server-owned word data, and derives total questions, correct/wrong counts, score, max combo, quiz XP, history totals, word stats, wrong-bank state, and score-driven achievements from the verified result.
+- `POST /api/sync`, `POST /api/vocab`, `PUT /api/vocab/{id}`, starter import, and wrong-word sync continue to accept editable word content, but no longer let client payloads overwrite server-managed `stats`, `mastered`, or wrong-bank mastery/progress fields.
+- Empty or cross-user quiz payloads can still create a zero-result quiz history entry and sync revision change, but do not award XP, stats, wrong-bank entries, or achievements.
+- Remaining limitation: quiz mode and replay prevention are not backed by a server-issued attempt token. Repeated valid answer submissions are still accepted and should be handled by a separate anti-replay design if product requirements demand it.
 
 ---
 

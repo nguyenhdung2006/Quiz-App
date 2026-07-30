@@ -478,7 +478,7 @@ class BackendHardeningTests {
     }
 
     @Test
-    void syncSkipsMalformedItemsAndClampsUnsafeStats() throws Exception {
+    void syncSkipsMalformedItemsAndIgnoresClientManagedStats() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/sync")
                         .with(oauthUser("sync-clamp@example.com"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -512,20 +512,207 @@ class BackendHardeningTests {
                 .andExpect(jsonPath("$.revision", is(1)))
                 .andExpect(jsonPath("$.vocab.length()", is(1)))
                 .andExpect(jsonPath("$.vocab[0].eng", is("safe stats")))
+                .andExpect(jsonPath("$.vocab[0].mastered", is(false)))
                 .andReturn();
 
         JsonNode stats = objectMapper.readTree(result.getResponse().getContentAsString())
                 .get("vocab").get(0).get("stats");
         org.assertj.core.api.Assertions.assertThat(stats.get("seen").asInt()).isZero();
         org.assertj.core.api.Assertions.assertThat(stats.get("correct").asInt()).isZero();
-        org.assertj.core.api.Assertions.assertThat(stats.get("wrong").asInt()).isEqualTo(1_000_000);
+        org.assertj.core.api.Assertions.assertThat(stats.get("wrong").asInt()).isZero();
         org.assertj.core.api.Assertions.assertThat(stats.get("streak").asInt()).isZero();
         org.assertj.core.api.Assertions.assertThat(stats.get("bestStreak").asInt()).isZero();
-        org.assertj.core.api.Assertions.assertThat(stats.get("masteryLevel").asInt()).isEqualTo(5);
+        org.assertj.core.api.Assertions.assertThat(stats.get("masteryLevel").asInt()).isZero();
         org.assertj.core.api.Assertions.assertThat(stats.path("lastReviewed").isMissingNode()
                 || stats.path("lastReviewed").isNull()).isTrue();
         org.assertj.core.api.Assertions.assertThat(stats.path("nextReview").isMissingNode()
                 || stats.path("nextReview").isNull()).isTrue();
+    }
+
+    @Test
+    void forgedQuizSummaryAndAnswerFlagsDoNotControlServerProgress() throws Exception {
+        String email = "quiz-forged-summary@example.com";
+        createWord(email, "focus", "tap trung");
+
+        MvcResult beforeResult = mockMvc.perform(get("/api/snapshot")
+                        .with(oauthUser(email)))
+                .andExpect(status().isOk())
+                .andReturn();
+        int xpBefore = objectMapper.readTree(beforeResult.getResponse().getContentAsString())
+                .path("profile").path("xp").asInt();
+
+        MvcResult result = mockMvc.perform(post("/api/quiz-results")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "quizMode": "mixed",
+                                  "challengeSeconds": 30,
+                                  "totalQuestions": 500,
+                                  "correctAnswers": 500,
+                                  "wrongAnswers": 0,
+                                  "score": 10,
+                                  "maxCombo": 500,
+                                  "answers": [
+                                    {
+                                      "eng": "focus",
+                                      "questionMode": "eng",
+                                      "selectedAnswer": "wrong answer",
+                                      "correctAnswer": "wrong answer",
+                                      "correct": true
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.quizHistory[0].totalQuestions", is(1)))
+                .andExpect(jsonPath("$.quizHistory[0].correctAnswers", is(0)))
+                .andExpect(jsonPath("$.quizHistory[0].wrongAnswers", is(1)))
+                .andExpect(jsonPath("$.quizHistory[0].score", is(0.0)))
+                .andExpect(jsonPath("$.quizHistory[0].maxCombo", is(0)))
+                .andExpect(jsonPath("$.vocab[0].stats.seen", is(1)))
+                .andExpect(jsonPath("$.vocab[0].stats.correct", is(0)))
+                .andExpect(jsonPath("$.vocab[0].stats.wrong", is(1)))
+                .andExpect(jsonPath("$.vocab[0].mastered", is(false)))
+                .andReturn();
+
+        JsonNode snapshot = objectMapper.readTree(result.getResponse().getContentAsString());
+        int xpAfter = snapshot.path("profile").path("xp").asInt();
+        org.assertj.core.api.Assertions.assertThat(xpAfter - xpBefore).isBetween(3, 23);
+        org.assertj.core.api.Assertions.assertThat(snapshot.path("achievements").findValuesAsText("code"))
+                .contains("FIRST_QUIZ")
+                .doesNotContain("PERFECT_ROUND", "COMBO_10");
+    }
+
+    @Test
+    void emptyForgedQuizResultDoesNotAwardXpOrAchievements() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/quiz-results")
+                        .with(oauthUser("quiz-empty-forged@example.com"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "quizMode": "daily",
+                                  "challengeSeconds": 30,
+                                  "totalQuestions": 500,
+                                  "correctAnswers": 500,
+                                  "wrongAnswers": 0,
+                                  "score": 10,
+                                  "maxCombo": 500,
+                                  "answers": []
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.profile.xp", is(0)))
+                .andExpect(jsonPath("$.achievements.length()", is(0)))
+                .andExpect(jsonPath("$.quizHistory[0].totalQuestions", is(0)))
+                .andExpect(jsonPath("$.quizHistory[0].correctAnswers", is(0)))
+                .andExpect(jsonPath("$.quizHistory[0].wrongAnswers", is(0)))
+                .andExpect(jsonPath("$.quizHistory[0].score", is(0.0)))
+                .andExpect(jsonPath("$.quizHistory[0].maxCombo", is(0)))
+                .andReturn();
+
+        JsonNode snapshot = objectMapper.readTree(result.getResponse().getContentAsString());
+        org.assertj.core.api.Assertions.assertThat(snapshot.path("profile").path("xp").asInt()).isZero();
+    }
+
+    @Test
+    void quizResultCannotMutateAnotherUsersVocabulary() throws Exception {
+        String ownerEmail = "quiz-owner@example.com";
+        String attackerEmail = "quiz-attacker@example.com";
+        createWord(ownerEmail, "private term", "nghia rieng");
+
+        mockMvc.perform(post("/api/quiz-results")
+                        .with(oauthUser(attackerEmail))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "quizMode": "mixed",
+                                  "challengeSeconds": 30,
+                                  "totalQuestions": 500,
+                                  "correctAnswers": 500,
+                                  "wrongAnswers": 0,
+                                  "score": 10,
+                                  "maxCombo": 500,
+                                  "answers": [
+                                    {
+                                      "eng": "private term",
+                                      "questionMode": "eng",
+                                      "selectedAnswer": "nghia rieng",
+                                      "correctAnswer": "nghia rieng",
+                                      "correct": true
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.profile.xp", is(0)))
+                .andExpect(jsonPath("$.achievements.length()", is(0)))
+                .andExpect(jsonPath("$.quizHistory[0].totalQuestions", is(0)));
+
+        mockMvc.perform(get("/api/snapshot")
+                        .with(oauthUser(ownerEmail)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vocab[0].stats.seen", is(0)))
+                .andExpect(jsonPath("$.vocab[0].stats.correct", is(0)))
+                .andExpect(jsonPath("$.vocab[0].stats.wrong", is(0)))
+                .andExpect(jsonPath("$.wrongWords.length()", is(0)));
+    }
+
+    @Test
+    void syncPayloadCannotOverwriteServerManagedProgressFields() throws Exception {
+        String email = "sync-progress-lock@example.com";
+        createWord(email, "focus", "tap trung");
+
+        MvcResult snapshotResult = mockMvc.perform(get("/api/snapshot")
+                        .with(oauthUser(email)))
+                .andExpect(status().isOk())
+                .andReturn();
+        long revision = objectMapper.readTree(snapshotResult.getResponse().getContentAsString())
+                .path("revision").asLong();
+
+        mockMvc.perform(post("/api/sync")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "expectedRevision": %d,
+                                  "vocab": [
+                                    {
+                                      "eng": "focus",
+                                      "vie": "tap trung",
+                                      "pos": "v",
+                                      "mastered": true,
+                                      "stats": {
+                                        "seen": 99,
+                                        "correct": 98,
+                                        "wrong": 1,
+                                        "streak": 98,
+                                        "bestStreak": 99,
+                                        "masteryLevel": 5,
+                                        "lastReviewed": "2026-01-01T00:00:00Z",
+                                        "nextReview": "2027-01-01T00:00:00Z"
+                                      }
+                                    }
+                                  ],
+                                  "wrongWords": [
+                                    {
+                                      "eng": "focus",
+                                      "vie": "tap trung",
+                                      "pos": "v",
+                                      "mastered": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(revision)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vocab[0].mastered", is(false)))
+                .andExpect(jsonPath("$.vocab[0].stats.seen", is(0)))
+                .andExpect(jsonPath("$.vocab[0].stats.correct", is(0)))
+                .andExpect(jsonPath("$.vocab[0].stats.wrong", is(0)))
+                .andExpect(jsonPath("$.vocab[0].stats.streak", is(0)))
+                .andExpect(jsonPath("$.vocab[0].stats.bestStreak", is(0)))
+                .andExpect(jsonPath("$.vocab[0].stats.masteryLevel", is(0)))
+                .andExpect(jsonPath("$.wrongWords.length()", is(0)));
     }
 
     @Test
