@@ -26,6 +26,12 @@ jobs:
           chmod +x mvnw
           ./mvnw -B test
 
+      - name: Run production database safety guards
+        working-directory: backend
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -Dtest=ProductionDatabaseSafetyGuardTests test
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

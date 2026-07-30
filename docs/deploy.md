@@ -44,12 +44,14 @@ variables in the hosting platform.
 
 | Variable | Required | Notes |
 | --- | --- | --- |
+| `SPRING_PROFILES_ACTIVE` | Production yes | Use `prod`. The alias `production` activates the `prod` profile group. |
 | `DATABASE_URL` | Production yes | JDBC URL, for example `jdbc:postgresql://HOST:5432/DB`. Local can omit for H2. If using Supabase pooler (port 6543), append `?prepareThreshold=0` (or `&prepareThreshold=0` if other params exist) to prevent PgBouncer prepared-statement errors. |
 | `DATABASE_USERNAME` | Production yes | PostgreSQL username. |
 | `DATABASE_PASSWORD` | Production yes | PostgreSQL password. |
-| `JPA_DDL_AUTO` | Production yes | Use `validate` after schema is created. Local can omit for `update`. |
-| `FLYWAY_ENABLED` | Optional | Defaults to `false`. Set to `true` only for a verified PostgreSQL database or a fresh database that should run migrations. |
-| `FLYWAY_BASELINE_ON_MIGRATE` | Optional | Defaults to `false`. Do not enable unless intentionally baselining an existing verified database. |
+| `JPA_DDL_AUTO` | Optional | Local default path can use `update`. Production profile pins the effective value to `validate`; unsafe overrides fail startup. |
+| `FLYWAY_ENABLED` | Optional | Local default is `false`. Production profile pins the effective value to `true`; unsafe overrides fail startup. |
+| `FLYWAY_BASELINE_ON_MIGRATE` | Optional | Must be `false` for application production startup. If an existing database needs a baseline marker, perform that as a separately approved maintenance action, not as steady-state app config. |
+| `FLYWAY_BASELINE_VERSION` | Optional | Defaults to `1` for an existing verified schema baseline. Do not change without a reviewed baseline decision. |
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth client ID. |
 | `GOOGLE_CLIENT_SECRET` | Yes | Google OAuth client secret. |
 | `FRONTEND_URL` | Production yes | Public frontend origin, for example `https://YOUR_FRONTEND_DOMAIN`. |
@@ -186,19 +188,33 @@ deploy. Use this safer rollout:
 5. Enable Flyway only after the baseline marker is correct.
 6. Keep `JPA_DDL_AUTO=validate`.
 
-See `docs/flyway-baseline-strategy.md` for the full staged production plan,
-including the one-time `FLYWAY_BASELINE_ON_MIGRATE=true` window and when to turn
-it back off.
+See `docs/flyway-baseline-strategy.md` for the full staged production plan.
+The production application profile refuses `baseline-on-migrate=true`; any
+existing-database baseline marker must be created through a controlled
+maintenance action after backup and rehearsal.
 
 Minimum production database env after verification:
 
 ```text
+SPRING_PROFILES_ACTIVE=prod
 DATABASE_URL=jdbc:postgresql://HOST:5432/quizapp
 DATABASE_USERNAME=...
 DATABASE_PASSWORD=...
-FLYWAY_ENABLED=true
-JPA_DDL_AUTO=validate
 ```
+
+`backend/src/main/resources/application-prod.yml` supplies:
+
+```text
+spring.jpa.hibernate.ddl-auto=validate
+spring.flyway.enabled=true
+spring.flyway.validate-on-migrate=true
+spring.flyway.clean-disabled=true
+spring.flyway.baseline-on-migrate=false
+```
+
+`ProductionDatabaseSafetyGuard` also checks the effective runtime values and
+fails startup when the `prod` or `production` profile is active with unsafe
+database settings.
 
 If the platform provides a PostgreSQL URL in a different format, convert it to a
 JDBC URL before setting `DATABASE_URL`.

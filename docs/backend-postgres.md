@@ -19,17 +19,21 @@ CREATE DATABASE quizapp;
 For a fresh PostgreSQL database, prefer Flyway:
 
 ```powershell
+$env:SPRING_PROFILES_ACTIVE="prod"
 $env:DATABASE_URL="jdbc:postgresql://localhost:5432/quizapp"
 $env:DATABASE_USERNAME="postgres"
 $env:DATABASE_PASSWORD="your_password"
-$env:FLYWAY_ENABLED="true"
-$env:JPA_DDL_AUTO="validate"
 .\mvnw.cmd spring-boot:run
 ```
 
 Flyway is disabled by default because the current baseline migration is
 PostgreSQL-specific and the normal local/test path uses H2. Leave
 `FLYWAY_ENABLED` unset for quick H2 development.
+
+The `prod` profile loads `application-prod.yml`, which pins Hibernate to
+`validate`, enables Flyway, validates migrations, disables Flyway clean, and
+keeps `baseline-on-migrate=false`. Unsafe effective production settings fail
+startup through `ProductionDatabaseSafetyGuard`.
 
 The legacy `database/schema.sql` file remains as a reference and manual repair
 script while migration rollout is staged. Do not apply `database/schema.sql` and
@@ -43,11 +47,13 @@ database has been verified and baselined:
    seed data against `backend/src/main/resources/db/migration/V1__baseline_schema.sql`.
 3. Check old manual repair gaps before trusting `JPA_DDL_AUTO=validate`.
 4. Add the Flyway baseline marker intentionally.
-5. Only then set `FLYWAY_ENABLED=true` with `JPA_DDL_AUTO=validate`.
+5. Only then run with `SPRING_PROFILES_ACTIVE=prod`.
 
 See `docs/flyway-baseline-strategy.md` for the staged production baseline
-sequence. Keep `FLYWAY_BASELINE_ON_MIGRATE=false` except during the intentional
-one-time baseline window for an existing verified database.
+sequence. The production application profile refuses
+`FLYWAY_BASELINE_ON_MIGRATE=true`; create any required existing-database
+baseline marker through a controlled maintenance action after backup and
+rehearsal.
 
 If you intentionally need the old manual schema path for a local PostgreSQL
 database, apply it before startup and keep Flyway disabled:

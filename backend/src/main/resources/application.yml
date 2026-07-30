@@ -4,6 +4,9 @@ spring:
       - optional:file:./.env[.properties]
       - optional:file:../.env[.properties]
       - optional:file:./config/oauth2-google.yml
+  profiles:
+    group:
+      production: prod
   security:
     oauth2:
       client:

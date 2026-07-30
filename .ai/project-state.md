@@ -8,3 +8,4 @@ Frontend backend calls are centralized through `window.quizApiFetch` in `fronten
 
 Logout is now `POST /logout` with CSRF. Backend returns `204 No Content`; frontend redirects to `login.html?loggedOut=true`.
 
+As of 2026-07-31, production database schema ownership is Flyway-first. `application-prod.yml` pins Hibernate `ddl-auto=validate`, Flyway enabled, validate-on-migrate enabled, clean disabled, and baseline-on-migrate disabled. `ProductionDatabaseSafetyGuard` fails startup for unsafe effective database settings when `prod` or `production` profile is active.

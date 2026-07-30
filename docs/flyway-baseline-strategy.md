@@ -4,7 +4,7 @@
 
 WordArena now has a conservative Flyway baseline strategy, but production Flyway rollout should remain staged. The production Supabase audit was manually verified before this plan: no normalized vocabulary duplicates, no orphan `word_stats`, no dangerous NULL corruption, no negative stats corruption, and review NULL timestamps are benign for new words. This means the project can prepare migration discipline, but it should still avoid any automatic production schema replay.
 
-No new production columns are introduced by this strategy. `app_users.sync_revision` remains a future migration, not part of this baseline task.
+`app_users.sync_revision` is now represented by `V2__add_sync_revision.sql`. No tombstone table or tombstone column is part of this strategy.
 
 ## Current Schema Lifecycle
 
@@ -15,36 +15,42 @@ Current backend defaults:
 - `spring.flyway.baseline-on-migrate=${FLYWAY_BASELINE_ON_MIGRATE:false}`
 - Flyway migration directory: `backend/src/main/resources/db/migration`
 - Current baseline file: `backend/src/main/resources/db/migration/V1__baseline_schema.sql`
+- Current highest migration: `backend/src/main/resources/db/migration/V2__add_sync_revision.sql`
 - Legacy manual schema file: `database/schema.sql`
+- Production profile file: `backend/src/main/resources/application-prod.yml`
 
 What this means:
 
 - Local H2 development still boots quickly with Hibernate `update`.
-- Production does not run Flyway unless `FLYWAY_ENABLED=true` is explicitly set.
+- Production runs Flyway when `SPRING_PROFILES_ACTIVE=prod` is set.
 - Existing production data is not automatically recreated or replayed.
-- The app is prepared for Flyway, but production migration discipline is not fully active until baseline history is intentionally established.
+- The app fails startup in the production profile if effective database settings are unsafe.
 
 ## Config Decisions
 
-`backend/src/main/resources/application.properties` keeps Flyway disabled by default and now makes safety behavior explicit:
+`backend/src/main/resources/application.properties` keeps Flyway disabled by default for local/H2, while `backend/src/main/resources/application-prod.yml` makes production safety explicit:
 
-```properties
-spring.flyway.enabled=${FLYWAY_ENABLED:false}
-spring.flyway.locations=classpath:db/migration
-spring.flyway.baseline-on-migrate=${FLYWAY_BASELINE_ON_MIGRATE:false}
-spring.flyway.baseline-version=${FLYWAY_BASELINE_VERSION:1}
-spring.flyway.baseline-description=${FLYWAY_BASELINE_DESCRIPTION:Existing production schema baseline}
-spring.flyway.validate-on-migrate=true
-spring.flyway.clean-disabled=true
+```yaml
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+    clean-disabled: true
+    baseline-on-migrate: false
 ```
 
 Decision notes:
 
-- `FLYWAY_ENABLED=false` by default prevents surprise production migration execution.
-- `FLYWAY_BASELINE_ON_MIGRATE=false` by default prevents accidental baselining.
+- Local `FLYWAY_ENABLED=false` keeps quick H2 startup unchanged.
+- Production `spring.flyway.enabled=true` makes Flyway the schema owner.
+- Production `spring.flyway.baseline-on-migrate=false` prevents accidental baselining.
 - `baseline-version=1` matches the existing `V1__baseline_schema.sql`.
 - `validate-on-migrate=true` keeps future migrations strict.
 - `clean-disabled=true` blocks destructive Flyway clean behavior from application startup.
+- `ProductionDatabaseSafetyGuard` rejects unsafe effective values when `prod` or `production` is active.
 
 ## Baseline Version
 
@@ -130,42 +136,25 @@ Safest rollout:
 
 1. Back up/export Supabase schema and data.
 2. Confirm production audit findings remain clean.
-3. Deploy current app with Flyway still disabled:
+3. Confirm `flyway_schema_history` state on a staging copy.
+4. If an existing non-empty database has no Flyway history, create the baseline marker through a controlled DBA/Flyway maintenance action, not by deploying the application with `baseline-on-migrate=true`.
+5. Confirm `flyway_schema_history` contains version `1`.
+6. Start the application with the production profile:
 
 ```text
-FLYWAY_ENABLED=false
-JPA_DDL_AUTO=validate
+SPRING_PROFILES_ACTIVE=prod
 ```
 
-4. Confirm `/actuator/health`, `/api/me`, `/api/snapshot`, `/api/review/queue`, and `/api/analytics/overview`.
-5. During a planned low-risk window, baseline the existing schema once:
+7. Confirm `/actuator/health`, `/api/me`, `/api/snapshot`, `/api/review/queue`, and `/api/analytics/overview`.
 
-```text
-FLYWAY_ENABLED=true
-FLYWAY_BASELINE_ON_MIGRATE=true
-FLYWAY_BASELINE_VERSION=1
-JPA_DDL_AUTO=validate
-```
-
-6. Confirm `flyway_schema_history` contains version `1`.
-7. Immediately turn baseline-on-migrate back off:
-
-```text
-FLYWAY_ENABLED=true
-FLYWAY_BASELINE_ON_MIGRATE=false
-JPA_DDL_AUTO=validate
-```
-
-8. Only after this point should V2 migrations be added.
-
-Do not deploy `V2__add_sync_revision.sql` until production has a correct Flyway baseline marker.
+Because `V2__add_sync_revision.sql` is already present, do not enable the production profile against an existing non-empty database until the baseline marker and current schema have been verified. If production already has `sync_revision` manually, V2 is additive and idempotent, but it still must be recorded by Flyway after baseline.
 
 ## Production Safety Protections
 
 This strategy avoids:
 
 - running V1 against existing production tables
-- enabling Flyway by default
+- enabling Flyway in local/default H2 startup
 - enabling baseline-on-migrate by default
 - destructive Flyway clean
 - adding `sync_revision` before baseline discipline exists
@@ -207,10 +196,4 @@ Next safest task:
 Task 7.1 - Stage Flyway baseline on a copied/staging Supabase database.
 ```
 
-Only after staging proves clean startup should production run the one-time baseline marker. Then Task 3 can add:
-
-```text
-V2__add_sync_revision.sql
-```
-
-with `app_users.sync_revision BIGINT NOT NULL DEFAULT 0`.
+Only after staging proves clean startup should production run the one-time baseline marker and then start with `SPRING_PROFILES_ACTIVE=prod`. Tombstone work must be a later migration after V2.

@@ -40,6 +40,22 @@ cd backend
 .\mvnw.cmd clean package -DskipTests
 ```
 
+Production database safety guard:
+
+```powershell
+cd backend
+.\mvnw.cmd -Dtest=ProductionDatabaseSafetyGuardTests test
+```
+
+This test verifies:
+
+- `application-prod.yml` pins Hibernate to `validate`.
+- Production Flyway is enabled and validates migrations.
+- Flyway clean is disabled.
+- Production app startup rejects `baseline-on-migrate=true`.
+- Unsafe effective overrides fail when `prod` is active.
+- Migration files are ordered, contiguous, versioned, and do not contain tombstone work.
+
 ```powershell
 npm run test:frontend
 node --check frontend\js\config.js
@@ -50,4 +66,3 @@ node --check frontend\js\review-today.js
 node --check frontend\js\analytics-dashboard.js
 node --check frontend\js\login.js
 ```
-

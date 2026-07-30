@@ -1,0 +1,9 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    validate-on-migrate: true
+    clean-disabled: true
+    baseline-on-migrate: false
