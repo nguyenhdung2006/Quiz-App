@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import javax.sql.DataSource;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +37,9 @@ class SyncContractV2Tests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private DataSource dataSource;
 
     @Test
     void directCrudCreatesReturnsAndPreservesStableWordUid() throws Exception {
@@ -174,7 +178,57 @@ class SyncContractV2Tests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.vocab.length()", is(0)))
                 .andExpect(jsonPath("$.tombstones.length()", is(1)))
-                .andExpect(jsonPath("$.tombstones[0].wordUid", is(wordUid)));
+                .andExpect(jsonPath("$.tombstones[0].wordUid", is(wordUid)))
+                .andExpect(jsonPath("$.tombstones[0].legacyWordId", is((int) id)));
+    }
+
+    @Test
+    void deleteByUidWithoutLiveRowCreatesTombstoneWithNullLegacyWordId() throws Exception {
+        String email = "uid-delete-no-live@example.com";
+        String wordUid = UUID.randomUUID().toString();
+
+        mockMvc.perform(delete("/api/vocab/uid/" + wordUid).with(oauthUser(email)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/snapshot").with(oauthUser(email)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.revision", is(1)))
+                .andExpect(jsonPath("$.vocab.length()", is(0)))
+                .andExpect(jsonPath("$.tombstones.length()", is(1)))
+                .andExpect(jsonPath("$.tombstones[0].wordUid", is(wordUid)))
+                .andExpect(jsonPath("$.tombstones[0].legacyWordId").doesNotExist());
+    }
+
+    @Test
+    void tombstoneLegacyWordIdIsScopedPerUser() throws Exception {
+        String userA = "legacy-scope-a@example.com";
+        String userB = "legacy-scope-b@example.com";
+        long userAId = userId(userA);
+
+        MvcResult userBWordResult = mockMvc.perform(post("/api/vocab")
+                        .with(oauthUser(userB))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(wordJson(UUID.randomUUID().toString(), "private b", "rieng b")))
+                .andExpect(status().isOk())
+                .andReturn();
+        long userBWordId = objectMapper.readTree(userBWordResult.getResponse().getContentAsString()).path("id").asLong();
+
+        try (var connection = dataSource.getConnection();
+             var statement = connection.prepareStatement("""
+                     INSERT INTO word_tombstones (user_id, word_uid, legacy_word_id, deleted_at, deleted_revision)
+                     VALUES (?, ?, ?, CURRENT_TIMESTAMP, 1)
+                     """)) {
+            statement.setLong(1, userAId);
+            statement.setObject(2, UUID.randomUUID());
+            statement.setLong(3, userBWordId);
+            statement.executeUpdate();
+        }
+
+        mockMvc.perform(get("/api/snapshot").with(oauthUser(userB)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vocab.length()", is(1)))
+                .andExpect(jsonPath("$.vocab[0].id", is((int) userBWordId)))
+                .andExpect(jsonPath("$.tombstones.length()", is(0)));
     }
 
     @Test
@@ -247,6 +301,16 @@ class SyncContractV2Tests {
 
     private String wordJson(String wordUid, String eng, String vie) throws Exception {
         return objectMapper.writeValueAsString(wordMap(wordUid, eng, vie));
+    }
+
+    private long userId(String email) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/snapshot").with(oauthUser(email)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("profile")
+                .path("id")
+                .asLong();
     }
 
     private static RequestPostProcessor oauthUser(String email) {

@@ -16,3 +16,4 @@ As of 2026-07-31, production database schema ownership is Flyway-first. `applica
 - Tombstones: `WordTombstone` maps to `word_tombstones`; direct deletes hard-delete live rows and retain tombstones.
 - Frontend creates/persists `wordUid`, sends `syncContractVersion: 2`, sends `deletions`, applies tombstones before live merge, and retries one rebuilt sync after 409.
 - CI includes PostgreSQL migration/validate coverage.
+- V4 adds `word_tombstones.legacy_word_id` so legacy local words with only numeric `id` are removed by tombstones before sync.

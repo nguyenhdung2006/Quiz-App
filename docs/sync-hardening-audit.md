@@ -1067,6 +1067,7 @@ Implemented hardening items:
 - `wrongWords` request data is ignored for upsert/create.
 - Deletions are modeled as `deletions: [{ wordUid }]`.
 - Tombstones are returned in snapshots and override live payloads.
+- Tombstones include nullable `legacyWordId` so upgraded legacy devices can remove deleted local words before they ever adopted the server `wordUid`.
 - Revision increments at most once per sync and does not increment for idempotent repeated deletes/no-op tombstone payloads.
 
 Remaining operational gap: a real staging database rehearsal was not executed locally in this workspace. CI now provides PostgreSQL migration plus Hibernate validate coverage.

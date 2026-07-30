@@ -84,6 +84,19 @@ Request shape:
 
 Response includes `syncContractVersion`, `revision`, live `vocab`, and `tombstones`. Tombstones win over live records with the same `wordUid`.
 
+Tombstone response shape:
+
+```json
+{
+  "wordUid": "2a13ee3f-30f3-40e2-a47a-502688fd0f3a",
+  "legacyWordId": 123,
+  "deletedAt": "2026-01-05T00:00:00Z",
+  "deletedRevision": 8
+}
+```
+
+`legacyWordId` is nullable and exists only to let upgraded legacy clients remove old local words that have numeric `id` but never adopted the server `wordUid`.
+
 Direct CRUD changes:
 
 - `POST /api/vocab` accepts optional `wordUid` and returns it.

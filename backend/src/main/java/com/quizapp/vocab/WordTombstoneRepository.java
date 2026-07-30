@@ -12,4 +12,5 @@ public interface WordTombstoneRepository extends JpaRepository<WordTombstone, Lo
     boolean existsByUserAndWordUid(AppUser user, UUID wordUid);
     List<WordTombstone> findByUserOrderByDeletedRevisionAscDeletedAtAsc(AppUser user);
     List<WordTombstone> findByUserAndWordUidIn(AppUser user, Collection<UUID> wordUids);
+    List<WordTombstone> findByUserAndLegacyWordId(AppUser user, Long legacyWordId);
 }

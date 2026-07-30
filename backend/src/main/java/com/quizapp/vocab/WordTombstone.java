@@ -34,6 +34,9 @@ public class WordTombstone {
     @Column(name = "word_uid", nullable = false)
     private UUID wordUid;
 
+    @Column(name = "legacy_word_id")
+    private Long legacyWordId;
+
     @Column(name = "deleted_at", nullable = false)
     private Instant deletedAt;
 
@@ -45,6 +48,8 @@ public class WordTombstone {
     public void setUser(AppUser user) { this.user = user; }
     public UUID getWordUid() { return wordUid; }
     public void setWordUid(UUID wordUid) { this.wordUid = wordUid; }
+    public Long getLegacyWordId() { return legacyWordId; }
+    public void setLegacyWordId(Long legacyWordId) { this.legacyWordId = legacyWordId; }
     public Instant getDeletedAt() { return deletedAt; }
     public void setDeletedAt(Instant deletedAt) { this.deletedAt = deletedAt; }
     public long getDeletedRevision() { return deletedRevision == null ? 0L : deletedRevision; }

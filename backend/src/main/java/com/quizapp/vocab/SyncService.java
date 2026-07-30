@@ -126,7 +126,7 @@ public class SyncService {
                         word -> hardDeleteWithTombstone(syncUser, word),
                         () -> {
                             if (!tombstones.existsByUserAndWordUid(syncUser, wordUid)) {
-                                createTombstoneIfMissing(syncUser, wordUid, syncUser.incrementSyncRevision());
+                                createTombstoneIfMissing(syncUser, wordUid, null, syncUser.incrementSyncRevision());
                             }
                         }
                 );
@@ -255,6 +255,7 @@ public class SyncService {
                 WordTombstone tombstone = new WordTombstone();
                 tombstone.setUser(user);
                 tombstone.setWordUid(wordUid);
+                tombstone.setLegacyWordId(live == null ? null : live.getId());
                 tombstone.setDeletedAt(deletedAt);
                 tombstone.setDeletedRevision(deletedRevision);
                 tombstones.save(tombstone);
@@ -296,16 +297,17 @@ public class SyncService {
         long revision = user.incrementSyncRevision();
         wrongBank.deleteByUserAndWord(user, word);
         words.delete(word);
-        createTombstoneIfMissing(user, word.getWordUid(), revision);
+        createTombstoneIfMissing(user, word.getWordUid(), word.getId(), revision);
         log.info("[SYNC] Word deleted userId={} wordId={} wordUid={}",
                 user.getId(), word.getId(), word.getWordUid());
     }
 
-    private void createTombstoneIfMissing(AppUser user, UUID wordUid, long deletedRevision) {
+    private void createTombstoneIfMissing(AppUser user, UUID wordUid, Long legacyWordId, long deletedRevision) {
         if (tombstones.existsByUserAndWordUid(user, wordUid)) return;
         WordTombstone tombstone = new WordTombstone();
         tombstone.setUser(user);
         tombstone.setWordUid(wordUid);
+        tombstone.setLegacyWordId(legacyWordId);
         tombstone.setDeletedAt(Instant.now());
         tombstone.setDeletedRevision(deletedRevision);
         tombstones.save(tombstone);

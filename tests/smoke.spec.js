@@ -534,6 +534,49 @@ test("logged-in empty local storage pulls cloud words before sync", async ({ pag
   expect(fatalConsole).toEqual([]);
 });
 
+test("legacy local word is removed by tombstone legacyWordId before sync", async ({ page }) => {
+  const profile = { name: "Legacy Tombstone", email: "legacy-tombstone@example.com", avatar: "images/icon.png" };
+  const legacyWord = {
+    ...word("legacy hello", "xin chao", "legacy", 122),
+    id: 123
+  };
+  delete legacyWord.wordUid;
+
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    vocab: [legacyWord],
+    wrongWords: [{ ...legacyWord, mastered: false }],
+    cloudSnapshot: {
+      revision: 9,
+      profile,
+      vocab: [],
+      tombstones: [{
+        wordUid: "00000000-0000-4000-8000-000000001234",
+        legacyWordId: 123,
+        deletedAt: "2026-01-05T00:00:00.000Z",
+        deletedRevision: 9
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect.poll(async () => page.evaluate((accountId) => {
+    const words = JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]");
+    const wrong = JSON.parse(localStorage.getItem(`quizAccount:${accountId}:wrongWords`) || "[]");
+    const queue = localStorage.getItem(`quizAccount:${accountId}:cloudDeleteQueue`);
+    return { words, wrong, queue };
+  }, fatalConsole.accountId)).toEqual({ words: [], wrong: [], queue: null });
+
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  expect(fatalConsole.syncBodies.at(-1).vocab.map(item => item.eng)).not.toContain("legacy hello");
+  expect(fatalConsole.syncBodies.at(-1).deletions || []).toHaveLength(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
 test("sync revision conflict pulls cloud snapshot and retries rebuilt push once", async ({ page }) => {
   const profile = { name: "Conflict Tester", email: "conflict@example.com", avatar: "images/icon.png" };
   const fatalConsole = await preparePage(page, {

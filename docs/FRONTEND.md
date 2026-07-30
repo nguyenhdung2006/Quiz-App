@@ -39,7 +39,7 @@ Merge behavior:
 - Prefer `wordUid` for all cloud/local merge keys.
 - Use English only as a legacy adoption fallback when a local/generated UID has not yet been reconciled with cloud identity.
 - Apply server `tombstones` before merging live `vocab` and `wrongWords`.
-- Remove tombstoned `wordUid`s from local vocabulary, wrong-bank data, and the pending delete queue.
+- Remove tombstoned words from local vocabulary, wrong-bank data, and the pending delete queue when either `wordUid` matches or legacy numeric `id` matches `legacyWordId`.
 
 Offline delete behavior:
 
@@ -47,4 +47,3 @@ Offline delete behavior:
 - Direct fast-path delete uses `DELETE /api/vocab/uid/{wordUid}` when possible.
 - Full sync also sends pending `{ wordUid }` deletion intents in `deletions`, so failed direct deletes do not block normal sync.
 - On `409 SYNC_REVISION_CONFLICT`, the frontend pulls a snapshot, applies tombstones, rebuilds the payload, and retries once.
-

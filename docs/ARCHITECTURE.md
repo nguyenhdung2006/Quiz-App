@@ -37,3 +37,5 @@ Frontend local word.wordUid
 ```
 
 `SyncService` owns the V2 contract. It validates the contract version before revision comparison, requires `expectedRevision`, locks the `AppUser` row with `PESSIMISTIC_WRITE`, computes whether real state will change, increments `sync_revision` at most once, then applies deletions before live upserts. Tombstones override live payload items with the same `wordUid`. `VocabularyService` still owns direct CRUD and quiz-result logic but delegates snapshot, sync, and tombstone delete behavior to `SyncService`.
+
+Tombstones also carry nullable `legacyWordId`, captured from the old numeric `vocabulary.id` at delete time. This is only a migration bridge for upgraded devices that still have local pre-V3 words without the server `wordUid`; frontend tombstone merge deletes local records when either `wordUid` or legacy numeric `id` matches.

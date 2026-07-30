@@ -15,8 +15,9 @@ Current migrations:
 | V1 | `V1__baseline_schema.sql` | Creates the baseline PostgreSQL schema, indexes, triggers, and achievement seed rows for a clean database. |
 | V2 | `V2__add_sync_revision.sql` | Adds `app_users.sync_revision BIGINT NOT NULL DEFAULT 0` additively. |
 | V3 | `V3__add_word_uid_and_word_tombstones.sql` | Adds stable `vocabulary.word_uid`, backfills it deterministically, enforces unique `(user_id, word_uid)`, and creates `word_tombstones`. |
+| V4 | `V4__add_legacy_word_id_to_word_tombstones.sql` | Adds nullable `word_tombstones.legacy_word_id` and an index for legacy-device anti-resurrection matching. |
 
-Do not edit an already-applied migration. Future schema changes must use a new `V4__...sql` or later migration.
+Do not edit an already-applied migration. Future schema changes must use a new `V5__...sql` or later migration.
 
 ## Stable Word Identity And Tombstones
 
@@ -29,6 +30,7 @@ Do not edit an already-applied migration. Future schema changes must use a new `
 | `id` | `BIGSERIAL` | Primary key. |
 | `user_id` | `BIGINT` | FK to `app_users(id)` with cascade on user delete. |
 | `word_uid` | `UUID` | Deleted logical word identity. |
+| `legacy_word_id` | `BIGINT` | Nullable old numeric `vocabulary.id` captured at delete time so upgraded legacy clients can match tombstones even if they never adopted server `wordUid`. |
 | `deleted_at` | `TIMESTAMPTZ` | Server deletion timestamp. |
 | `deleted_revision` | `BIGINT` | Server revision that introduced the tombstone; constrained `>= 0`. |
 
@@ -36,6 +38,7 @@ Constraints and indexes:
 
 - `ux_word_tombstones_user_word_uid` unique on `(user_id, word_uid)`.
 - `idx_word_tombstones_user_revision` on `(user_id, deleted_revision)`.
+- `idx_word_tombstones_user_legacy_word_id` on `(user_id, legacy_word_id)`.
 - No FK from `word_tombstones.word_uid` to `vocabulary`; deletes are hard deletes, not soft deletes.
 
 ## Production Runtime Policy

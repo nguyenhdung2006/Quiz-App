@@ -8,6 +8,7 @@
 - Updated frontend local/offline identity and delete queue to use stable `wordUid`.
 - Added backend Sync V2 tests for UID rename, version enforcement, tombstone precedence, idempotent delete, rollback, and user isolation.
 - Added CI PostgreSQL migration plus Hibernate validate step.
+- Added V4 tombstone `legacyWordId` support to prevent deleted legacy local words from being recreated with a newly generated client UUID.
 - Added `application-prod.yml` to pin production database safety settings.
 - Added `ProductionDatabaseSafetyGuard` to fail startup when prod/production profile uses unsafe Hibernate or Flyway settings.
 - Added production database safety tests for prod profile values, unsafe overrides, migration ordering, and tombstone exclusion.

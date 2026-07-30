@@ -514,20 +514,33 @@ merged.set(key, chosen);
 return Array.from(merged.values());
 }
 
-function tombstoneUidSet(snapshot) {
-return new Set((Array.isArray(snapshot?.tombstones) ? snapshot.tombstones : [])
+function tombstoneIdentitySets(snapshot) {
+let tombstones = Array.isArray(snapshot?.tombstones) ? snapshot.tombstones : [];
+return {
+uids: new Set(tombstones
 .map(item => String(item?.wordUid || item?.word_uid || "").trim())
-.filter(Boolean));
+.filter(Boolean)),
+legacyIds: new Set(tombstones
+.map(item => String(item?.legacyWordId || item?.legacy_word_id || "").trim())
+.filter(Boolean))
+};
 }
 
 function applyTombstonesToLocal(snapshot) {
-let deletedUids = tombstoneUidSet(snapshot);
-if (!deletedUids.size) return deletedUids;
+let deleted = tombstoneIdentitySets(snapshot);
+if (!deleted.uids.size && !deleted.legacyIds.size) return deleted;
 
-vocab = getVocab().map(normalizeWord).filter(word => !deletedUids.has(word.wordUid));
-wrongWords = getWrongWords().map(normalizeWord).filter(word => !deletedUids.has(word.wordUid));
-writePendingCloudDeletes(readPendingCloudDeletes().filter(item => !item.wordUid || !deletedUids.has(item.wordUid)));
-return deletedUids;
+vocab = getVocab().map(normalizeWord).filter(word =>
+!deleted.uids.has(word.wordUid) && !deleted.legacyIds.has(String(word.id || ""))
+);
+wrongWords = getWrongWords().map(normalizeWord).filter(word =>
+!deleted.uids.has(word.wordUid) && !deleted.legacyIds.has(String(word.id || ""))
+);
+writePendingCloudDeletes(readPendingCloudDeletes().filter(item =>
+(!item.wordUid || !deleted.uids.has(item.wordUid))
+&& (!item.legacyWordId || !deleted.legacyIds.has(String(item.legacyWordId)))
+));
+return deleted;
 }
 
 function pendingDeletionPayload() {
@@ -557,14 +570,20 @@ writeCloudSyncMeta({ lastKnownRevision: null });
 
 applyingCloudSnapshot = true;
 try {
-let deletedUids = applyTombstonesToLocal(snapshot);
+let deleted = applyTombstonesToLocal(snapshot);
 if (snapshot.profile) applyProfile(snapshot.profile);
 if (Array.isArray(snapshot.vocab)) {
-let cloudVocab = snapshot.vocab.filter(word => !deletedUids.has(String(word?.wordUid || word?.word_uid || "").trim()));
+let cloudVocab = snapshot.vocab.filter(word =>
+!deleted.uids.has(String(word?.wordUid || word?.word_uid || "").trim())
+&& !deleted.legacyIds.has(String(word?.id || ""))
+);
 vocab = mergeWordLists(getVocab(), cloudVocab);
 }
 if (Array.isArray(snapshot.wrongWords)) {
-let cloudWrong = snapshot.wrongWords.filter(word => !deletedUids.has(String(word?.wordUid || word?.word_uid || "").trim()));
+let cloudWrong = snapshot.wrongWords.filter(word =>
+!deleted.uids.has(String(word?.wordUid || word?.word_uid || "").trim())
+&& !deleted.legacyIds.has(String(word?.id || ""))
+);
 wrongWords = mergeWordLists(getWrongWords(), cloudWrong);
 }
 if (snapshot.progress) latestProgressSummary = snapshot.progress;

@@ -71,12 +71,12 @@ node --check frontend\js\login.js
 Backend:
 
 - `.\mvnw.cmd test` covers Sync V2 through `SyncContractV2Tests`.
-- Covered invariants: required contract version, required `wordUid`, stable UID rename, tombstone precedence, idempotent repeated deletion, direct delete tombstone creation, atomic duplicate-English rollback, user isolation, existing CSRF/auth regressions.
+- Covered invariants: required contract version, required `wordUid`, stable UID rename, tombstone precedence, idempotent repeated deletion, direct delete tombstone creation with `legacyWordId`, delete-by-UID without live row, legacy-ID user scoping, atomic duplicate-English rollback, user isolation, existing CSRF/auth regressions.
 
 Frontend:
 
 - Run `node --check` against changed files: `frontend/js/app.js`, `frontend/js/vocab.js`, `frontend/js/main.js`, `frontend/js/quiz.js`, `frontend/js/review-today.js`.
-- Run `npm run test:frontend` for Playwright smoke coverage.
+- Run `npm run test:frontend` for Playwright smoke coverage, including the legacy-device anti-resurrection case where a local word only has numeric `id` and the server snapshot only returns a tombstone.
 
 PostgreSQL:
 

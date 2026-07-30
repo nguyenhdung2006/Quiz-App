@@ -58,11 +58,14 @@ CREATE TABLE IF NOT EXISTS word_tombstones (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
     word_uid UUID NOT NULL,
+    legacy_word_id BIGINT,
     deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_revision BIGINT NOT NULL,
     CONSTRAINT ux_word_tombstones_user_word_uid UNIQUE (user_id, word_uid),
     CONSTRAINT ck_word_tombstones_revision CHECK (deleted_revision >= 0)
 );
+
+ALTER TABLE word_tombstones ADD COLUMN IF NOT EXISTS legacy_word_id BIGINT;
 
 CREATE TABLE IF NOT EXISTS word_stats (
     id BIGSERIAL PRIMARY KEY,
@@ -216,6 +219,7 @@ CREATE INDEX IF NOT EXISTS idx_wrong_bank_user ON wrong_bank(user_id);
 CREATE INDEX IF NOT EXISTS idx_quiz_history_user_created ON quiz_history(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_quiz_answers_history ON quiz_history_answers(quiz_history_id);
 CREATE INDEX IF NOT EXISTS idx_word_tombstones_user_revision ON word_tombstones(user_id, deleted_revision);
+CREATE INDEX IF NOT EXISTS idx_word_tombstones_user_legacy_word_id ON word_tombstones(user_id, legacy_word_id);
 
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$

@@ -7,5 +7,6 @@
 # 2026-07-31 Sync V2 Known Limitations
 
 - No local PostgreSQL CLI/staging database rehearsal was executed in this workspace; CI coverage was added instead.
+- Render backend deploy for commit `1f3fb67` failed with `No active profile set` in logs, indicating production env/profile was not applying Flyway-before-validate startup.
 - Tombstone garbage collection is intentionally not implemented.
 - Frontend English-based merge remains only as a legacy adoption fallback for local/generated UIDs.
