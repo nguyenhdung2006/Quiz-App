@@ -43,6 +43,8 @@ class HealthCheckTests {
                 .andExpect(jsonPath("$.app.version", is("0.0.1-SNAPSHOT")))
                 .andExpect(jsonPath("$.app.environment", is("local")))
                 .andExpect(jsonPath("$.ai.enabled", is(false)))
-                .andExpect(jsonPath("$.flyway.enabled", is(false)));
+                .andExpect(jsonPath("$.flyway.enabled", is(false)))
+                .andExpect(jsonPath("$.rateLimit.mode", is("in-memory")))
+                .andExpect(jsonPath("$.rateLimit.distributed", is(false)));
     }
 }

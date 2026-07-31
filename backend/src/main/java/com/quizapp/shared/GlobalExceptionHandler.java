@@ -57,7 +57,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ApiError> handleUnreadableMessage(HttpMessageNotReadableException exception) {
-        log.warn("[AUTH] Malformed request body: {}", exception.getMessage());
+        log.warn("[AUTH] Malformed request body: type={}", exception.getClass().getSimpleName());
         if (healthCounters != null) healthCounters.incrementValidationErrors();
         return ResponseEntity
                 .badRequest()
@@ -99,6 +99,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AiRateLimitExceededException.class)
     ResponseEntity<AiRateLimitError> handleAiRateLimit(AiRateLimitExceededException exception) {
         log.warn("[AI] Rate limit exceeded: retryAfter={}s", exception.getRetryAfterSeconds());
+        if (healthCounters != null) healthCounters.incrementRateLimitHits();
         return ResponseEntity
                 .status(HttpStatus.TOO_MANY_REQUESTS)
                 .body(AiRateLimitError.standard(exception.getRetryAfterSeconds()));

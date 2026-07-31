@@ -32,7 +32,55 @@ Required secret/environment variable names:
 - `CORS_ALLOWED_ORIGINS`
 - `OAUTH_SUCCESS_REDIRECT_URI`
 
+Operational environment variable names:
+
+- `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE`
+- `LOGGING_LEVEL_ROOT`
+- `LOGGING_LEVEL_SECURITY`
+- `RATE_LIMIT_MODE`
+- `AI_EXPLAIN_RATE_LIMIT_PER_MINUTE`
+- `AI_EXPLAIN_RATE_LIMIT_PER_DAY`
+- `AI_DECK_RATE_LIMIT_PER_MINUTE`
+- `AI_DECK_RATE_LIMIT_PER_DAY`
+- `AI_RATE_LIMIT_MINUTE_WINDOW`
+
 Never print or paste secret values into release reports.
+
+## Observability
+
+The backend uses Spring Boot Actuator and Micrometer for minimum production visibility:
+
+- `GET /api/health` is the public lightweight application liveness endpoint.
+- `GET /actuator/health` exposes safe Actuator health without details.
+- `GET /actuator/info` exposes non-secret app metadata, AI enabled state, Flyway enabled state, and rate-limit mode.
+- `GET /actuator/metrics` exposes Micrometer metrics.
+
+Every request receives an `X-Request-ID` response header. If a trusted proxy or client sends a short safe value, the backend preserves it; otherwise it generates a UUID. The request ID is added to MDC and appears in logs as `requestId=...`.
+
+Custom application metrics:
+
+- `wordarena.http.requests`
+- `wordarena.http.errors`
+- `wordarena.sync.conflicts`
+- `wordarena.quiz.failures`
+- `wordarena.ai.failures`
+- `wordarena.rate_limit.hits`
+- `wordarena.review.failures`
+- `wordarena.snapshot.failures`
+- `wordarena.analytics.failures`
+
+Recommended alert rules before public production:
+
+- 5xx count increases above normal baseline over 5 minutes.
+- `/actuator/health` or `/api/health` fails.
+- `wordarena.ai.failures` increases repeatedly.
+- `wordarena.sync.conflicts` spikes above normal device-sync behavior.
+- `wordarena.rate_limit.hits` spikes unexpectedly.
+- p95 latency rises if the hosting or metrics backend records latency histograms.
+
+This repository does not configure PagerDuty, Slack, email, Grafana, or Prometheus alerts directly. Treat the alert rules as `DOCUMENTED_ONLY` until connected to the operator's platform.
+
+Deployment assumption for this hardening pass: repository documentation describes one Render backend web service and does not show multi-instance autoscaling, material AI cost abuse, or a shared Redis dependency. Therefore distributed rate limiting is intentionally not a production requirement yet.
 
 ## Backup
 

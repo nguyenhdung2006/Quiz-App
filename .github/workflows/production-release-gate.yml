@@ -70,6 +70,13 @@ jobs:
           FLYWAY_ENABLED: "true"
           FLYWAY_BASELINE_ON_MIGRATE: "false"
           SPRING_PROFILES_ACTIVE: prod
+          RATE_LIMIT_MODE: in-memory
+          AI_EXPLAIN_RATE_LIMIT_PER_MINUTE: "10"
+          AI_EXPLAIN_RATE_LIMIT_PER_DAY: "100"
+          AI_DECK_RATE_LIMIT_PER_MINUTE: "3"
+          AI_DECK_RATE_LIMIT_PER_DAY: "20"
+          MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
+          LOGGING_LEVEL_ROOT: INFO
         run: npm run gate:validate-env -- --control=production-env-validation
 
       - name: Validate production env rejects unsafe fixture
@@ -88,6 +95,13 @@ jobs:
           FLYWAY_ENABLED: "false"
           FLYWAY_BASELINE_ON_MIGRATE: "true"
           SPRING_PROFILES_ACTIVE: prod
+          RATE_LIMIT_MODE: redis
+          AI_EXPLAIN_RATE_LIMIT_PER_MINUTE: "0"
+          AI_EXPLAIN_RATE_LIMIT_PER_DAY: "-1"
+          AI_DECK_RATE_LIMIT_PER_MINUTE: "0"
+          AI_DECK_RATE_LIMIT_PER_DAY: "-1"
+          MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health
+          LOGGING_LEVEL_ROOT: DEBUG
         run: npm run gate:validate-env -- --control=production-env-invalid-fixture --expect-invalid
 
       - name: Backend full test
@@ -105,6 +119,14 @@ jobs:
           ./mvnw -B -Dtest=BackendHardeningTests,CsrfSecurityTests test
           cd ..
           node scripts/production-release-gate/mark-control.mjs security-regression-tests PASS "Backend hardening and CSRF tests completed."
+
+      - name: Observability and rate-limit controls
+        working-directory: backend
+        run: |
+          chmod +x mvnw
+          ./mvnw -B -Dtest=ObservabilityAndRateLimitTests,AiRateLimitTests test
+          cd ..
+          node scripts/production-release-gate/mark-control.mjs observability-rate-limit-controls PASS "Request ID, metrics, health, AI rate-limit, and failure counters completed."
 
       - name: Frontend static build
         run: npm run build:frontend

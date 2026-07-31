@@ -1,13 +1,41 @@
 package com.quizapp.ai;
 
+import java.time.Duration;
+import java.util.Locale;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 @Component
 @ConfigurationProperties(prefix = "ai.rate-limit")
 public class AiRateLimitProperties {
+    private String mode = "in-memory";
+    private Duration minuteWindow = Duration.ofMinutes(1);
     private Limit explain = new Limit(10, 100);
     private Limit deck = new Limit(3, 20);
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+
+    public Duration getMinuteWindow() {
+        if (minuteWindow == null || minuteWindow.isZero() || minuteWindow.isNegative()) {
+            return Duration.ofMinutes(1);
+        }
+        return minuteWindow;
+    }
+
+    public void setMinuteWindow(Duration minuteWindow) {
+        this.minuteWindow = minuteWindow;
+    }
+
+    String normalizedMode() {
+        String normalized = mode == null ? "" : mode.trim().toLowerCase(Locale.ROOT);
+        return normalized.isBlank() ? "in-memory" : normalized;
+    }
 
     public Limit getExplain() {
         return explain;

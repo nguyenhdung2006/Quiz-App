@@ -41,6 +41,7 @@ for (const [version, files] of versions.entries()) {
 }
 
 const prodConfigPath = "backend/src/main/resources/application-prod.yml";
+const defaultConfigPath = "backend/src/main/resources/application.properties";
 if (!existsSync(prodConfigPath)) {
   findings.push({ severity: "critical", message: "Missing production profile config.", file: prodConfigPath });
 } else {
@@ -54,6 +55,26 @@ if (!existsSync(prodConfigPath)) {
   for (const rule of dangerousPatterns) {
     if (rule.pattern.test(prodConfig) && (!rule.context || rule.context.test(prodConfig))) {
       findings.push({ severity: "critical", message: rule.message, file: prodConfigPath });
+    }
+  }
+}
+
+if (!existsSync(defaultConfigPath)) {
+  findings.push({ severity: "critical", message: "Missing default application config.", file: defaultConfigPath });
+} else {
+  const defaultConfig = readFileSync(defaultConfigPath, "utf8");
+  for (const requiredSnippet of [
+    "management.endpoints.web.exposure.include",
+    "health,info,metrics",
+    "logging.pattern.console",
+    "requestId=%X"
+  ]) {
+    if (!defaultConfig.includes(requiredSnippet)) {
+      findings.push({
+        severity: "high",
+        message: `Missing required observability config snippet: ${requiredSnippet}`,
+        file: defaultConfigPath
+      });
     }
   }
 }

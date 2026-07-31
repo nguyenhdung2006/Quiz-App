@@ -48,6 +48,8 @@ ai:
     api-key: ${OPENAI_API_KEY:}
     responses-url: https://api.openai.com/v1/responses
   rate-limit:
+    mode: ${RATE_LIMIT_MODE:in-memory}
+    minute-window: ${AI_RATE_LIMIT_MINUTE_WINDOW:60s}
     explain:
       per-minute: ${AI_EXPLAIN_RATE_LIMIT_PER_MINUTE:10}
       per-day: ${AI_EXPLAIN_RATE_LIMIT_PER_DAY:100}

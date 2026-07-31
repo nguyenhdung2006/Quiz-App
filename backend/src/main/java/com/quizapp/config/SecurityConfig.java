@@ -1,6 +1,7 @@
 package com.quizapp.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.quizapp.observability.RequestCorrelationFilter;
 import com.quizapp.shared.ApiError;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -86,6 +87,8 @@ public class SecurityConfig {
                                 "/api/csrf",
                                 "/actuator/health",
                                 "/actuator/info",
+                                "/actuator/metrics",
+                                "/actuator/metrics/**",
                                 "/api/me",
                                 "/error"
                         ).permitAll()
@@ -127,7 +130,13 @@ public class SecurityConfig {
                 .filter(origin -> !origin.isBlank())
                 .toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Accept", "Content-Type", "X-XSRF-TOKEN"));
+        configuration.setAllowedHeaders(List.of(
+                "Accept",
+                "Content-Type",
+                "X-XSRF-TOKEN",
+                RequestCorrelationFilter.REQUEST_ID_HEADER
+        ));
+        configuration.setExposedHeaders(List.of(RequestCorrelationFilter.REQUEST_ID_HEADER));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

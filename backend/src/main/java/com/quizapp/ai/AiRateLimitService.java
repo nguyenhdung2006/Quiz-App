@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AiRateLimitService {
-    private static final Duration MINUTE_WINDOW = Duration.ofMinutes(1);
     private static final Duration STALE_ENTRY_AGE = Duration.ofDays(2);
 
     private final AiRateLimitProperties properties;
@@ -27,6 +26,7 @@ public class AiRateLimitService {
     }
 
     public void checkAllowed(AppUser user, AiRateLimitAction action) {
+        requireSupportedMode();
         AiRateLimitProperties.Limit limit = properties.limitFor(action);
         Instant now = Instant.now();
         String key = action.name() + ":" + userKey(user);
@@ -37,9 +37,10 @@ public class AiRateLimitService {
 
         synchronized (usage) {
             usage.resetDayIfNeeded(LocalDate.now(ZoneOffset.UTC));
-            usage.removeOldMinuteAttempts(now);
+            Duration minuteWindow = properties.getMinuteWindow();
+            usage.removeOldMinuteAttempts(now, minuteWindow);
 
-            long retryAfterSeconds = retryAfterSeconds(usage, limit, now);
+            long retryAfterSeconds = retryAfterSeconds(usage, limit, now, minuteWindow);
             if (retryAfterSeconds > 0) {
                 throw new AiRateLimitExceededException(retryAfterSeconds);
             }
@@ -52,14 +53,19 @@ public class AiRateLimitService {
         cleanupOccasionally(now);
     }
 
-    private long retryAfterSeconds(UsageWindow usage, AiRateLimitProperties.Limit limit, Instant now) {
+    private long retryAfterSeconds(
+            UsageWindow usage,
+            AiRateLimitProperties.Limit limit,
+            Instant now,
+            Duration minuteWindow
+    ) {
         if (usage.minuteAttempts.size() >= limit.getPerMinute()) {
             Instant oldestAttempt = usage.minuteAttempts.peekFirst();
             if (oldestAttempt == null) {
-                return MINUTE_WINDOW.toSeconds();
+                return minuteWindow.toSeconds();
             }
             long elapsedSeconds = Duration.between(oldestAttempt, now).toSeconds();
-            return Math.max(1, MINUTE_WINDOW.toSeconds() - elapsedSeconds);
+            return Math.max(1, minuteWindow.toSeconds() - elapsedSeconds);
         }
 
         if (usage.dayCount >= limit.getPerDay()) {
@@ -68,6 +74,12 @@ public class AiRateLimitService {
         }
 
         return 0;
+    }
+
+    private void requireSupportedMode() {
+        if (!"in-memory".equals(properties.normalizedMode())) {
+            throw new IllegalStateException("Only in-memory AI rate limiting is implemented.");
+        }
     }
 
     private String userKey(AppUser user) {
@@ -112,8 +124,8 @@ public class AiRateLimitService {
             dayCount = 0;
         }
 
-        private void removeOldMinuteAttempts(Instant now) {
-            Instant oldestAllowed = now.minus(MINUTE_WINDOW);
+        private void removeOldMinuteAttempts(Instant now, Duration minuteWindow) {
+            Instant oldestAllowed = now.minus(minuteWindow);
             while (!minuteAttempts.isEmpty() && !minuteAttempts.peekFirst().isAfter(oldestAllowed)) {
                 minuteAttempts.removeFirst();
             }

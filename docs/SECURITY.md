@@ -81,3 +81,33 @@ The production release gate adds these fail-closed security checks:
 - cross-user mutation tests for quiz and sync boundaries.
 
 If staging variables are missing, staging security smoke is `BLOCKED` and the gate conclusion is `NO-GO`.
+
+## Logging Safety
+
+Production logs must not include secrets, OAuth credentials, cookies, CSRF tokens, passwords, API keys, raw request bodies, or user-authored vocabulary payloads. The backend log format includes `requestId` for correlation and keeps application events as bounded key-value messages.
+
+The request ID comes from `X-Request-ID` only when it is short and contains safe characters. Unsafe, blank, or overlong values are replaced with a server-generated UUID before being written to the response header or MDC.
+
+Root logging should stay at `INFO` in production. `DEBUG`, `TRACE`, and `ALL` are rejected by the production environment gate because they can expose framework internals and excessive request context.
+
+## Rate Limit Policy
+
+AI endpoints are the current cost-sensitive surface and use an in-memory per-user limiter:
+
+- `POST /api/ai/explain-wrong-answer`
+- `POST /api/ai/generate-deck`
+
+The limit key is scoped to the authenticated user ID when available. If the user has no database ID, the service falls back to normalized email; otherwise it fails because authenticated identity is required.
+
+Configuration is environment-driven:
+
+- `RATE_LIMIT_MODE=in-memory`
+- `AI_EXPLAIN_RATE_LIMIT_PER_MINUTE`
+- `AI_EXPLAIN_RATE_LIMIT_PER_DAY`
+- `AI_DECK_RATE_LIMIT_PER_MINUTE`
+- `AI_DECK_RATE_LIMIT_PER_DAY`
+- `AI_RATE_LIMIT_MINUTE_WINDOW`
+
+Limit hits return `429` with the existing AI error contract and a `retryAfterSeconds` value. They are logged without user content and counted by `wordarena.rate_limit.hits`.
+
+Current limitation: the limiter is process-local. It is appropriate for the current single-backend-instance Render deployment, but it is not a global quota if the backend scales horizontally. Add Redis or another distributed store only after multi-instance deployment, material AI cost risk, or abuse evidence exists.

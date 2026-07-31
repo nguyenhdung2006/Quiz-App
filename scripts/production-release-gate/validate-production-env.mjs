@@ -16,7 +16,12 @@ const required = [
   "JPA_DDL_AUTO",
   "FLYWAY_ENABLED",
   "FLYWAY_BASELINE_ON_MIGRATE",
-  "SPRING_PROFILES_ACTIVE"
+  "SPRING_PROFILES_ACTIVE",
+  "RATE_LIMIT_MODE",
+  "AI_EXPLAIN_RATE_LIMIT_PER_MINUTE",
+  "AI_EXPLAIN_RATE_LIMIT_PER_DAY",
+  "AI_DECK_RATE_LIMIT_PER_MINUTE",
+  "AI_DECK_RATE_LIMIT_PER_DAY"
 ];
 
 const findings = [];
@@ -101,6 +106,39 @@ for (const secretName of ["DATABASE_PASSWORD", "GOOGLE_CLIENT_SECRET"]) {
 const csrfEnabledByCode = true;
 if (!csrfEnabledByCode) {
   findings.push({ variable: "CSRF", message: "CSRF must remain enabled by SecurityConfig." });
+}
+
+const endpoints = value("MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE") || "health,info,metrics";
+const exposedEndpoints = endpoints.split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
+for (const endpoint of ["health", "info", "metrics"]) {
+  if (!exposedEndpoints.includes(endpoint)) {
+    findings.push({ variable: "MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", message: `${endpoint} endpoint must remain exposed for production operations.` });
+  }
+}
+
+const rootLogLevel = (value("LOGGING_LEVEL_ROOT") || "INFO").toUpperCase();
+if (["DEBUG", "TRACE", "ALL"].includes(rootLogLevel)) {
+  findings.push({ variable: "LOGGING_LEVEL_ROOT", message: "Production root logging must not be DEBUG, TRACE, or ALL." });
+}
+
+const rateLimitMode = value("RATE_LIMIT_MODE").toLowerCase();
+if (rateLimitMode !== "in-memory") {
+  findings.push({
+    variable: "RATE_LIMIT_MODE",
+    message: "Current code supports in-memory rate limiting only; do not configure Redis mode until a distributed limiter is implemented."
+  });
+}
+
+for (const limitName of [
+  "AI_EXPLAIN_RATE_LIMIT_PER_MINUTE",
+  "AI_EXPLAIN_RATE_LIMIT_PER_DAY",
+  "AI_DECK_RATE_LIMIT_PER_MINUTE",
+  "AI_DECK_RATE_LIMIT_PER_DAY"
+]) {
+  const parsed = Number.parseInt(value(limitName), 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100000) {
+    findings.push({ variable: limitName, message: "Rate limit must be a positive bounded integer." });
+  }
 }
 
 const details = {

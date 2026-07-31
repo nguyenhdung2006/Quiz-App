@@ -71,14 +71,14 @@ public class OpenAiExplanationClient implements AiExplanationClient {
                 throw new IllegalStateException("OpenAI request failed with status " + response.statusCode() + ".");
             }
 
-            log.info("[AI] OpenAI explanation API success word={}", request.word());
+            log.info("[AI] OpenAI explanation API success");
             return parseResponse(response.body(), request.word());
         } catch (IOException exception) {
-            log.error("[AI] OpenAI explanation IO error word={}", request.word(), exception);
+            log.error("[AI] OpenAI explanation IO error", exception);
             throw new IllegalStateException("OpenAI response could not be processed.", exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            log.error("[AI] OpenAI explanation interrupted word={}", request.word(), exception);
+            log.error("[AI] OpenAI explanation interrupted", exception);
             throw new IllegalStateException("OpenAI request was interrupted.", exception);
         }
     }

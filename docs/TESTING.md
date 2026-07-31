@@ -91,6 +91,7 @@ Gate controls include:
 
 - full backend test suite;
 - focused security regression tests: `BackendHardeningTests` and `CsrfSecurityTests`;
+- observability and rate-limit controls: `ObservabilityAndRateLimitTests` and `AiRateLimitTests`;
 - frontend static build validation through `npm run build:frontend`;
 - Playwright smoke tests with report artifacts;
 - Flyway rehearsal against temporary PostgreSQL with `SPRING_PROFILES_ACTIVE=prod`;
@@ -101,3 +102,22 @@ Gate controls include:
 - staging smoke only when staging variables are configured.
 
 The gate report marks staging/OAuth/restore evidence as `BLOCKED` or `NOT_RUN` unless actually configured and executed.
+
+## Observability And Rate-Limit Verification
+
+Backend:
+
+```powershell
+cd backend
+.\mvnw.cmd -Dtest=ObservabilityAndRateLimitTests,AiRateLimitTests test
+```
+
+This verifies:
+
+- generated and client-supplied `X-Request-ID` behavior;
+- unsafe request IDs are replaced;
+- MDC contains `requestId` during a request and is cleared afterward;
+- `/actuator/metrics` is exposed and includes application metrics;
+- 4xx and 5xx request metrics are recorded;
+- sync conflict, quiz failure, AI failure, and rate-limit hit counters increment;
+- AI in-memory rate limit returns `429`, isolates users through existing tests, and resets after the configured test window.

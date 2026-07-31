@@ -11,6 +11,7 @@ const expectedControls = [
   "secret-scan",
   "backend-full-test",
   "security-regression-tests",
+  "observability-rate-limit-controls",
   "frontend-static-build",
   "frontend-playwright-smoke",
   "flyway-rehearsal",

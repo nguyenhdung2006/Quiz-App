@@ -94,7 +94,7 @@ public class VocabularyService {
             achievements.unlock(syncUser, "FIRST_WORD");
         }
         markCloudChanged(syncUser);
-        log.info("[SYNC] Word created userId={} word={}", syncUser.getId(), created.eng());
+        log.info("[SYNC] Word created userId={} wordId={}", syncUser.getId(), created.id());
         return created;
     }
 

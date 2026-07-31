@@ -22,6 +22,7 @@ The gate runs these controls:
 | Secret scan | committed file names and content patterns for secrets |
 | Backend full test | Maven Surefire reports |
 | Security regression tests | focused backend hardening and CSRF tests |
+| Observability/rate-limit controls | request ID, metrics endpoint, 4xx/5xx, sync/quiz/AI/rate-limit counters |
 | Frontend static build | JavaScript syntax and static asset references |
 | Frontend Playwright smoke | Playwright report and test results |
 | Flyway rehearsal | temporary PostgreSQL migration and repeat validation logs |
@@ -55,6 +56,18 @@ Final conclusion:
 - `NO-GO`: at least one control is `FAIL`, `BLOCKED`, or `NOT_RUN`.
 
 Manual approval does not convert `FAIL`, `BLOCKED`, or `NOT_RUN` into `PASS`.
+
+## Observability And Rate-Limit Controls
+
+The gate validates that production keeps minimum operational visibility:
+
+- health, info, and metrics endpoints remain exposed;
+- production root logging is not `DEBUG`, `TRACE`, or `ALL`;
+- request logs include a correlation `requestId`;
+- AI rate limits are configured with positive bounded values;
+- `RATE_LIMIT_MODE` remains `in-memory` until a distributed limiter is implemented.
+
+The gate must not require Redis for the current single-instance deployment. If future code implements Redis/distributed rate limiting, add a new control that requires Redis configuration only when that distributed mode is explicitly selected.
 
 ## Required GitHub Secrets For Staging Smoke
 
@@ -93,4 +106,4 @@ Local `.env` files are intentionally ignored by Git. The secret scan fails if a 
 
 ## Current Limitations
 
-The gate does not deploy and does not mutate production. Staging OAuth browser flow and production backup restore can only be marked `PASS` when real, non-production rehearsal evidence is available.
+The gate does not deploy and does not mutate production. Staging OAuth browser flow and production backup restore can only be marked `PASS` when real, non-production rehearsal evidence is available. Alert platform configuration is documented only until the operator connects Render/Grafana/Prometheus or another alert backend.

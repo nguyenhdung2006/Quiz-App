@@ -40,7 +40,8 @@ public class AiDeckGeneratorService {
             log.info("[AI] Deck generation success itemsCount={} source=openai", items.size());
             return new GeneratedDeckResponse(items, "openai");
         } catch (RuntimeException exception) {
-            log.warn("[AI] Deck generation failed will use fallback error={}", exception.getMessage());
+            log.warn("[AI] Deck generation failed will use fallback type={} message={}",
+                    exception.getClass().getSimpleName(), exception.getMessage());
             if (healthCounters != null) healthCounters.incrementAiFailures();
             return fallback.generate(request);
         }
