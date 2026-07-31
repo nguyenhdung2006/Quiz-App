@@ -18,9 +18,19 @@ Severity: Medium
 
 Impact: `source-integrity` gate fails while this task's changes are uncommitted.
 
-Workaround: expected during local audit work because the command forbids commit/push.
+Workaround: expected during local SEC-01 implementation work until the approved batch is committed.
 
 Next action: review changes, then run the gate from a clean release candidate.
+
+## CSP Inline Handler Limitation
+
+Severity: Medium
+
+Impact: the backend now emits a CSP without `unsafe-eval`, but `script-src` and `style-src` still allow `unsafe-inline` for compatibility with the current static frontend.
+
+Workaround: keep the compatible CSP while the app still uses inline event handlers and direct static script loading.
+
+Next action: remove inline handlers in a dedicated frontend cleanup batch, then tighten CSP with nonces/hashes or external-only scripts.
 
 ## In-Memory Rate Limiting
 

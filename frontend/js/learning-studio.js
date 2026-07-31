@@ -256,7 +256,9 @@ renderDecks();
 function renderProfileStudio() {
 let profile = getProfile();
 let avatar = document.getElementById("studioProfileAvatar");
-if (avatar) avatar.src = profile.avatar || "images/icon.png";
+if (avatar) avatar.src = typeof safeProfileAvatar === "function"
+? safeProfileAvatar(profile.avatar)
+: (profile.avatar || "images/icon.png");
 setText("studioProfileName", profile.name);
 setText("studioProfileGoal", profile.goal || profile.bio || "No learning goal yet.");
 setText("studioProfileIdentity", profile.email ? `Signed in as ${profile.email}` : "Local guest profile");

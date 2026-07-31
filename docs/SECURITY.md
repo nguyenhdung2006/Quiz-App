@@ -60,8 +60,53 @@ Production cross-site deployment must keep:
 
 - `SESSION_COOKIE_SAME_SITE=none`
 - `SESSION_COOKIE_SECURE=true`
+- `APP_SECURITY_HSTS_ENABLED=true`
 - `CORS_ALLOWED_ORIGINS` set to the exact frontend origins
 - `FRONTEND_URL` set to the exact frontend URL
+
+## Response Security Headers
+
+Spring Security sets explicit response headers on backend responses:
+
+- `Content-Security-Policy`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Strict-Transport-Security` only when `app.security.hsts.enabled=true` and the request is HTTPS
+
+The current CSP is intentionally compatible with the existing static frontend:
+
+```text
+default-src 'self';
+base-uri 'self';
+object-src 'none';
+frame-ancestors 'none';
+frame-src 'none';
+form-action 'self';
+script-src 'self' 'unsafe-inline';
+style-src 'self' 'unsafe-inline';
+img-src 'self' data: https:;
+font-src 'self' data:;
+media-src 'self';
+connect-src 'self' http://localhost:8080 http://127.0.0.1:8080 https://quiz-app-xd9m.onrender.com
+```
+
+Current limitation: `unsafe-inline` is still required because `frontend/index.html` uses inline event handlers such as `onclick` and `oncontextmenu`, and the app still relies on static script tags rather than a bundled nonce/hash workflow. The policy does not allow `unsafe-eval`.
+
+## Profile And Avatar Safety
+
+Profile updates are scoped to the authenticated `AppUser`; the client cannot choose a user id for `/api/profile`.
+
+The backend sanitizes profile text and validates avatar values before storing or returning profile data. Avatar values are limited to:
+
+- same-origin relative image paths such as `images/icon.png`;
+- `https://` URLs with a valid host and no embedded user info;
+- base64 data images for `png`, `jpg/jpeg`, `gif`, or `webp`.
+
+Unsafe schemes and data types such as `javascript:`, protocol-relative URLs, `data:text/html`, and SVG data images are rejected on profile update. OAuth provider pictures are also sanitized before first save/output.
+
+The frontend applies the same avatar whitelist before writing profile cache or assigning `img.src`, so unsafe stale localStorage values fall back to `images/icon.png`. Profile text is rendered with `textContent`; the profile Playwright smoke test verifies that HTML-like names remain text rather than becoming DOM nodes.
+
 # Sync V2 Security Boundary
 
 Sync V2 keeps OAuth2 session authentication and CSRF requirements unchanged. All unsafe sync and CRUD requests still require a valid session and `X-XSRF-TOKEN`.

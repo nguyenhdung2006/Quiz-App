@@ -398,6 +398,46 @@ test("api client refreshes csrf token after explicit clear", async ({ page }) =>
   expect(writes).toEqual(["token-1", "token-2"]);
 });
 
+test("profile save renders text safely and falls back from unsafe avatar data", async ({ page }) => {
+  const profile = {
+    name: "<img src=x onerror=alert(1)>",
+    email: "profile-ui@example.com",
+    avatar: "javascript:alert(1)",
+    goal: "Initial goal"
+  };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    cloudSnapshot: {
+      profile,
+      vocab: [],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect(page.locator("#profileAvatarSmall")).toHaveAttribute("src", /images\/icon\.png$/);
+  await expect(page.locator("#profileName")).toHaveText("<img src=x onerror=alert(1)>");
+  await expect(page.locator("#profileName img")).toHaveCount(0);
+
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileSettingsBtn").click();
+  await page.locator("#profileFormName").fill("<b>Profile Saver</b>");
+  await page.locator("#profileFormGoal").fill("<script>alert(1)</script>");
+  await page.getByRole("button", { name: "Save Profile" }).click();
+
+  await expect(page.locator("#profileName")).toHaveText("<b>Profile Saver</b>");
+  await expect(page.locator("#profileName b")).toHaveCount(0);
+  await expect(page.locator("#profileAvatarLarge")).toHaveAttribute("src", /images\/icon\.png$/);
+
+  const cachedProfile = await page.evaluate(() => JSON.parse(localStorage.getItem("quizUserProfile")));
+  expect(cachedProfile.avatar).toBe("images/icon.png");
+  expect(cachedProfile.name).toBe("<b>Profile Saver</b>");
+  expect(fatalConsole).toEqual([]);
+});
+
 test("static app loads without fatal console errors", async ({ page }) => {
   const fatalConsole = await preparePage(page);
 

@@ -29,10 +29,11 @@ Original audit score: `64/100`.
 Reassessed score: `84/100`.
 
 The score improved because P0 integrity, CSRF, production schema safety,
-tombstone sync, observability, and release-gate controls are now implemented
-with tests. It is not higher because operational release evidence is missing,
-OpenAPI/pagination/query optimization remain partial, and the AI limiter is
-intentionally in-memory.
+tombstone sync, explicit response security headers, profile/avatar hardening,
+observability, and release-gate controls are now implemented with tests. It is
+not higher because operational release evidence is missing, OpenAPI/pagination
+and query optimization remain partial, and the AI limiter is intentionally
+in-memory.
 
 ## Audit Reconciliation Matrix
 
@@ -44,14 +45,14 @@ intentionally in-memory.
 | A-04 | High | Production migration defaults unsafe | `application-prod.yml`, Flyway migrations V1-V4, `ProductionDatabaseSafetyGuard` | `DatabaseSchemaTests`, `ProductionDatabaseSafetyGuardTests`, CI workflow | VERIFIED_FIXED | Production DB state not accessible from workspace | Validate staging/prod env and schema history |
 | A-05 | High | No server-side delete/tombstone semantics | `SyncService`, `WordTombstone`, migrations V3/V4, `wordUid`, `deletions` | `SyncContractV2Tests`, Playwright tombstone/stale-device tests PASS | VERIFIED_FIXED | Tombstone garbage collection intentionally absent | Add retention policy only after real data age exists |
 | A-06 | Medium | CORS allowed wildcard headers | `SecurityConfig.corsConfigurationSource` enumerates allowed origins/methods/headers | `CsrfSecurityTests` and source inspection | VERIFIED_FIXED | Env origins still must be exact in deployment | Gate validates `CORS_ALLOWED_ORIGINS` |
-| A-07 | Medium | Security headers not explicit | Security config includes core auth/CSRF/CORS; docs require hosting/security review | No dedicated CSP/HSTS test | PARTIALLY_FIXED | CSP/HSTS/referrer policy not fully asserted in tests | Add explicit headers and tests later |
+| A-07 | Medium | Security headers not explicit | `SecurityConfig` sets CSP, Referrer-Policy, X-Content-Type-Options, X-Frame-Options, and HTTPS-gated HSTS | `SecurityHeadersTests`, `SecurityHeadersHstsTests`, `CsrfSecurityTests` PASS | VERIFIED_FIXED | CSP still requires `unsafe-inline` until inline handlers are removed from static HTML | Remove inline handlers in a future frontend cleanup |
 | A-08 | Medium | In-memory AI rate limiter | `AiRateLimitService` configurable minute/day per action/user, metrics on hit | `AiRateLimitTests`, `ObservabilityAndRateLimitTests` PASS | VERIFIED_FIXED | Not distributed; resets per JVM | Upgrade only for multi-instance/cost/abuse evidence |
 | A-09 | Medium | Observability too thin | Request ID filter, MDC cleanup, request metrics, domain counters, actuator metrics | `ObservabilityAndRateLimitTests` PASS | VERIFIED_FIXED | No external APM/Sentry configured | Add external monitoring when production use justifies |
 | A-10 | Medium | Frontend monolith/global state | Central `quizApiFetch` and sync helpers reduce API duplication | Playwright smoke PASS | PARTIALLY_FIXED | `app.js` remains large; no ES module split | Incremental modularization, not rewrite |
 | A-11 | Medium | Backend God service | `SyncService` extracted; `VocabularyService` still owns CRUD/quiz/starter import | Backend tests PASS | PARTIALLY_FIXED | Quiz/CRUD/snapshot services not fully separated | Continue small service extraction |
 | A-12 | Medium | Full scans/query bottlenecks | Some repository queries exist; normalized duplicate still streams user words | Backend tests PASS, no performance benchmark | PARTIALLY_FIXED | Review/analytics/snapshot pagination and query optimization incomplete | Add measured query work before scale |
 | A-13 | Medium | API contract maturity/OpenAPI missing | `docs/API.md` documents current endpoints, CSRF, sync V2, errors | Docs/source inspection | PARTIALLY_FIXED | No generated OpenAPI contract tests | Add OpenAPI spec/generation |
-| A-14 | Medium | Profile direct save underused | `PUT /api/profile` exists; frontend still sync-centric | Backend/profile tests inside full suite | PARTIALLY_FIXED | Frontend direct profile save E2E not proven | Add Playwright/profile cloud test |
+| A-14 | Medium | Profile direct save underused | `PUT /api/profile` exists; backend validates ownership/profile/avatar input; frontend profile save/render path sanitizes cached avatar values | `ProfileSecurityTests`, profile Playwright smoke PASS | PARTIALLY_FIXED | Frontend still saves profile through local cache/full sync instead of direct `/api/profile` save | Consider direct profile save only as a focused API/UX batch |
 | A-15 | Low | Misleading `[AUTH]` generic logs | `GlobalExceptionHandler` no longer uses old generic auth tag for all errors | Backend tests/log source inspection | VERIFIED_FIXED | Some auth-specific logs remain by design | No action |
 | A-16 | Low | Unused archive/assets/dependencies | Archive documented as legacy; no removal requested | N/A | NOT_APPLICABLE | Search noise remains | Do not delete archive without explicit approval |
 | A-17 | P0 gate | Release gate incomplete | Gate scripts and workflow exist | Gate report `NO-GO` | PARTIALLY_FIXED | Env/staging/restore evidence and clean tree missing | Complete external release checklist |
@@ -61,8 +62,8 @@ intentionally in-memory.
 
 | Status | Count |
 | --- | ---: |
-| VERIFIED_FIXED | 11 |
-| PARTIALLY_FIXED | 6 |
+| VERIFIED_FIXED | 12 |
+| PARTIALLY_FIXED | 5 |
 | NOT_FIXED | 0 |
 | REGRESSED | 0 |
 | NOT_APPLICABLE | 1 |
@@ -84,17 +85,20 @@ intentionally in-memory.
 
 | Command | Result | Evidence |
 | --- | --- | --- |
-| `backend\.mvnw.cmd test` | PASS | 91 tests, 0 failures |
+| `backend\.mvnw.cmd test` | PASS | 98 tests, 0 failures |
+| `backend\.mvnw.cmd "-Dtest=SecurityHeadersTests,SecurityHeadersHstsTests,ProfileSecurityTests" test` | PASS | 7 SEC-01 backend tests, 0 failures |
 | `backend\.mvnw.cmd clean package -DskipTests` | PASS | Jar built at `backend/target/quiz-0.0.1-SNAPSHOT.jar` |
 | `node --check frontend\js\config.js` | PASS | Exit 0 |
-| `node --check frontend\js\app.js` | PASS | Exit 0 |
+| `node --check frontend\js\app.js` | PASS | Exit 0 after profile hardening |
 | `node --check frontend\js\login.js` | PASS | Exit 0 |
 | `node --check frontend\js\ai-explain.js` | PASS | Exit 0 |
 | `node --check frontend\js\analytics-dashboard.js` | PASS | Exit 0 |
 | `node --check frontend\js\review-today.js` | PASS | Exit 0 |
-| `node --check frontend\js\learning-studio.js` | PASS | Exit 0 after XSS cleanup |
+| `node --check frontend\js\storage.js` | PASS | Exit 0 after profile sanitizer |
+| `node --check frontend\js\learning-studio.js` | PASS | Exit 0 after XSS/profile avatar cleanup |
 | `npm run build:frontend` | PASS | `frontend-static-build` PASS |
-| `npx playwright test` | PASS | 28 tests, 0 failures |
+| `npx playwright test --grep "profile save renders text safely"` | PASS | 1 profile save/render test |
+| `npx playwright test` | PASS | 29 tests, 0 failures |
 | `npm run gate:secret-scan` | PASS | `release-gate-artifacts/controls/secret-scan.json` |
 | `npm run gate:source-integrity` | FAIL | Dirty working tree from this uncommitted task |
 | `npm run gate:validate-env` | FAIL | Production env vars absent in workspace |
@@ -111,7 +115,7 @@ intentionally in-memory.
 | Business logic | 5 | 9 | Forged quiz/sync progress blocked | No quiz replay token |
 | Database | 6 | 8 | Flyway V1-V4, prod validate guard | Production DB not verified here |
 | API | 6 | 7 | CSRF/sync V2 docs and errors | No generated OpenAPI |
-| Security | 5 | 8 | CSRF, CORS headers, secret scan | Deployed OAuth/CSP not fully proven |
+| Security | 5 | 9 | CSRF, CORS headers, explicit CSP/referrer/HSTS tests, profile/avatar sanitizer, secret scan | Frontend CSP still allows inline handlers |
 | Performance | 5 | 6 | Better sync consistency | Query optimization/pagination partial |
 | Testing | 7 | 9 | 91 backend + 28 frontend tests | No load/staging OAuth E2E |
 | DevOps | 6 | 8 | CI/gate scripts/Flyway guard | Gate NO-GO until env/evidence clean |

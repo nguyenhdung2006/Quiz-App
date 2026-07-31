@@ -1262,11 +1262,11 @@ if (element) element.textContent = value;
 
 function setImage(id, value) {
 let element = document.getElementById(id);
-if (element && value) element.src = value;
+if (element) element.src = typeof safeProfileAvatar === "function" ? safeProfileAvatar(value) : (value || "images/icon.png");
 }
 
 function applyProfile(profile) {
-let safeProfile = {
+let safeProfile = typeof sanitizeProfile === "function" ? sanitizeProfile(profile || {}) : {
 name: profile?.name || "Vocabulary Runner",
 email: profile?.email || "",
 avatar: profile?.avatar || "images/icon.png",
@@ -1431,15 +1431,27 @@ let file = fileInput.files?.[0];
 fileInput.value = "";
 if (!file) return;
 
-if (!file.type.startsWith("image/")) {
-toast("Please choose an image file.", "warn");
+if (!PROFILE_AVATAR_SAFE_FILE_TYPES?.has(file.type)) {
+toast("Please choose a PNG, JPG, GIF, or WebP image.", "warn");
+return;
+}
+
+if (file.size > PROFILE_AVATAR_MAX_FILE_BYTES) {
+toast("Profile photo must be 64 KB or less.", "warn");
 return;
 }
 
 let reader = new FileReader();
 reader.onload = () => {
-profileEditorPendingAvatar = String(reader.result || "");
-if (avatarPreview && profileEditorPendingAvatar) avatarPreview.src = profileEditorPendingAvatar;
+let nextAvatar = typeof safeProfileAvatar === "function"
+? safeProfileAvatar(reader.result)
+: String(reader.result || "");
+if (nextAvatar === "images/icon.png" && String(reader.result || "").trim() !== "images/icon.png") {
+toast("That profile photo format is not supported.", "warn");
+return;
+}
+profileEditorPendingAvatar = nextAvatar;
+if (avatarPreview) avatarPreview.src = profileEditorPendingAvatar;
 };
 reader.readAsDataURL(file);
 });
@@ -1450,13 +1462,13 @@ event.preventDefault();
 let current = getEditableProfile();
 let nextProfile = {
 ...current,
-name: document.getElementById("profileFormName")?.value.trim() || "Vocabulary Runner",
+name: safeProfileText(document.getElementById("profileFormName")?.value, 120) || "Vocabulary Runner",
 email: current.email || "",
-avatar: profileEditorPendingAvatar || current.avatar || "images/icon.png",
-birthday: document.getElementById("profileFormBirthday")?.value || "",
-gender: document.getElementById("profileFormGender")?.value || "",
-goal: document.getElementById("profileFormGoal")?.value.trim() || "",
-bio: document.getElementById("profileFormBio")?.value.trim() || ""
+avatar: safeProfileAvatar(profileEditorPendingAvatar || current.avatar || "images/icon.png"),
+birthday: safeProfileText(document.getElementById("profileFormBirthday")?.value, 20),
+gender: safeProfileText(document.getElementById("profileFormGender")?.value, 40),
+goal: safeProfileText(document.getElementById("profileFormGoal")?.value, 160),
+bio: safeProfileText(document.getElementById("profileFormBio")?.value, 2000, true)
 };
 
 profileEditorPendingAvatar = "";

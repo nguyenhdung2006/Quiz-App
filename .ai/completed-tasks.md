@@ -24,3 +24,18 @@ Limitations:
 
 - No commit, push, deployment, production migration, staging smoke, or restore rehearsal was performed.
 - Production gate remains `NOT_READY` pending external release evidence and a clean release candidate.
+
+## 2026-07-31 SEC-01 Security Headers And Profile Hardening
+
+- Added explicit Spring Security headers: CSP, Referrer-Policy, X-Content-Type-Options, X-Frame-Options, and HTTPS-gated HSTS.
+- Added backend profile/avatar sanitizer for `/api/profile`, OAuth picture ingestion, and `ProfileDto` output.
+- Restricted avatars to safe relative paths, `https://` URLs, and bitmap data images (`png`, `jpg/jpeg`, `gif`, `webp`).
+- Rejected unsafe avatar schemes/data types such as `javascript:`, protocol-relative URLs, `data:text/html`, and SVG data images.
+- Added frontend profile cache/render sanitization so unsafe stale localStorage avatars fall back to `images/icon.png`.
+- Added profile photo upload checks for MIME type and size before preview/render.
+- Added backend `SecurityHeadersTests`, `SecurityHeadersHstsTests`, and `ProfileSecurityTests`.
+- Added Playwright coverage for profile save text rendering and unsafe avatar fallback.
+
+Limitation:
+
+- CSP still allows `unsafe-inline` because the static frontend currently uses inline handlers such as `onclick` and `oncontextmenu`.

@@ -40,8 +40,14 @@ public class CurrentUserService {
 
         user.setEmail(email);
         if (!subject.isBlank()) user.setGoogleSubject(subject);
-        if (isBlank(user.getDisplayName())) user.setDisplayName(safe(principal.getAttribute("name")));
-        if (isBlank(user.getAvatarUrl())) user.setAvatarUrl(safe(principal.getAttribute("picture")));
+        if (isBlank(user.getDisplayName())) {
+            user.setDisplayName(ProfileSanitizer.displayName(safe(principal.getAttribute("name")), "Vocabulary Runner"));
+        }
+        if (isBlank(user.getAvatarUrl())) {
+            user.setAvatarUrl(ProfileSanitizer.avatarOrDefault(safe(principal.getAttribute("picture"))));
+        } else {
+            user.setAvatarUrl(ProfileSanitizer.avatarOrDefault(user.getAvatarUrl()));
+        }
         user.setLastActiveDate(LocalDate.now());
         AppUser saved = users.save(user);
         if (isNew) {

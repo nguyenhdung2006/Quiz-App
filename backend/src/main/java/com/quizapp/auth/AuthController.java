@@ -4,6 +4,7 @@ import java.util.Map;
 import com.quizapp.user.CurrentUserService;
 import com.quizapp.user.ProfileDto;
 import com.quizapp.user.ProfileRequest;
+import com.quizapp.user.ProfileSanitizer;
 import com.quizapp.user.AppUser;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -38,17 +39,19 @@ public class AuthController {
             @Valid @RequestBody ProfileRequest request
     ) {
         AppUser user = currentUsers.requireUser(principal);
-        if (request.name() != null && !request.name().isBlank()) user.setDisplayName(request.name().trim());
-        if (request.avatar() != null && !request.avatar().isBlank()) user.setAvatarUrl(request.avatar().trim());
+        if (request.name() != null && !request.name().isBlank()) {
+            user.setDisplayName(ProfileSanitizer.displayName(request.name(), user.getDisplayName()));
+        }
+        if (request.avatar() != null) {
+            user.setAvatarUrl(ProfileSanitizer.requireSafeAvatar(request.avatar()));
+        } else {
+            user.setAvatarUrl(ProfileSanitizer.avatarOrDefault(user.getAvatarUrl()));
+        }
         user.setBirthday(request.birthday());
-        user.setGender(safe(request.gender()));
-        user.setLearningGoal(safe(request.goal()));
-        user.setBio(safe(request.bio()));
+        user.setGender(ProfileSanitizer.singleLine(request.gender(), 40));
+        user.setLearningGoal(ProfileSanitizer.singleLine(request.goal(), 160));
+        user.setBio(ProfileSanitizer.multiLine(request.bio(), 2_000));
         user.incrementSyncRevision();
         return ProfileDto.from(user);
-    }
-
-    private String safe(Object value) {
-        return value == null ? "" : String.valueOf(value).trim();
     }
 }

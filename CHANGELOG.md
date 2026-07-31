@@ -2,6 +2,9 @@
 
 ## 2026-07-31
 
+- Added explicit Spring Security response headers with compatible CSP, Referrer-Policy, X-Content-Type-Options, frame deny policy, and HTTPS-gated HSTS.
+- Hardened profile/avatar handling across backend input/output, OAuth picture ingestion, frontend cache, upload preview, and image rendering.
+- Added backend security/profile regression tests and Playwright profile save/render coverage.
 - Reconciled production hardening status against the technical audit and current test evidence.
 - Updated release-gate secret/source scans so ignored local `.env` and generated report folders do not create false commit-safety failures.
 - Added missing source-of-truth docs: `PROJECT.md`, `CLAUDE.md`, `docs/DOMAIN.md`, `docs/ROADMAP.md`, and `docs/TROUBLESHOOTING.md`.
