@@ -1,12 +1,43 @@
 # Known Issues
 
-- Production `flyway_schema_history` cannot be verified from this workspace because no production database connection is available.
-- Existing production/staging databases must be backed up, exported, and compared against Flyway V1/V2 before enabling steady-state migrations.
-- `database/schema.sql` is a legacy reference/repair script and is not equivalent to the Flyway migration history.
-- No tombstone migration has been added yet; future tombstone work must start at the next Flyway version after V2.
-# 2026-07-31 Sync V2 Known Limitations
+## Release Gate External Evidence
 
-- No local PostgreSQL CLI/staging database rehearsal was executed in this workspace; CI coverage was added instead.
-- Render backend deploy for commit `1f3fb67` failed with `No active profile set` in logs, indicating production env/profile was not applying Flyway-before-validate startup.
-- Tombstone garbage collection is intentionally not implemented.
-- Frontend English-based merge remains only as a legacy adoption fallback for local/generated UIDs.
+Severity: High
+
+Impact: production release remains `NOT_READY`.
+
+Issue: production env validation, staging smoke, and restore rehearsal evidence cannot be completed from this workspace because secrets, staging URLs, test identity metadata, and non-production restore proof are not present.
+
+Workaround: treat the current repository as staging-candidate code, not a production release.
+
+Next action: provide the required env/evidence and re-run `npm run gate:report` or the GitHub Production Release Gate workflow.
+
+## Source Integrity During This Task
+
+Severity: Medium
+
+Impact: `source-integrity` gate fails while this task's changes are uncommitted.
+
+Workaround: expected during local audit work because the command forbids commit/push.
+
+Next action: review changes, then run the gate from a clean release candidate.
+
+## In-Memory Rate Limiting
+
+Severity: Medium
+
+Impact: AI limits are process-local and reset on restart; they are not global across multiple backend instances.
+
+Workaround: keep one backend instance and configure minute/day limits.
+
+Next action: add Redis or another distributed limiter only if deployment becomes multi-instance or AI abuse/cost risk appears.
+
+## API/Scale Maturity
+
+Severity: Medium
+
+Impact: large accounts can still hit full snapshot and in-memory aggregation bottlenecks.
+
+Workaround: current scale is suitable for beta/staging validation.
+
+Next action: add measured repository queries, pagination/delta sync, and OpenAPI contract coverage.

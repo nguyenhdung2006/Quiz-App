@@ -303,7 +303,13 @@ history.slice(0, 20).forEach(item => {
 let row = document.createElement("article");
 row.className = "historyItem";
 let date = item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "Unknown date";
-row.innerHTML = `<strong>${item.score || 0}/10</strong><span>${item.correctAnswers || 0}/${item.totalQuestions || 0} correct</span><em>${item.quizMode || "quiz"} - ${date}</em>`;
+let score = document.createElement("strong");
+score.textContent = `${item.score || 0}/10`;
+let summary = document.createElement("span");
+summary.textContent = `${item.correctAnswers || 0}/${item.totalQuestions || 0} correct`;
+let mode = document.createElement("em");
+mode.textContent = `${item.quizMode || "quiz"} - ${date}`;
+row.append(score, summary, mode);
 list.appendChild(row);
 });
 }
@@ -316,7 +322,13 @@ BADGES.forEach(badge => {
 let unlocked = Boolean(badge.test());
 let card = document.createElement("article");
 card.className = "badgeCard" + (unlocked ? " is-unlocked" : "");
-card.innerHTML = `<span>${unlocked ? "Unlocked" : "Locked"}</span><h3>${badge.name}</h3><p>${badge.description}</p>`;
+let state = document.createElement("span");
+state.textContent = unlocked ? "Unlocked" : "Locked";
+let title = document.createElement("h3");
+title.textContent = badge.name;
+let description = document.createElement("p");
+description.textContent = badge.description;
+card.append(state, title, description);
 gallery.appendChild(card);
 });
 }

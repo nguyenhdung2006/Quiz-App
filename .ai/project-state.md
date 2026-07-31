@@ -1,19 +1,37 @@
 # Project State
 
-Date: 2026-07-30
+Date: 2026-07-31
 
-The project keeps Google OAuth2 login with server-side Spring Security sessions. CSRF is enabled for unsafe requests using `XSRF-TOKEN` cookie and `X-XSRF-TOKEN` header.
+Version: `0.0.1-SNAPSHOT`.
 
-Frontend backend calls are centralized through `window.quizApiFetch` in `frontend/js/config.js`. The helper keeps credentials for trusted backend requests, obtains CSRF tokens from `GET /api/csrf`, stores the token in memory only, and avoids adding CSRF to third-party requests.
+Branch: `main`.
 
-Logout is now `POST /logout` with CSRF. Backend returns `204 No Content`; frontend redirects to `login.html?loggedOut=true`.
+Production gate: `NOT_READY`.
 
-As of 2026-07-31, production database schema ownership is Flyway-first. `application-prod.yml` pins Hibernate `ddl-auto=validate`, Flyway enabled, validate-on-migrate enabled, clean disabled, and baseline-on-migrate disabled. `ProductionDatabaseSafetyGuard` fails startup for unsafe effective database settings when `prod` or `production` profile is active.
-# 2026-07-31 Sync Contract V2 State
+Current focus: audit reconciliation and production hardening evidence.
 
-- Backend Sync V2 implemented through `com.quizapp.vocab.SyncService`.
-- Stable identity: `VocabularyWord.wordUid` maps to `vocabulary.word_uid`; numeric `id` remains primary key.
-- Tombstones: `WordTombstone` maps to `word_tombstones`; direct deletes hard-delete live rows and retain tombstones.
-- Frontend creates/persists `wordUid`, sends `syncContractVersion: 2`, sends `deletions`, applies tombstones before live merge, and retries one rebuilt sync after 409.
-- CI includes PostgreSQL migration/validate coverage.
-- V4 adds `word_tombstones.legacy_word_id` so legacy local words with only numeric `id` are removed by tombstones before sync.
+Implemented and verified locally:
+
+- Server-authoritative quiz results and official progress.
+- Sync payload lockout for server-managed stats/mastery.
+- CSRF for OAuth2 session auth with central frontend API helper.
+- Sync Contract V2 with stable `wordUid`, revision conflict handling, tombstones, and legacy numeric id bridge.
+- Flyway production schema policy with `application-prod.yml` and `ProductionDatabaseSafetyGuard`.
+- Request correlation, MDC cleanup, Micrometer/request counters, domain counters, and configurable in-memory AI rate limiting.
+- Production release-gate scripts and GitHub workflow.
+
+Last verified commands:
+
+- `backend\.mvnw.cmd test`: PASS, 91 tests.
+- `backend\.mvnw.cmd clean package -DskipTests`: PASS.
+- `npx playwright test`: PASS, 28 tests.
+- `npm run gate:secret-scan`: PASS.
+- `npm run gate:report`: NO-GO.
+
+Remaining limitations for next Codex session:
+
+- Production env vars are not loaded in this workspace.
+- Restore rehearsal evidence is missing.
+- Staging smoke URLs/test identity are missing.
+- Source integrity is dirty until current changes are committed by a human-approved workflow.
+- OpenAPI, pagination/query optimization, full service split, deployed OAuth E2E, and explicit CSP/HSTS tests remain future work.

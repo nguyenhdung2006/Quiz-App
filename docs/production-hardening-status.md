@@ -1,291 +1,120 @@
 # Production Hardening Status
 
-Consolidated status of all production hardening features implemented for WordArena.
-
-Last updated: 2026-07-30 (P0 business integrity lockdown documented)
-
----
-
-## 1. Current Production Hardening Status
-
-| # | Task | Status | Key Mechanism |
-|---|------|--------|---------------|
-| 1 | Force pull before push | Done | `pullCloudSnapshot()` runs before every `syncCloudNow()` push; frontend refuses push if pull fails |
-| 2 | Stale device guard | Done | Stale device detection on auth bootstrap; warns user and pulls fresh snapshot instead of pushing |
-| 3 | `sync_revision` / optimistic concurrency | Done | Monotonic revision counter on `AppUser`; push sends expected revision; 409 Conflict on mismatch forces pull-and-retry |
-| 4 | Delete queue hardening | Done | `cloudDeleteQueue` in localStorage with attempts/backoff/lastError/lastStatus; blocks full sync while pending; idempotent backend DELETE |
-| 5 | Backend validation / integrity lock | Done | `/api/quiz-results` recomputes quiz totals, correctness, score, combo, XP, stats, wrong-bank state, and score-driven achievements from server vocabulary; sync/CRUD/import ignore client-owned `stats` and `mastered`; `MAX_SAFE_COUNT` guard remains in review/analytics; `isUsableSyncWord()` filters malformed sync payloads |
-| 6 | Supabase schema audit | Done | Read-only audit of 8 tables against entities, `database/schema.sql`, and code assumptions; 15 SQL queries ready for manual Supabase execution (see `docs/schema-audit.md`) |
-| 7 | Flyway baseline strategy | Done | Staged rollout plan documented; rehearsal executed locally against PostgreSQL 17 (PASS). Flyway disabled by default (`FLYWAY_ENABLED=false`). See `docs/flyway-baseline-strategy.md` |
-| 8 | Structured logging | Done | 8 log prefixes (`[SYNC]`, `[AUTH]`, `[AI]`, `[REVIEW]`, `[SNAPSHOT]`, `[ANALYTICS]`, `[QUIZ]`, `[ERROR]`) across all service classes |
-| 9 | Error surface UI | Done | Improved sync/auth error messaging, retry buttons (Sync Retry, AI Deck Retry, Review Retry), persistent submit error feedback, delete queue status in sync UI |
-| 10 | Basic health monitoring | Done | `/api/health`, `/api/health/summary`, `/actuator/health`, `/actuator/info` with in-memory counters; logging hygiene (no PII emails, no misleading `[AUTH]` tag on generic errors) |
-| 11 | Production incident documentation | Done | Documented in `docs/deploy.md#production-incident-fixes`: missing `sync_revision` column (manual SQL), PgBouncer `prepareThreshold=0`, first-sync deadlock fix (`!lastSync → return false`), secret audit, smoke test results, future deploy checklist |
-
----
-
-## P0 Update - 2026-07-30 Business Integrity Lockdown
-
-- `POST /api/quiz-results` now treats client summary fields and answer correctness flags as untrusted. The backend resolves each submitted answer against the current user's vocabulary, recomputes correctness from server-owned word data, and derives total questions, correct/wrong counts, score, max combo, quiz XP, history totals, word stats, wrong-bank state, and score-driven achievements from the verified result.
-- `POST /api/sync`, `POST /api/vocab`, `PUT /api/vocab/{id}`, starter import, and wrong-word sync continue to accept editable word content, but no longer let client payloads overwrite server-managed `stats`, `mastered`, or wrong-bank mastery/progress fields.
-- Empty or cross-user quiz payloads can still create a zero-result quiz history entry and sync revision change, but do not award XP, stats, wrong-bank entries, or achievements.
-- Remaining limitation: quiz mode and replay prevention are not backed by a server-issued attempt token. Repeated valid answer submissions are still accepted and should be handled by a separate anti-replay design if product requirements demand it.
-
----
-
-## 2. Sync Safety Model
-
-### Current Model
-
-- **Local-first**: vocabulary is always written to localStorage first; cloud is backup/sync target.
-- **Pull before push**: `syncCloudNow()` calls `pullCloudSnapshot()` first; push only proceeds if pull succeeds.
-- **Trusted cloud state**: cloud snapshot is treated as authoritative during pull; local words missing from cloud are re-added during push.
-- **Stale device guard**: on auth bootstrap, if local `lastSyncedAt` is older than cloud `updatedAt`, the device is flagged stale; user is prompted to pull first.
-- **Optimistic concurrency**: push sends `syncUser.getSyncRevision()` as `expectedRevision`; backend compares with current revision; 409 Conflict forces frontend to pull and retry.
-- **Delete queue**: local deletes are queued in `cloudDeleteQueue` (localStorage). Flush happens before every pull. Full sync is blocked while deletes are pending. Backend DELETE is idempotent.
-- **Merge rules**: frontend `mergeWordLists()` uses normalized English key with timestamp comparison (newer wins, cloud wins ties). Backend `upsertByEnglish()` by-passes timestamp comparison — last write wins.
-
-### Known Limitations
-
-- **No tombstone/deletedIds protocol**: deleted words are removed from cloud entirely. Re-appearance on another device can resurrect them.
-- **Rare delete/snapshot race**: if a delete is queued but not flushed before another device pushes the same word, the word can reappear after the delete flushes.
-- **No CRDT/event sourcing**: conflicts are resolved by last-write-wins with timestamp tie-breaking. No event log or merge history.
-- **Client timestamp trust**: merge uses `new Date().toISOString()` timestamps; clock drift between devices can cause stale data to appear newer.
-- **Upsert-by-English in full sync**: `/api/sync` applies all fields blindly without timestamp comparison; full sync can overwrite newer cloud stats with older local values.
-
-See `docs/sync-hardening-audit.md` for detailed flow diagrams and scenario analysis.
-
----
-
-## 3. Delete Semantics
-
-### Current Behavior
-
-- Local remove is immediate (word removed from in-memory `vocab[]` and localStorage).
-- Delete intent is queued in `cloudDeleteQueue` as `{ wordId, english, timestamp }`.
-- Queue is persisted in localStorage; survives reload.
-- Before each sync, queue is flushed: each item is sent to `DELETE /api/vocab/{wordId}`.
-- Backend DELETE is idempotent (finds word by id+user; deletes if exists; no-op otherwise).
-- Full sync push is blocked while queue is non-empty.
-- Failed deletes are retried with exponential backoff (`lastError`, `lastAttempt` tracked).
-- Queue items are never automatically removed after max attempts — they remain visible in sync status (`"Delete pending: N item(s). Sync will retry automatically."`).
-- Fire-and-forget delete path (non-cloud user) has `.catch(console.warn)` for observability (Task 9C).
-
-### Known Limitations
-
-- **No tombstone protocol**: no record on cloud that a word was deleted; another device can re-push the same word.
-- **No dead-letter UI**: no admin interface to inspect, retry, or clear stuck queue items.
-- **No automatic removal**: queue items with persistent failures (e.g. word already deleted on cloud, 404) are never cleaned up automatically.
-
----
-
-## 4. Review Semantics
-
-### Current Behavior
-
-- Review is local-first: `applyLocalAnswer()` mutates `WordStats` in localStorage immediately.
-- Cloud submit is async: `answerItem()` sends answer to backend after local mutation.
-- If cloud submit fails, local stats are already saved; error message is shown persistently (Task 9E).
-- Full sync push later sends all local word stats (including locally-computed intervals) to backend via `upsertByEnglish()`.
-- Frontend computes `nextReviewDate()` based on simple streak-based fixed intervals (1/3/7/14/30 days).
-- Backend uses SM-2 algorithm in `SpacedRepetitionService.applyAnswer()`.
-
-### Known Limitations
-
-- **No pending review-answer queue**: if cloud submit fails, the review event is lost. Only the final mutated stats survive.
-- **Frontend/backend interval divergence**: after cloud failure, frontend stores its own interval. On next full sync push, frontend's interval overwrites backend's SM-2 calculation. They converge, but the SM-2 result is discarded.
-- **Advancement before success**: `answerItem()` advances the review session (increment counter, remove from queue, refresh UI) before cloud confirmation. This is intentional local-first design — the review session never stalls on network issues.
-
----
-
-## 5. Observability / Health
-
-### Endpoints
-
-| Endpoint | Type | Auth | Purpose |
-|----------|------|------|---------|
-| `GET /api/health` | Custom REST | Public | Lightweight alive check: `{"status":"ok","app":"quiz-app"}` |
-| `GET /api/health/summary` | Custom REST | Public | Live counters since last restart (see counters below) |
-| `GET /actuator/health` | Spring Boot Actuator | Public | Liveness/readiness probes; details hidden (`show-details=never`) |
-| `GET /actuator/info` | Spring Boot Actuator | Public | App metadata: name, version, environment, AI/Flyway flags |
-
-Configuration in `application.properties`:
-
-```properties
-management.endpoints.web.exposure.include=health,info
-management.endpoint.health.probes.enabled=true
-management.endpoint.health.show-details=never
-```
-
-### Health Counters (in-memory, reset on restart)
-
-Returned by `GET /api/health/summary`.
-
-| Counter | Source | Incremented |
-|---------|--------|-------------|
-| `syncConflicts` | `GlobalExceptionHandler` | 409 revision conflict response |
-| `syncFailures` | — | Not yet implemented |
-| `aiFailures` | `AiDeckGeneratorService`, `AiExplanationService` | AI call failure triggers fallback |
-| `reviewFailures` | `SpacedRepetitionService` | Invalid review payload (word not found) |
-| `snapshotFailures` | `VocabularyService.snapshot()` | Any exception during snapshot pull |
-| `quizFailures` | `VocabularyService.recordQuizResult()` | Any exception during quiz recording |
-| `analyticsFailures` | `LearningAnalyticsService.overview()` | Any exception during analytics generation |
-| `validationErrors` | `GlobalExceptionHandler` | 400 validation/bad request/malformed body |
-| `serverErrors` | `GlobalExceptionHandler` | Any unhandled `RuntimeException` (500) |
-
-All counters are aggregate only — no user IDs, no PII, no request bodies, no stack traces.
-
-### Log Prefixes
-
-| Prefix | Files |
-|--------|-------|
-| `[SYNC]` | `VocabularyService`, `GlobalExceptionHandler` |
-| `[AUTH]` | `CurrentUserService`, `GlobalExceptionHandler` |
-| `[AI]` | `AiDeckGeneratorService`, `AiExplanationService`, `OpenAiDeckGeneratorClient`, `OpenAiExplanationClient`, `GlobalExceptionHandler` |
-| `[REVIEW]` | `SpacedRepetitionService` |
-| `[SNAPSHOT]` | `VocabularyService` |
-| `[ANALYTICS]` | `LearningAnalyticsService` |
-| `[QUIZ]` | `VocabularyService` |
-| `[ERROR]` | `GlobalExceptionHandler` (catch-all `RuntimeException`) |
-
-### Logging Hygiene
-
-- No email addresses logged (removed in Task 10B).
-- No OAuth subjects logged (except opaque `sub` on OAuth failure path — not an email).
-- No request bodies, vocabulary contents, or AI prompts in log messages.
-- No stack traces in log lines (exception message only; full trace in log framework output).
-
-### Render / Production Health Check
-
-- Render health check path: `/api/health` or `/actuator/health`.
-- Liveness probe uses `management.endpoint.health.probes.enabled=true`.
-
----
-
-## 6. Production Deployment Notes
-
-### Database
-
-- Production Supabase must have `app_users.sync_revision` column (bigint, default 0).
-- `JPA_DDL_AUTO` should be `validate` in production after schema is stable.
-- Flyway production migration is **disabled by default** (`FLYWAY_ENABLED=false`).
-- Do **not** blindly enable Flyway baseline on production. Follow the staged rollout in `docs/flyway-baseline-strategy.md`:
-  1. Backup production database.
-  2. Deploy with `FLYWAY_ENABLED=false` and `JPA_DDL_AUTO=validate`.
-  3. Verify health check passes.
-  4. During planned window: set `FLYWAY_BASELINE_ON_MIGRATE=true`, restart, verify baseline created.
-  5. Immediately remove `FLYWAY_BASELINE_ON_MIGRATE=true`, restart, verify post-baseline startup.
-  6. Only then add V2+ migrations.
-- Existing `database/schema.sql` is additive/repair-style — not equivalent to clean `V1__baseline_schema.sql`.
-
-### Health Endpoints
-
-- Render health check: `/api/health` or `/actuator/health`.
-- Debugging since last restart: `GET /api/health/summary`.
-- `/api/health/summary` counters reset on every deploy — expected.
-
-### Environment Variables
-
-Full table in `docs/deploy.md`. Key settings:
-
-| Variable | Production Value |
-|----------|------------------|
-| `SESSION_COOKIE_SAME_SITE` | `none` |
-| `SESSION_COOKIE_SECURE` | `true` |
-| `APP_ENV` | `production` |
-| `JPA_DDL_AUTO` | `validate` (post-baseline) |
-| `FLYWAY_ENABLED` | `false` (default; enable only during baseline window) |
-
----
-
-## 7. Remaining Risks / Future Tasks
-
-### P1 — Not Yet Implemented
-
-| Risk | Description |
-|------|-------------|
-| Tombstone/deletedIds protocol | No cloud-side record of deleted words; resurrection possible from another device |
-| `syncFailures` counter | No dedicated sync-failure counter; failures are counted under `serverErrors` or not counted |
-
-### P2 — Would Improve Safety
-
-| Risk | Description |
-|------|-------------|
-| Pending review-answer queue | Review events lost on cloud failure; only final mutated stats survive |
-| Dead-letter UI for delete queue | No admin interface to inspect, retry, or clear stuck delete queue items |
-| Delete queue auto-cleanup | Queue items with persistent failures (404, auth) are never automatically removed |
-
-### P3 — Deferred
-
-| Risk | Description |
-|------|-------------|
-| External monitoring (Sentry/Prometheus/Grafana) | Not justified at current scale; log scraping sufficient |
-| DB-backed persistent counters | Counters reset on restart; DB-backed counters are overkill for current usage |
-| CRDT/event sourcing sync | Fundamental architectural change; not needed for single-device-primary use case |
-| Content moderation | No AI-generated content review or user content moderation |
-| Per-user breakdown of health counters | Adds complexity not yet justified |
-
----
-
-## 8. Production Incident Record
-
-Summary of production incidents documented in `docs/deploy.md#production-incident-fixes`.
-
-### 8.1 Missing `app_users.sync_revision` Column
-
-- **Symptom:** Backend 500s on sync; app startup failure with
-  `JPA_DDL_AUTO=validate`.
-- **Root cause:** Supabase created before `sync_revision` entity field existed.
-- **Fix:** Manual SQL: `ALTER TABLE app_users ADD COLUMN IF NOT EXISTS
-  sync_revision BIGINT NOT NULL DEFAULT 0;`
-- **Prevention:** Planned migration or manual SQL before deploying entity
-  changes. `JPA_DDL_AUTO=validate` catches future drift.
-
-### 8.2 PgBouncer `prepareThreshold=0`
-
-- **Symptom:** `ERROR: prepared statement "S_1" does not exist` on any DB query.
-- **Root cause:** Supabase pooler (PgBouncer transaction mode, port 6543)
-  conflicts with JDBC server-side prepared statement caching.
-- **Fix:** Append `?prepareThreshold=0` to `DATABASE_URL`.
-- **Prevention:** Verify `DATABASE_URL` after every env/pooler change.
-
-### 8.3 First-Sync Deadlock (Stale Guard)
-
-- **Symptom:** "Sync paused to protect your data" on first login; `/api/sync`
-  never called.
-- **Root cause:** `if (!lastSync) return cloudUpdated > 0;` — returned stale
-  when cloud had data but `lastSuccessfulSyncAt` was null.
-- **Fix:** Changed to `if (!lastSync) return false;` in `app.js:270`.
-- **What remains active:** 7-day stale guard, `sync_revision` / 409 conflicts,
-  pull-before-push, delete queue blocking.
-- **Prevention:** First-sync path tests added; stale guard logic should be
-  reviewed if new sync-blocking conditions are added.
-
-### 8.4 GitHub Secret Audit
-
-- **Result:** No real `.env` files committed. Only `.env.example` and
-  `backend/.env.example` are tracked.
-- **Mechanisms:** GitHub Secret Protection / Push Protection enabled.
-- **Rule:** Never commit real `.env` files or screenshot secret configuration
-  pages.
-
-### 8.5 Production Smoke Test (June 9, 2026)
-
-All public endpoints verified after fixes. Full results in
-`docs/deploy.md#production-incident-fixes`. No broken endpoints detected.
-
----
-
-## References
-
-| Document | Content |
-|----------|---------|
-| `docs/sync-hardening-audit.md` | Detailed sync safety audit with flow diagrams |
-| `docs/schema-audit.md` | Read-only schema audit; 15 Supabase SQL queries |
-| `docs/production-schema-drift-audit.md` | Per-column drift risk analysis |
-| `docs/flyway-baseline-strategy.md` | Staged Flyway rollout plan |
-| `docs/flyway-baseline-rehearsal.md` | Local rehearsal results against PostgreSQL |
-| `docs/deploy.md` | Full deployment guide with env vars |
-| `docs/oauth-google.md` | Google OAuth configuration |
-| `docs/backend-postgres.md` | Backend PostgreSQL notes |
-| `docs/product.md` | Product overview |
+Last updated: 2026-07-31
+
+This file is the reconciliation matrix for `docs/technical-audit-report.md`,
+current source code, tests, configuration, CI, and deployment docs. Code and
+test evidence override older audit text.
+
+## Input Verification
+
+| File | SHA-256 | Duplicate | Role |
+| --- | --- | --- | --- |
+| `C:\Users\nguye\.codex\attachments\9839f0b4-1d95-4b4b-a925-6ef8a9f3620a\pasted-text.txt` | `3A2E439CA866F3247EB7C75530852FC1E42FD85ED8C0A62EBAF983D0912F666A` | No | Master command / source file supplied this run |
+| `SOURCE_FILE_2` | `UNKNOWN - not supplied in this workspace` | Unknown | Requested by command but not available |
+| `docs/technical-audit-report.md` | `19E68BA02E0EA998A2E8653F7EA7F2C1992859964007AE658C77E83772767335` | No | Original technical audit report |
+
+## Current Gate
+
+Production gate: `NOT_READY`.
+
+Reason: code hardening tests pass, but release evidence is incomplete. The
+local gate has `source-integrity=FAIL` because this task leaves uncommitted
+changes by instruction, `production-env-validation=FAIL` because production env
+vars are not loaded in this workspace, and `backup-rollback-readiness` plus
+`staging-smoke` are `BLOCKED` because required external evidence is absent.
+
+Original audit score: `64/100`.
+
+Reassessed score: `84/100`.
+
+The score improved because P0 integrity, CSRF, production schema safety,
+tombstone sync, observability, and release-gate controls are now implemented
+with tests. It is not higher because operational release evidence is missing,
+OpenAPI/pagination/query optimization remain partial, and the AI limiter is
+intentionally in-memory.
+
+## Audit Reconciliation Matrix
+
+| Audit ID | Severity | Finding | Evidence code hiện tại | Evidence test hiện tại | Trạng thái | Gap còn lại | Hành động |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| A-01 | High | Quiz/progress trusted client aggregates | `VocabularyService.recordQuizResult` resolves answers against current user's words and recomputes total/correct/wrong/score/combo/XP/achievements | `BackendHardeningTests` forged quiz tests, `mvnw test` PASS | VERIFIED_FIXED | No server-issued attempt/replay token | Track anti-replay only if product needs it |
+| A-02 | High | Sync can overwrite server-managed stats/mastery | `SyncService.applyWordRequest` accepts content fields and calls `ensureStats` without applying incoming stats/mastered | `syncPayloadCannotOverwriteServerManagedProgressFields`, `mvnw test` PASS | VERIFIED_FIXED | Review local fallback can still diverge until cloud confirms | Keep documented local-first limitation |
+| A-03 | High | CSRF disabled with cookie sessions | `SecurityConfig` enables Cookie CSRF, `/api/csrf`, restricted CORS headers, POST logout | `CsrfSecurityTests`, Playwright CSRF helper tests PASS | VERIFIED_FIXED | Real deployed OAuth browser flow not run here | Run staging/prod OAuth smoke before release |
+| A-04 | High | Production migration defaults unsafe | `application-prod.yml`, Flyway migrations V1-V4, `ProductionDatabaseSafetyGuard` | `DatabaseSchemaTests`, `ProductionDatabaseSafetyGuardTests`, CI workflow | VERIFIED_FIXED | Production DB state not accessible from workspace | Validate staging/prod env and schema history |
+| A-05 | High | No server-side delete/tombstone semantics | `SyncService`, `WordTombstone`, migrations V3/V4, `wordUid`, `deletions` | `SyncContractV2Tests`, Playwright tombstone/stale-device tests PASS | VERIFIED_FIXED | Tombstone garbage collection intentionally absent | Add retention policy only after real data age exists |
+| A-06 | Medium | CORS allowed wildcard headers | `SecurityConfig.corsConfigurationSource` enumerates allowed origins/methods/headers | `CsrfSecurityTests` and source inspection | VERIFIED_FIXED | Env origins still must be exact in deployment | Gate validates `CORS_ALLOWED_ORIGINS` |
+| A-07 | Medium | Security headers not explicit | Security config includes core auth/CSRF/CORS; docs require hosting/security review | No dedicated CSP/HSTS test | PARTIALLY_FIXED | CSP/HSTS/referrer policy not fully asserted in tests | Add explicit headers and tests later |
+| A-08 | Medium | In-memory AI rate limiter | `AiRateLimitService` configurable minute/day per action/user, metrics on hit | `AiRateLimitTests`, `ObservabilityAndRateLimitTests` PASS | VERIFIED_FIXED | Not distributed; resets per JVM | Upgrade only for multi-instance/cost/abuse evidence |
+| A-09 | Medium | Observability too thin | Request ID filter, MDC cleanup, request metrics, domain counters, actuator metrics | `ObservabilityAndRateLimitTests` PASS | VERIFIED_FIXED | No external APM/Sentry configured | Add external monitoring when production use justifies |
+| A-10 | Medium | Frontend monolith/global state | Central `quizApiFetch` and sync helpers reduce API duplication | Playwright smoke PASS | PARTIALLY_FIXED | `app.js` remains large; no ES module split | Incremental modularization, not rewrite |
+| A-11 | Medium | Backend God service | `SyncService` extracted; `VocabularyService` still owns CRUD/quiz/starter import | Backend tests PASS | PARTIALLY_FIXED | Quiz/CRUD/snapshot services not fully separated | Continue small service extraction |
+| A-12 | Medium | Full scans/query bottlenecks | Some repository queries exist; normalized duplicate still streams user words | Backend tests PASS, no performance benchmark | PARTIALLY_FIXED | Review/analytics/snapshot pagination and query optimization incomplete | Add measured query work before scale |
+| A-13 | Medium | API contract maturity/OpenAPI missing | `docs/API.md` documents current endpoints, CSRF, sync V2, errors | Docs/source inspection | PARTIALLY_FIXED | No generated OpenAPI contract tests | Add OpenAPI spec/generation |
+| A-14 | Medium | Profile direct save underused | `PUT /api/profile` exists; frontend still sync-centric | Backend/profile tests inside full suite | PARTIALLY_FIXED | Frontend direct profile save E2E not proven | Add Playwright/profile cloud test |
+| A-15 | Low | Misleading `[AUTH]` generic logs | `GlobalExceptionHandler` no longer uses old generic auth tag for all errors | Backend tests/log source inspection | VERIFIED_FIXED | Some auth-specific logs remain by design | No action |
+| A-16 | Low | Unused archive/assets/dependencies | Archive documented as legacy; no removal requested | N/A | NOT_APPLICABLE | Search noise remains | Do not delete archive without explicit approval |
+| A-17 | P0 gate | Release gate incomplete | Gate scripts and workflow exist | Gate report `NO-GO` | PARTIALLY_FIXED | Env/staging/restore evidence and clean tree missing | Complete external release checklist |
+| A-18 | Testing | Missing forged/CSRF/tombstone tests | Tests now cover forged quiz, CSRF, Sync V2 tombstones, observability/rate limit | `mvnw test` 91 PASS, Playwright 28 PASS | VERIFIED_FIXED | Load/performance and deployed OAuth E2E not run | Add after staging access |
+
+## Status Counts
+
+| Status | Count |
+| --- | ---: |
+| VERIFIED_FIXED | 11 |
+| PARTIALLY_FIXED | 6 |
+| NOT_FIXED | 0 |
+| REGRESSED | 0 |
+| NOT_APPLICABLE | 1 |
+| UNVERIFIED | 0 |
+
+## Items 1-7
+
+| Item | Initial state | Work completed | Test evidence | Final status |
+| --- | --- | --- | --- | --- |
+| 1. Business integrity | Client-trusted quiz/sync progress | Server recomputes quiz results; sync ignores server-managed stats | BackendHardeningTests PASS | VERIFIED_FIXED |
+| 2. CSRF/session | CSRF disabled | Cookie CSRF, token endpoint, frontend API client, POST logout | CsrfSecurityTests and Playwright CSRF tests PASS | VERIFIED_FIXED |
+| 3. Migration safety | Env-discipline-based production DB safety | Prod profile, Flyway V1-V4, safety guard, CI migration/validate | DatabaseSchemaTests and guard tests PASS | VERIFIED_FIXED |
+| 4. Tombstone/sync | Delete queue only | Sync Contract V2, `wordUid`, tombstones, legacy id bridge | SyncContractV2Tests and Playwright sync tests PASS | VERIFIED_FIXED |
+| 5. Production gate | Not formalized | Gate scripts/workflow/report exist | Gate report NO-GO with PASS/FAIL/BLOCKED controls | PARTIALLY_FIXED |
+| 6. Maintainability/API/scale | God services and monolith | `SyncService`, central API client, docs | Full test suites PASS | PARTIALLY_FIXED |
+| 7. Observability/rate limit | Thin counters/logs | Request ID, MDC, metrics, configurable in-memory AI limiter | Observability/rate-limit tests PASS | VERIFIED_FIXED |
+
+## Tests Run 2026-07-31
+
+| Command | Result | Evidence |
+| --- | --- | --- |
+| `backend\.mvnw.cmd test` | PASS | 91 tests, 0 failures |
+| `backend\.mvnw.cmd clean package -DskipTests` | PASS | Jar built at `backend/target/quiz-0.0.1-SNAPSHOT.jar` |
+| `node --check frontend\js\config.js` | PASS | Exit 0 |
+| `node --check frontend\js\app.js` | PASS | Exit 0 |
+| `node --check frontend\js\login.js` | PASS | Exit 0 |
+| `node --check frontend\js\ai-explain.js` | PASS | Exit 0 |
+| `node --check frontend\js\analytics-dashboard.js` | PASS | Exit 0 |
+| `node --check frontend\js\review-today.js` | PASS | Exit 0 |
+| `node --check frontend\js\learning-studio.js` | PASS | Exit 0 after XSS cleanup |
+| `npm run build:frontend` | PASS | `frontend-static-build` PASS |
+| `npx playwright test` | PASS | 28 tests, 0 failures |
+| `npm run gate:secret-scan` | PASS | `release-gate-artifacts/controls/secret-scan.json` |
+| `npm run gate:source-integrity` | FAIL | Dirty working tree from this uncommitted task |
+| `npm run gate:validate-env` | FAIL | Production env vars absent in workspace |
+| `npm run gate:backup-rollback` | BLOCKED | Restore rehearsal evidence absent |
+| `npm run gate:staging-smoke` | BLOCKED | Staging URLs/test identity absent |
+| `git diff --check` | PASS | Exit 0 |
+
+## Score Reassessment
+
+| Category | Old score | New score | Evidence | Remaining limitation |
+| --- | ---: | ---: | --- | --- |
+| Architecture | 6 | 7 | SyncService extraction, clear module docs | VocabularyService/frontend still large |
+| Code quality | 6 | 7 | Focused tests and smaller sync boundary | Some magic constants and duplicate policy |
+| Business logic | 5 | 9 | Forged quiz/sync progress blocked | No quiz replay token |
+| Database | 6 | 8 | Flyway V1-V4, prod validate guard | Production DB not verified here |
+| API | 6 | 7 | CSRF/sync V2 docs and errors | No generated OpenAPI |
+| Security | 5 | 8 | CSRF, CORS headers, secret scan | Deployed OAuth/CSP not fully proven |
+| Performance | 5 | 6 | Better sync consistency | Query optimization/pagination partial |
+| Testing | 7 | 9 | 91 backend + 28 frontend tests | No load/staging OAuth E2E |
+| DevOps | 6 | 8 | CI/gate scripts/Flyway guard | Gate NO-GO until env/evidence clean |
+| Observability | 5 | 8 | Request ID/MDC/metrics/counters | No external APM |
+
+Final verdict: `NOT_READY` for production release until external release-gate evidence is complete. Code-level hardening is substantially improved and suitable for staging validation.

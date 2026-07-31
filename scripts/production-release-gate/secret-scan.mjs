@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { fail, pass, reportDir, writeJson } from "./lib.mjs";
 
@@ -23,14 +24,55 @@ const contentPatterns = [
   { name: "github-token", regex: /gh[pousr]_[A-Za-z0-9_]{30,}/ },
   { name: "google-oauth-secret", regex: /GOCSPX-[A-Za-z0-9_-]{20,}/ },
   { name: "openai-key", regex: /sk-[A-Za-z0-9_-]{20,}/ },
-  { name: "password-assignment", regex: /(password|secret|token|api[_-]?key)\s*[:=]\s*["']?(?!changeme|placeholder|replace-with|your-|release-gate|test|example|false|true)[A-Za-z0-9_./+=-]{16,}/i }
+  { name: "password-assignment", regex: /(password|secret|token|api[_-]?key)[^\S\r\n]*[:=][^\S\r\n]*["']?(?!changeme|placeholder|replace-with|your-|release-gate|test|example|false|true)[A-Za-z0-9_./+=-]{16,}/i }
 ];
+
+function gitScanFiles() {
+  try {
+    return execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], { encoding: "utf8" })
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+  } catch {
+    return null;
+  }
+}
+
+function shouldIgnorePath(normalized) {
+  return [...ignoredDirs].some((ignored) => normalized === ignored || normalized.startsWith(`${ignored}/`));
+}
+
+function scanFile(relative) {
+  const path = relative.replaceAll("/", "\\");
+  const entry = relative.split("/").pop();
+  if (shouldIgnorePath(relative) || !existsSync(path)) return;
+  const stats = statSync(path);
+  if (!stats.isFile()) return;
+  if (!allowedSecretLikeFiles.has(relative) && filePatterns.some((pattern) => pattern.test(entry))) {
+    findings.push({ severity: "critical", file: relative, rule: "secret-like-filename" });
+  }
+  if (stats.size > maxFileBytes) return;
+  if (allowedSecretLikeFiles.has(relative) || relative.startsWith("tests/")) {
+    return;
+  }
+  let content = "";
+  try {
+    content = readFileSync(path, "utf8");
+  } catch {
+    return;
+  }
+  for (const rule of contentPatterns) {
+    if (rule.regex.test(content)) {
+      findings.push({ severity: "critical", file: relative, rule: rule.name });
+    }
+  }
+}
 
 function walk(dir) {
   for (const entry of readdirSync(dir)) {
     const path = join(dir, entry);
     const normalized = path.replaceAll("\\", "/").replace(/^\.\//, "");
-    if ([...ignoredDirs].some((ignored) => normalized === ignored || normalized.startsWith(`${ignored}/`))) {
+    if (shouldIgnorePath(normalized)) {
       continue;
     }
     const stats = statSync(path);
@@ -38,29 +80,16 @@ function walk(dir) {
       walk(path);
       continue;
     }
-    const relative = normalized;
-    if (!allowedSecretLikeFiles.has(relative) && filePatterns.some((pattern) => pattern.test(entry))) {
-      findings.push({ severity: "critical", file: relative, rule: "secret-like-filename" });
-    }
-    if (stats.size > maxFileBytes) continue;
-    if (allowedSecretLikeFiles.has(relative) || relative.startsWith("tests/")) {
-      continue;
-    }
-    let content = "";
-    try {
-      content = readFileSync(path, "utf8");
-    } catch {
-      continue;
-    }
-    for (const rule of contentPatterns) {
-      if (rule.regex.test(content)) {
-        findings.push({ severity: "critical", file: relative, rule: rule.name });
-      }
-    }
+    scanFile(normalized);
   }
 }
 
-walk(".");
+const gitFiles = gitScanFiles();
+if (gitFiles) {
+  gitFiles.forEach(scanFile);
+} else {
+  walk(".");
+}
 writeJson(join(reportDir, "secret-scan.json"), { findingCount: findings.length, findings });
 
 if (findings.length) {

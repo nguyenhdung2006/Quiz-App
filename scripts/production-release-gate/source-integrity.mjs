@@ -10,6 +10,15 @@ function git(args) {
   return execFileSync("git", args, { encoding: "utf8" }).trim();
 }
 
+function gitCheckIgnored(path) {
+  try {
+    execFileSync("git", ["check-ignore", "-q", path], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const commitSha = process.env.GITHUB_SHA || git(["rev-parse", "HEAD"]);
 const branch = process.env.GITHUB_REF_NAME || git(["branch", "--show-current"]);
 const status = git(["status", "--porcelain"]);
@@ -83,7 +92,7 @@ const forbiddenBuildContext = [
   "playwright-report",
   "test-results",
   "release-gate-artifacts"
-].filter((path) => existsSync(path));
+].filter((path) => existsSync(path) && !gitCheckIgnored(path));
 
 writeJson(join(reportDir, "source-integrity-details.json"), {
   commitSha,
@@ -95,7 +104,7 @@ writeJson(join(reportDir, "source-integrity-details.json"), {
 if (forbiddenBuildContext.length) {
   findings.push({
     severity: "medium",
-    message: "Generated report/test directories exist in build context. They must be ignored and not committed.",
+    message: "Generated report/test directories are not ignored and could be committed.",
     paths: forbiddenBuildContext
   });
 }

@@ -60,13 +60,27 @@ More detail is in `docs/oauth-google.md`.
 
 ## Deploy
 
-See `docs/deploy.md` for production environment variables, Render backend setup,
-frontend static hosting, Google OAuth production URLs, health checks, and AI cost
-notes.
+See `docs/DEPLOYMENT.md`, `docs/deploy.md`, and
+`docs/PRODUCTION_RELEASE_GATE.md` for production environment variables, Render
+backend setup, frontend static hosting, Google OAuth production URLs, Flyway
+rollout, health checks, rollback requirements, and AI cost notes.
+
+Production release is gated. A local code/test pass is not the same as a
+production go decision; the release gate also requires clean source integrity,
+valid production environment variables, staging smoke evidence, and restore
+rehearsal evidence.
 
 ## Verify
 
 ```powershell
 cd backend
 .\mvnw.cmd test
+```
+
+Additional local checks:
+
+```powershell
+npx playwright test
+npm run gate:secret-scan
+npm run gate:report
 ```

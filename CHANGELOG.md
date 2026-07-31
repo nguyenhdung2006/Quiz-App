@@ -2,6 +2,10 @@
 
 ## 2026-07-31
 
+- Reconciled production hardening status against the technical audit and current test evidence.
+- Updated release-gate secret/source scans so ignored local `.env` and generated report folders do not create false commit-safety failures.
+- Added missing source-of-truth docs: `PROJECT.md`, `CLAUDE.md`, `docs/DOMAIN.md`, `docs/ROADMAP.md`, and `docs/TROUBLESHOOTING.md`.
+- Reclassified production gate as `NOT_READY` until production env, staging smoke, restore rehearsal evidence, and clean source integrity are proven.
 - Added Sync Contract V2 with required `syncContractVersion: 2`, stable `wordUid`, `deletions`, and tombstone-aware snapshots.
 - Added `vocabulary.word_uid` and `word_tombstones` through `V3__add_word_uid_and_word_tombstones.sql`.
 - Changed direct deletes to create tombstones and hard-delete live vocabulary rows.

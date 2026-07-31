@@ -54,6 +54,8 @@ Missing or invalid CSRF tokens return JSON, not HTML redirects:
 
 CORS is configured once in Spring Security before authorization. It allows credentials and never uses wildcard origins with credentials. Allowed origins are read from `app.frontend.origin`. Allowed methods are `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, and `OPTIONS`. Allowed request headers are `Accept`, `Content-Type`, and `X-XSRF-TOKEN`.
 
+The request header `X-Request-ID` is also allowed and exposed for correlation.
+
 Production cross-site deployment must keep:
 
 - `SESSION_COOKIE_SAME_SITE=none`

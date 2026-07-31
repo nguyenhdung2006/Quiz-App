@@ -1,6 +1,18 @@
 # Testing
 
-## Baseline Before CSRF Change
+## Current Verified Baseline
+
+Run on 2026-07-31 from this workspace:
+
+- `backend`: `.\mvnw.cmd test` passed with 91 tests.
+- `backend`: `.\mvnw.cmd clean package -DskipTests` passed.
+- `frontend`: `npx playwright test` passed with 28 tests.
+- `frontend`: requested `node --check` commands for `config.js`, `app.js`, `login.js`, `ai-explain.js`, `analytics-dashboard.js`, and `review-today.js` passed.
+- `npm run build:frontend` passed.
+- `npm run gate:secret-scan` passed after the scanner was limited to commit-candidate files.
+- `npm run gate:report` concluded `NO-GO` because source integrity was dirty from this task, production env vars were absent, restore rehearsal evidence was absent, and staging smoke variables were absent.
+
+## Historical Baseline Before CSRF Change
 
 - `backend`: `.\mvnw.cmd test` passed with 57 tests.
 - `backend`: `.\mvnw.cmd clean package -DskipTests` passed.
@@ -71,7 +83,7 @@ node --check frontend\js\login.js
 Backend:
 
 - `.\mvnw.cmd test` covers Sync V2 through `SyncContractV2Tests`.
-- Covered invariants: required contract version, required `wordUid`, stable UID rename, tombstone precedence, idempotent repeated deletion, direct delete tombstone creation with `legacyWordId`, delete-by-UID without live row, legacy-ID user scoping, atomic duplicate-English rollback, user isolation, existing CSRF/auth regressions.
+- Covered invariants: required contract version, required `wordUid`, stable UID rename, tombstone precedence, idempotent repeated deletion, direct delete tombstone creation with `legacyWordId`, delete-by-UID without live row, legacy-ID user scoping, atomic duplicate-English rollback, user isolation, existing CSRF/auth regressions, and forged sync payload rejection for server-managed progress.
 
 Frontend:
 
