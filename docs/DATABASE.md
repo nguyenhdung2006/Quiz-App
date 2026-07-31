@@ -72,3 +72,15 @@ For an existing production or staging database, do not run migrations blindly:
 6. Restart with `SPRING_PROFILES_ACTIVE=prod` and confirm Hibernate validation passes.
 
 No production baseline or migration was executed by this repository change.
+
+## Release Gate Database Controls
+
+The production release gate rehearses Flyway against a temporary PostgreSQL database, not production. It verifies:
+
+- migrations validate;
+- migrations run from the beginning on a clean database;
+- production-like profile uses Flyway enabled and Hibernate `ddl-auto=validate`;
+- repeated startup reports the schema up to date rather than mutating through Hibernate;
+- duplicate Flyway migration versions fail source-integrity checks.
+
+Production backup and restore rehearsal remain external controls. They must be evidenced before a release can be `GO`.

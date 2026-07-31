@@ -36,11 +36,13 @@ build/
 node_modules/
 playwright-report/
 test-results/
+release-gate-artifacts/
 
 ### Local secrets / OAuth ###
 .env
 .env.*
 !.env.example
+!.env.production.example
 client_secret_*.json
 backend/config/oauth2-google.yml
 backend/src/main/resources/application-local.yml

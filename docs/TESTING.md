@@ -82,3 +82,22 @@ PostgreSQL:
 
 - CI starts PostgreSQL 16 and runs `SPRING_PROFILES_ACTIVE=prod ./mvnw -B -Dtest=QuizApplicationTests test` with Flyway enabled and Hibernate `ddl-auto=validate`.
 - This verifies ordered V1 -> V3 migrations against PostgreSQL in CI. It does not execute a production or staging migration.
+
+## Production Release Gate
+
+The `Production Release Gate` workflow runs from `.github/workflows/production-release-gate.yml` by `workflow_dispatch` or `workflow_call`. It does not deploy.
+
+Gate controls include:
+
+- full backend test suite;
+- focused security regression tests: `BackendHardeningTests` and `CsrfSecurityTests`;
+- frontend static build validation through `npm run build:frontend`;
+- Playwright smoke tests with report artifacts;
+- Flyway rehearsal against temporary PostgreSQL with `SPRING_PROFILES_ACTIVE=prod`;
+- targeted two-device sync controls using `SyncContractV2Tests` and frontend sync smoke tests;
+- redacted production environment validation;
+- secret scan;
+- backup/rollback readiness checks;
+- staging smoke only when staging variables are configured.
+
+The gate report marks staging/OAuth/restore evidence as `BLOCKED` or `NOT_RUN` unless actually configured and executed.

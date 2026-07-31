@@ -68,3 +68,16 @@ Authorization remains per authenticated `AppUser`: `wordUid` is unique only with
 
 The server ignores client-supplied `wrongWords` for vocabulary creation/update and ignores client-managed progress stats/mastery in sync payloads. This prevents stale or forged client payloads from creating vocabulary through the wrong-bank channel or overwriting server-managed learning progress.
 
+## Production Release Gate Security Controls
+
+The production release gate adds these fail-closed security checks:
+
+- secret scan for committed `.env`, private keys, OAuth secrets, tokens, passwords, and API keys;
+- production environment validation without printing secret values;
+- CSRF regression tests for missing, invalid, and valid token paths;
+- CORS validation that rejects wildcard production origins;
+- session cookie validation for `Secure` and `SameSite`;
+- business integrity regression tests proving client quiz summaries cannot directly award XP, levels, achievements, mastery, or stats;
+- cross-user mutation tests for quiz and sync boundaries.
+
+If staging variables are missing, staging security smoke is `BLOCKED` and the gate conclusion is `NO-GO`.

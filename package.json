@@ -3,6 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "build:frontend": "node scripts/production-release-gate/frontend-static-build.mjs",
+    "gate:source-integrity": "node scripts/production-release-gate/source-integrity.mjs",
+    "gate:secret-scan": "node scripts/production-release-gate/secret-scan.mjs",
+    "gate:validate-env": "node scripts/production-release-gate/validate-production-env.mjs",
+    "gate:backup-rollback": "node scripts/production-release-gate/backup-rollback-readiness.mjs",
+    "gate:staging-smoke": "node scripts/production-release-gate/staging-smoke.mjs",
+    "gate:report": "node scripts/production-release-gate/generate-report.mjs",
     "test:frontend": "playwright test",
     "test:frontend:headed": "playwright test --headed"
   },
