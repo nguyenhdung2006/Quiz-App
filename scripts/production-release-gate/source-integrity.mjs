@@ -1,20 +1,39 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { fail, pass, reportDir, writeJson } from "./lib.mjs";
+import { blocked, fail, pass, reportDir, writeJson } from "./lib.mjs";
 
 const control = "source-integrity";
 const findings = [];
+let gitUnavailable = null;
 
 function git(args) {
-  return execFileSync("git", args, { encoding: "utf8" }).trim();
+  try {
+    return execFileSync("git", args, { encoding: "utf8" }).trim();
+  } catch (error) {
+    gitUnavailable = {
+      command: `git ${args.join(" ")}`,
+      code: error.code || null,
+      message: String(error.message || error)
+    };
+    return null;
+  }
 }
 
 function gitCheckIgnored(path) {
+  if (gitUnavailable) return null;
   try {
     execFileSync("git", ["check-ignore", "-q", path], { stdio: "ignore" });
     return true;
-  } catch {
+  } catch (error) {
+    if (error.code === "EPERM" || error.code === "ENOENT") {
+      gitUnavailable = {
+        command: `git check-ignore -q ${path}`,
+        code: error.code || null,
+        message: String(error.message || error)
+      };
+      return null;
+    }
     return false;
   }
 }
@@ -22,6 +41,13 @@ function gitCheckIgnored(path) {
 const commitSha = process.env.GITHUB_SHA || git(["rev-parse", "HEAD"]);
 const branch = process.env.GITHUB_REF_NAME || git(["branch", "--show-current"]);
 const status = git(["status", "--porcelain"]);
+if (!commitSha || !branch || status === null) {
+  blocked(control, {
+    reason: "Source integrity requires Git metadata and dirty-tree checks. Git could not be executed from this Node process.",
+    git: gitUnavailable
+  });
+  process.exit();
+}
 if (status) {
   findings.push({
     severity: "high",
@@ -92,7 +118,19 @@ const forbiddenBuildContext = [
   "playwright-report",
   "test-results",
   "release-gate-artifacts"
-].filter((path) => existsSync(path) && !gitCheckIgnored(path));
+].filter((path) => {
+  if (!existsSync(path)) return false;
+  const ignored = gitCheckIgnored(path);
+  return ignored === false;
+});
+
+if (gitUnavailable) {
+  blocked(control, {
+    reason: "Source integrity requires Git ignore checks for generated report directories. Git could not be executed from this Node process.",
+    git: gitUnavailable
+  });
+  process.exit();
+}
 
 writeJson(join(reportDir, "source-integrity-details.json"), {
   commitSha,

@@ -20,6 +20,7 @@ handover files are kept for history, but current decisions should start here.
 - [Deployment runbook](DEPLOYMENT.md)
 - [Detailed deploy guide](deploy.md)
 - [Production release gate](PRODUCTION_RELEASE_GATE.md)
+- [Restore rehearsal checklist](restore-rehearsal-checklist.md)
 - [Testing guide](TESTING.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
 

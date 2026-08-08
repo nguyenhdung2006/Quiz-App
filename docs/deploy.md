@@ -305,10 +305,16 @@ Actuator endpoints exposed publicly:
 ```text
 GET /actuator/health
 GET /actuator/info
+GET /actuator/metrics
+GET /actuator/metrics/**
 ```
 
-Only `health` and `info` are exposed. Do not expose `env`, `beans`,
-`mappings`, `heapdump`, `configprops`, or `threaddump` in production.
+Current source/config also permits public metrics for operational visibility:
+`SecurityConfig` allows `/actuator/metrics` and `/actuator/metrics/**`, and the
+default exposure includes `health,info,metrics`. Keep this only if it is an
+intentional deployment policy; otherwise protect metrics behind a monitoring
+channel and update the release gate. Do not expose `env`, `beans`, `mappings`,
+`heapdump`, `configprops`, or `threaddump` in production.
 
 Expected healthy response:
 
@@ -517,6 +523,8 @@ After each deploy:
 4. `GET /actuator/info` — confirm app name, environment, AI/Flyway flags safe.
 5. Open the frontend URL and confirm the app shell loads.
 6. `GET /api/me` — confirm `{"authenticated":false}` when unauthenticated.
+7. If metrics remain intentionally public, `GET /actuator/metrics` — confirm it
+   exposes only operational metric names, not secrets or private data.
 
 ### After Deploy — Authenticated Browser
 
@@ -544,10 +552,11 @@ Before inviting a small beta group:
 5. Confirm the frontend source does not contain API keys, database URLs, OAuth secrets, or private tokens.
 6. Open `https://YOUR_BACKEND_DOMAIN/actuator/health` and confirm `status: UP`.
 7. Open `https://YOUR_BACKEND_DOMAIN/actuator/info` and confirm it exposes only safe app, AI, and Flyway metadata.
-8. Sign in with Google, add one temporary word, refresh, and confirm sync status looks healthy.
-9. Run one quiz and confirm result/review state updates without console errors.
-10. Open Review Today and confirm due/empty states are clear.
-11. Open AI Deck and confirm users see the reminder to review/edit AI suggestions before saving.
+8. If metrics remain intentionally public, open `https://YOUR_BACKEND_DOMAIN/actuator/metrics` and confirm the endpoint exposes only operational metric names.
+9. Sign in with Google, add one temporary word, refresh, and confirm sync status looks healthy.
+10. Run one quiz and confirm result/review state updates without console errors.
+11. Open Review Today and confirm due/empty states are clear.
+12. Open AI Deck and confirm users see the reminder to review/edit AI suggestions before saving.
 12. Test AI Deck and AI Explain. If `OPENAI_API_KEY` is unavailable or rate limited, confirm fallback/error copy is safe.
 13. Check the app at desktop, tablet, and 390px mobile width for no horizontal overflow.
 14. Remove any temporary beta-test vocabulary created during the smoke test.

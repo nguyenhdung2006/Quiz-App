@@ -40,8 +40,8 @@ production-grade. Các khoảng trống lớn nhất là:
   nguyên nhân gốc.
 - `/api/sync` validate kích thước list sau khi Jackson deserializes toàn bộ JSON
   body.
-- Release gate status cho commit hiện tại chưa được xác minh trong GitHub
-  Actions từ workspace này.
+- CI status cho audited HEAD đã được xác minh PASS một phần, nhưng GitHub
+  Production Release Gate cho đúng candidate vẫn chưa được xác minh.
 - Staging smoke và restore rehearsal vẫn là external evidence, không phải source
   facts.
 - Public Actuator metrics hiện được gate/config cho phép có chủ ý, nhưng docs
@@ -60,8 +60,8 @@ production-grade. Các khoảng trống lớn nhất là:
 | --- | --- | --- | --- |
 | Render memory-limit restart | OPEN | Docs hiện tại ghi nhận một Render memory-limit restart đã xác nhận, nhưng source không thể xác định leak vs payload spike vs instance headroom. | Capture Render Metrics quanh sự cố, correlate request/log evidence, đặt JVM/RSS budget đã test, và thêm alert thresholds. |
 | `/api/sync` pre-deserialization payload cap | OPEN | `SyncRequest` có giới hạn list `@Size(max=5000)`, nhưng Spring/Jackson phải parse body trước. | Thêm request-body cap ở container/filter/proxy level, thêm oversized-body tests, sau đó thiết kế chunk/delta sync. |
-| Release gate secret scan | OPEN / NEEDS VERIFICATION | `secret-scan.mjs` hiện scan git candidate files và tránh ignored files, nhưng vấn đề local gate trước đó phải được xác minh trên clean release candidate. | Chạy `npm run gate:secret-scan` và GitHub Production Release Gate trên đúng candidate; thêm scanner fixtures cho empty env placeholders. |
-| GitHub Actions cho commit hiện tại | NEEDS VERIFICATION | Workflows tồn tại, nhưng audit này không query remote run status. | Kiểm tra CI và Production Release Gate status cho pushed commit SHA trước release. |
+| Release gate secret scan | PASS LOCALLY / NEEDS GITHUB GATE VERIFICATION | Task 2 đã PASS local: `npm run gate:secret-scan` tạo `secret-scan.json` với `findingCount: 0`. Fallback của `secret-scan.mjs` đã được sửa để không scan ignored local `.env`; script vẫn ưu tiên commit-candidate files bằng `git ls-files --cached --others --exclude-standard`. Không có tracked secret được xác nhận. | Chạy GitHub Production Release Gate trên đúng candidate trước release; thêm scanner fixtures nếu có false-positive mới. |
+| GitHub Actions cho commit hiện tại | PARTIAL / NEEDS RELEASE GATE VERIFICATION | Task 1 đã xác minh CI run `31262520384` PASS cho audited HEAD, nhưng chưa có verified GitHub Production Release Gate run cho cùng candidate. | Kiểm tra Production Release Gate status và artifact cho pushed commit SHA trước release. |
 | Staging smoke | BLOCKED / NEEDS VERIFICATION | `staging-smoke.mjs` bị chặn nếu thiếu `STAGING_BACKEND_URL`, `STAGING_FRONTEND_URL`, và `STAGING_TEST_USER_HINT`; OAuth browser callback vẫn cần browser credential evidence thật. | Configure staging secrets, chạy smoke, và lưu artifact. |
 | Restore/backup rehearsal | BLOCKED / NEEDS VERIFICATION | Gate yêu cầu `docs/restore-rehearsal-evidence.md` hoặc `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`; hiện chưa có evidence file. | Thực hiện non-production restore rehearsal và ghi lại safe evidence. |
 
@@ -69,13 +69,13 @@ production-grade. Các khoảng trống lớn nhất là:
 
 | Hạng | Độ khó | Tác động | Khu vực | Điểm yếu | Vì sao quan trọng | Cách xử lý đề xuất | Cách kiểm chứng | Mức tăng điểm dự kiến |
 | ---: | ---------- | ------ | ---- | -------- | -------------- | --------------- | ------------ | ------------------: |
-| 1 | Easy | High | CI/CD/release gate | GitHub Actions status cho commit hiện tại chưa được xác minh. | Local pass không phải release signal. | Kiểm tra CI và Production Release Gate cho đúng commit SHA; link artifacts trong release notes. | GitHub checks hiển thị PASS hoặc documented BLOCKED controls cho cùng SHA. | 0.15 |
-| 2 | Easy | High | CI/CD/release gate | Secret scan release blocker cần một clean candidate run. | False-positive hoặc bỏ sót real secret sẽ chặn safe release. | Chạy `npm run gate:secret-scan` trên clean tree và GitHub gate; thêm fixture tests nếu nó lại flag empty env placeholders. | Clean scan artifact; không có tracked `.env` hoặc secret-like files. | 0.20 |
+| 1 | Easy | High | CI/CD/release gate | CI status cho audited HEAD đã PASS một phần; Production Release Gate cho candidate vẫn chưa verified. | Local pass không phải release signal, và CI PASS không thay thế release-gate artifact. | Kiểm tra Production Release Gate cho đúng commit SHA; link artifacts trong release notes. | GitHub checks hiển thị CI PASS và Production Release Gate PASS hoặc documented BLOCKED controls cho cùng SHA. | 0.15 |
+| 2 | Easy | High | CI/CD/release gate | Local secret scan gate đã PASS sau fallback fix; GitHub Production Release Gate vẫn cần verify cho candidate. | False-positive hoặc bỏ sót real secret sẽ chặn safe release. | Giữ `secret-scan.mjs` ưu tiên `git ls-files --cached --others --exclude-standard`; fallback chỉ bỏ qua ignored local `.env` khi Git listing không khả dụng. Chạy GitHub gate cho đúng SHA. | Local `secret-scan.json` có `findingCount: 0`; không có tracked `.env` hoặc secret-like files; GitHub gate được ghi evidence riêng. | 0.20 |
 | 3 | Easy | High | Deployment/production operations | Staging smoke được cấu hình làm gate nhưng chưa có evidence. | Production confidence cần hành vi URL deployed thật, không chỉ local mocks. | Configure staging URLs/test hint và chạy `npm run gate:staging-smoke`; thêm manual OAuth login/logout evidence. | Staging smoke PASS cộng OAuth browser notes. | 0.25 |
 | 4 | Easy | High | Deployment/production operations | Thiếu restore rehearsal evidence. | Backups chưa được chứng minh cho đến khi restore được rehearsal. | Restore một non-production backup, verify app startup/health, và tạo `docs/restore-rehearsal-evidence.md` không chứa raw data. | `gate:backup-rollback` PASS. | 0.30 |
 | 5 | Easy | High | Observability/monitoring | Render memory incident thiếu root-cause data. | Restart lặp lại có thể làm mất niềm tin và che giấu leaks hoặc spikes thật. | Export Render Metrics quanh sự cố, ghi lại RAM/CPU/request trend, và phân loại leak/spike/headroom. | Incident note có metrics timestamps và kết luận. | 0.25 |
 | 6 | Easy | High | Observability/monitoring | Alerting rules mới chỉ được document, chưa connected. | Metrics không có alerts thì không bảo vệ uptime. | Thêm Render hoặc external alert thresholds cho health, 5xx, RAM 75/90%, AI failures, sync conflicts. | Alert config screenshot/export cộng test notification. | 0.20 |
-| 7 | Easy | High | Documentation/product readiness | Docs chứa stale counts và mâu thuẫn về metrics exposure. | Release decisions trở nên mơ hồ khi docs không thống nhất với source. | Update non-archive docs: latest 98/29 test counts ở nơi phù hợp, làm rõ `metrics` exposure policy, đánh dấu historical schema docs là historical nếu stale. | `rg` xác nhận không còn current doc nào nói chỉ health/info được expose trong khi config expose metrics. | 0.10 |
+| 7 | Easy | High | Documentation/product readiness | Docs chứa stale test counts và mâu thuẫn về metrics exposure. | Release decisions trở nên mơ hồ khi docs không thống nhất với source. | Update non-archive docs: bỏ hoặc đánh dấu historical các exact test counts chưa được rerun trong Task 6, làm rõ `metrics` exposure policy, đánh dấu historical schema docs là historical nếu stale. | `rg` xác nhận không còn current doc nào nói chỉ health/info được expose trong khi config expose metrics. | 0.10 |
 | 8 | Medium | Critical | Security | `/api/sync` thiếu body-size cap trước deserialization. | JSON body lớn có thể làm spike memory trước khi Bean Validation chạy. | Thêm Spring/Tomcat/proxy max request size cho sync, reject sớm với 413, document limits. | MockMvc/container test cho oversized body và local memory smoke. | 0.45 |
 | 9 | Medium | High | Database/performance | Review queue load toàn bộ user words rồi filter/sort trong Java. | Tài khoản lớn sẽ đốt memory/CPU và làm chậm due review. | Thêm repository query theo `nextReview <= now`, optional tag/level, ordered priority, bounded limit. | Repository/service tests cộng query plan trên PostgreSQL. | 0.25 |
 | 10 | Medium | High | Database/performance | Analytics load words/history nhiều lần và aggregate trong memory. | Analytics có thể chậm và khuếch đại memory pressure. | Load một lần mỗi request, thêm bounded history windows hoặc SQL aggregates cho overview/trend/tag metrics. | Backend analytics tests và benchmark với seeded large account. | 0.25 |
@@ -110,8 +110,11 @@ production-grade. Các khoảng trống lớn nhất là:
   định và align docs, tests, và gate.
 - PARTIAL: CSP vẫn cho phép `unsafe-inline` vì `index.html` dùng inline event
   handlers và static global scripts.
-- NEEDS VERIFICATION: secret scan phải pass trên clean release candidate và
-  không được scan ignored local `.env` files hoặc flag empty env placeholders.
+- PASS LOCALLY / NEEDS GITHUB GATE VERIFICATION: Task 2 secret scan đã PASS
+  local với `findingCount: 0`; fallback đã được sửa để không scan ignored
+  local `.env` files khi Node không spawn được Git. Đường scan ưu tiên vẫn là
+  `git ls-files --cached --others --exclude-standard`, và không có tracked
+  secret được xác nhận.
 - ACCEPTED LIMITATION: AI limiter là in-memory và chỉ phù hợp với giả định
   single-instance hiện tại.
 
@@ -192,8 +195,9 @@ production-grade. Các khoảng trống lớn nhất là:
 - Các mâu thuẫn hiện tại cần sửa:
   - `docs/deploy.md` nói chỉ expose `health` và `info`, trong khi source và
     config expose `metrics`.
-  - Một số verification docs vẫn nhắc test counts cũ 91/28, trong khi các lần
-    chạy local gần đây là 98 backend tests và 29 Playwright tests.
+  - Một số verification docs vẫn trộn test counts cũ 91/28 và 98/29. Task 6
+    không rerun full regression, nên exact counts phải được refresh bằng một
+    lần chạy mới trước release.
   - Historical schema/audit docs nằm ngoài archive vẫn chứa stale statements
     như ngôn ngữ Flyway readiness cũ; đánh dấu chúng bằng historical status
     banner hoặc update.
@@ -253,7 +257,9 @@ Mục tiêu: tăng confidence bằng cách chứng minh release candidate hiện
 phải bằng cách đổi behavior.
 
 - Verify CI và Production Release Gate cho current commit SHA.
-- Chạy clean `gate:secret-scan` và sửa scanner fixtures nếu cần.
+- Đã chạy clean `gate:secret-scan` local và sửa fallback để không scan ignored
+  local `.env` khi Git listing không khả dụng; vẫn cần GitHub Production
+  Release Gate evidence cho đúng candidate.
 - Configure staging smoke variables và chạy staging smoke.
 - Thực hiện non-production restore rehearsal và ghi evidence.
 - Capture Render memory metrics và classify restart.
@@ -261,6 +267,62 @@ phải bằng cách đổi behavior.
   exposure.
 
 Điểm dự kiến sau Phase 1: khoảng `7.3/10`.
+
+Evidence cập nhật cho Task 2:
+
+- `npm run gate:secret-scan` PASS local sau khi sửa fallback scan trong
+  `scripts/production-release-gate/secret-scan.mjs`.
+- Script vẫn ưu tiên scan commit-candidate files bằng
+  `git ls-files --cached --others --exclude-standard`.
+- Fallback filesystem walk không còn scan ignored local `.env`/`.env.*` files
+  khi Git listing không khả dụng.
+- `git check-ignore -v .env backend/.env` xác nhận `.env` và `backend/.env`
+  được ignore; `git ls-files --cached --others --exclude-standard .env
+  backend/.env` không trả path nào.
+- Không có tracked secret được xác nhận. Kết quả này không thay thế GitHub
+  Production Release Gate evidence và không làm dự án thành production-ready.
+
+Evidence cập nhật cho Task 3:
+
+- Package scripts hiện có cho release gate/source checks gồm `build:frontend`,
+  `gate:source-integrity`, `gate:secret-scan`, `gate:validate-env`,
+  `gate:backup-rollback`, `gate:staging-smoke`, và `gate:report`.
+- PASS local thật: `npm run gate:secret-scan`, `npm run build:frontend`,
+  `npm run gate:validate-env -- --control=production-env-validation` với safe
+  fixture, và `npm run gate:validate-env -- --control=production-env-invalid-fixture
+  --expect-invalid`.
+- BLOCKED thật: `npm run gate:backup-rollback` thiếu restore rehearsal evidence;
+  `npm run gate:staging-smoke` thiếu `STAGING_BACKEND_URL`,
+  `STAGING_FRONTEND_URL`, và `STAGING_TEST_USER_HINT`.
+- NEEDS VERIFICATION: `gate:source-integrity` cần chạy trên clean release
+  candidate vì script cố ý fail khi working tree dirty. `gate:report` chưa chạy
+  vì các mandatory controls còn BLOCKED/NOT_RUN sẽ tạo NO-GO report.
+
+Evidence cập nhật cho Task 4:
+
+- `staging-smoke.mjs` yêu cầu đúng ba env:
+  `STAGING_BACKEND_URL`, `STAGING_FRONTEND_URL`, và `STAGING_TEST_USER_HINT`.
+- Môi trường local hiện thiếu cả ba env, nên `npm run gate:staging-smoke`
+  tiếp tục BLOCKED. Không hardcode URL/user/secret và không dùng production
+  credential.
+- Để chuyển sang PASS, cần cấu hình staging URLs HTTPS thật và non-secret test
+  user hint; script phải verify `/api/health`, `/api/csrf` có JSON/cookie, và
+  frontend root. OAuth browser callback vẫn cần evidence riêng.
+
+Evidence cập nhật cho Task 5:
+
+- `gate:backup-rollback` yêu cầu các runbook docs hiện có cộng với concrete
+  restore rehearsal evidence qua `docs/restore-rehearsal-evidence.md` hoặc
+  `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`.
+- Required docs và required terms đã có, nhưng `docs/restore-rehearsal-evidence.md`
+  và env `RELEASE_RESTORE_REHEARSAL_EVIDENCE` đều đang thiếu, nên gate vẫn
+  BLOCKED / NEEDS VERIFICATION.
+- Đã thêm `docs/restore-rehearsal-checklist.md` như checklist/template chuẩn bị
+  an toàn. Đây không phải evidence hoàn tất và không làm `gate:backup-rollback`
+  PASS.
+- Chỉ chuyển sang PASS sau một restore rehearsal thật trên non-production DB,
+  không dùng production credential, không chứa raw data/secret, và
+  `npm run gate:backup-rollback` báo `[PASS] backup-rollback-readiness`.
 
 ### Phase 2: Security, Performance, And Release Hardening
 
@@ -323,8 +385,9 @@ Không gọi dự án là production-ready cho đến khi tất cả điều sau
 ## Cần Verification
 
 - Render Metrics quanh memory-limit restart ngày 2026-08-07.
-- GitHub Actions status cho commit `98120bd2ec78910fb1b4b5cee9d0e2ed499c7792`
-  và bất kỳ release candidate nào sau đó.
+- GitHub Production Release Gate status và artifact cho audited HEAD
+  `adc2b0bb825dbd6397bdba3ea67656d2b676f7d4` và bất kỳ release candidate nào
+  sau đó.
 - Production Release Gate result trên clean candidate.
 - Staging smoke với staging URLs và test identity thật.
 - Google OAuth browser flow trong staging/production.

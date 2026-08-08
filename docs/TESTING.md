@@ -1,16 +1,22 @@
 # Testing
 
-## Current Verified Baseline
+## Historical Verified Baselines
 
-Run on 2026-07-31 from this workspace:
+Run on 2026-07-31 from this workspace. Task 6 did not rerun full backend or
+Playwright regression, so exact test counts below must be refreshed before they
+are used in release notes:
 
-- `backend`: `.\mvnw.cmd test` passed with 91 tests.
+- `backend`: `.\mvnw.cmd test` passed in the historical run.
 - `backend`: `.\mvnw.cmd clean package -DskipTests` passed.
-- `frontend`: `npx playwright test` passed with 28 tests.
+- `frontend`: `npx playwright test` passed in the historical run.
 - `frontend`: requested `node --check` commands for `config.js`, `app.js`, `login.js`, `ai-explain.js`, `analytics-dashboard.js`, and `review-today.js` passed.
 - `npm run build:frontend` passed.
-- `npm run gate:secret-scan` passed after the scanner was limited to commit-candidate files.
-- `npm run gate:report` concluded `NO-GO` because source integrity was dirty from this task, production env vars were absent, restore rehearsal evidence was absent, and staging smoke variables were absent.
+- `npm run gate:secret-scan` passed after the scanner kept the
+  commit-candidate path and fixed fallback walking so ignored local `.env` files
+  are not scanned when Git listing is unavailable.
+- `npm run gate:report` is expected to conclude `NO-GO` until source integrity
+  runs on a clean candidate, real production env validation is available,
+  restore rehearsal evidence exists, and staging smoke variables are configured.
 
 ## Historical Baseline Before CSRF Change
 

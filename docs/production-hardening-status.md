@@ -20,8 +20,9 @@ Production gate: `NOT_READY`.
 
 Reason: code hardening exists, but release evidence is incomplete until the
 current commit has a clean release-gate run. `source-integrity` requires a clean
-tree, `production-env-validation` requires real production env vars, and
-`backup-rollback-readiness` plus `staging-smoke` require external evidence.
+tree, production env validation needs real values for a production claim,
+`backup-rollback-readiness` requires restore rehearsal evidence, and
+`staging-smoke` requires staging URLs/test identity.
 
 Original audit score: `64/100`.
 
@@ -43,9 +44,10 @@ Current 2026-08-08 blockers to keep visible:
   conclude a Java memory leak. Render Metrics around the incident are required.
 - `/api/sync` still has a large body/payload risk before validation because JSON
   is deserialized before Bean Validation list limits run.
-- The 2026-08-08 audit reported a production release-gate secret-scan false
-  positive on empty env keys. Current scanner source appears newline-safe, but a
-  clean gate run must verify it before marking the release blocker closed.
+- Task 2 local `npm run gate:secret-scan` is verified PASS after fixing the
+  fallback path that scanned ignored local `.env` files when Node could not
+  spawn Git. A GitHub Production Release Gate run for the exact candidate is
+  still required before marking the release blocker closed.
 
 ## Audit Reconciliation Matrix
 
@@ -68,7 +70,7 @@ Current 2026-08-08 blockers to keep visible:
 | A-15 | Low | Misleading `[AUTH]` generic logs | `GlobalExceptionHandler` no longer uses old generic auth tag for all errors | Backend tests/log source inspection | VERIFIED_FIXED | Some auth-specific logs remain by design | No action |
 | A-16 | Low | Unused archive/assets/dependencies | Archive documented as legacy; no removal requested | N/A | NOT_APPLICABLE | Search noise remains | Do not delete archive without explicit approval |
 | A-17 | P0 gate | Release gate incomplete | Gate scripts and workflow exist | Gate report `NO-GO` | PARTIALLY_FIXED | Env/staging/restore evidence and clean tree missing | Complete external release checklist |
-| A-18 | Testing | Missing forged/CSRF/tombstone tests | Tests now cover forged quiz, CSRF, Sync V2 tombstones, observability/rate limit | `mvnw test` 91 PASS, Playwright 28 PASS | VERIFIED_FIXED | Load/performance and deployed OAuth E2E not run | Add after staging access |
+| A-18 | Testing | Missing forged/CSRF/tombstone tests | Tests now cover forged quiz, CSRF, Sync V2 tombstones, observability/rate limit | Historical backend and Playwright suite passes exist; exact counts need a fresh regression run before release notes quote them. | VERIFIED_FIXED | Load/performance and deployed OAuth E2E not run | Add after staging access |
 
 ## Status Counts
 
@@ -93,11 +95,14 @@ Current 2026-08-08 blockers to keep visible:
 | 6. Maintainability/API/scale | God services and monolith | `SyncService`, central API client, docs | Full test suites PASS | PARTIALLY_FIXED |
 | 7. Observability/rate limit | Thin counters/logs | Request ID, MDC, metrics, configurable in-memory AI limiter | Observability/rate-limit tests PASS | VERIFIED_FIXED |
 
-## Tests Run 2026-07-31
+## Historical Tests Run 2026-07-31
+
+These are historical local results. Task 6 did not rerun full backend or
+Playwright regression, so do not use this table as a fresh test-count source.
 
 | Command | Result | Evidence |
 | --- | --- | --- |
-| `backend\.mvnw.cmd test` | PASS | 98 tests, 0 failures |
+| `backend\.mvnw.cmd test` | PASS | Historical local pass; exact count not reverified in Task 6 |
 | `backend\.mvnw.cmd "-Dtest=SecurityHeadersTests,SecurityHeadersHstsTests,ProfileSecurityTests" test` | PASS | 7 SEC-01 backend tests, 0 failures |
 | `backend\.mvnw.cmd clean package -DskipTests` | PASS | Jar built at `backend/target/quiz-0.0.1-SNAPSHOT.jar` |
 | `node --check frontend\js\config.js` | PASS | Exit 0 |
@@ -110,10 +115,10 @@ Current 2026-08-08 blockers to keep visible:
 | `node --check frontend\js\learning-studio.js` | PASS | Exit 0 after XSS/profile avatar cleanup |
 | `npm run build:frontend` | PASS | `frontend-static-build` PASS |
 | `npx playwright test --grep "profile save renders text safely"` | PASS | 1 profile save/render test |
-| `npx playwright test` | PASS | 29 tests, 0 failures |
-| `npm run gate:secret-scan` | PASS | `release-gate-artifacts/controls/secret-scan.json` |
-| `npm run gate:source-integrity` | FAIL | Dirty working tree from this uncommitted task |
-| `npm run gate:validate-env` | FAIL | Production env vars absent in workspace |
+| `npx playwright test` | PASS | Historical local pass; exact count not reverified in Task 6 |
+| `npm run gate:secret-scan` | PASS | Task 2/Task 6 local PASS, `findingCount: 0` |
+| `npm run gate:source-integrity` | NEEDS VERIFICATION | Must run on a clean release candidate; current docs/script evidence changes keep the tree dirty |
+| `npm run gate:validate-env` | PASS WITH SAFE FIXTURE / NEEDS REAL ENV | Task 3 safe and invalid fixtures PASS; real production env validation still needs real env values |
 | `npm run gate:backup-rollback` | BLOCKED | Restore rehearsal evidence absent |
 | `npm run gate:staging-smoke` | BLOCKED | Staging URLs/test identity absent |
 | `git diff --check` | PASS | Exit 0 |

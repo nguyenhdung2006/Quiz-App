@@ -28,8 +28,8 @@ This does not mean the app is production-ready. Current assessment:
 | --- | --- | --- | --- | --- |
 | P0-01 | NEW / OPEN | Render memory-limit restart | The incident is confirmed as a Render memory-limit restart, but source/log evidence is not enough to conclude a Java memory leak. A 512 MB free instance has limited headroom for Spring Boot, JPA, Security, Flyway, and Actuator. | Capture Render Metrics around the incident window, correlate RAM/CPU/request volume/log request IDs, set a tested JVM/RAM budget in staging, and add alert thresholds. |
 | P0-02 | NEW / OPEN | `/api/sync` large body risk | `SyncRequest` limits list lengths after request deserialization. There is no source-level hard request-body cap before Jackson parses the JSON body, and sync still accepts legacy `wrongWords`, so a large payload can cause a memory spike before validation. | Add a container/Spring request-size limit, shrink/chunk full sync payloads, remove or phase out legacy `wrongWords`, and add oversized-body regression tests. |
-| P0-03 | PARTIALLY RESOLVED / VERIFY | Production gate secret scan false positive | The 2026-08-08 audit reported a false positive caused by matching empty env keys across lines. Current `secret-scan.mjs` uses newline-safe whitespace around assignments, which appears to address the bug, but a clean production release-gate run is still required before this can be marked resolved. | Run `npm run gate:secret-scan` and the GitHub Production Release Gate on a clean candidate. If it still flags empty env placeholders, fix the scanner and add fixture coverage. |
-| P0-04 | OPEN | Release evidence incomplete | Production readiness still depends on environment, staging, backup/restore, and source-integrity evidence that cannot be inferred from source alone. | Verify Render/Supabase/Google OAuth settings, GitHub Actions status, staging smoke, and restore rehearsal evidence. |
+| P0-03 | LOCALLY RESOLVED / GITHUB GATE VERIFY | Production gate secret scan fallback false positive | Task 2 local `npm run gate:secret-scan` is verified PASS after a narrow fix: when Node cannot spawn Git and the script falls back to filesystem walking, ignored local `.env` files are skipped. The preferred scan path remains `git ls-files --cached --others --exclude-standard`, and no tracked secret was confirmed. | Run the GitHub Production Release Gate on a clean candidate and review the artifact for the exact SHA before marking the release blocker closed. |
+| P0-04 | OPEN | Release evidence incomplete | Production readiness still depends on clean source-integrity, staging smoke, backup/restore, Render/Supabase/Google OAuth, and release-gate evidence that cannot be inferred from source alone. | Verify Production Release Gate for the exact candidate, staging smoke env, restore rehearsal evidence, and deployment provider settings. |
 
 ## Reconciled Findings
 
@@ -63,11 +63,13 @@ This does not mean the app is production-ready. Current assessment:
 ## Verification Still Needed
 
 - Render Metrics around the memory incident and JVM/RSS baseline after boot.
-- GitHub Actions status for the exact pushed commit.
-- Backend tests in this workspace with Maven/network available.
-- Playwright pass in an environment with browser binaries installed.
-- Production release gate secret scan on a clean tree.
-- Staging OAuth login/logout smoke and restore rehearsal evidence.
+- GitHub Production Release Gate status and artifact for the exact pushed
+  release candidate.
+- Full backend/frontend regression counts from a fresh run, if the release note
+  needs exact test numbers.
+- Source-integrity on a clean release candidate.
+- Staging OAuth login/logout smoke, staging smoke env, and restore rehearsal
+  evidence.
 
 ## Refactor Candidates
 

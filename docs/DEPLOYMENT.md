@@ -8,8 +8,9 @@ Run the GitHub Actions workflow **Production Release Gate** for the exact commit
 
 Do not treat source hardening as a production-ready decision. As of 2026-08-08,
 release remains blocked until Render memory evidence, sync payload limits,
-secret-scan verification, staging smoke, and restore rehearsal evidence are
-complete.
+GitHub Production Release Gate verification, staging smoke, and restore
+rehearsal evidence are complete. Local Task 2 secret scan is PASS, but that does
+not replace a clean release-gate run for the exact candidate SHA.
 
 ## Environment
 

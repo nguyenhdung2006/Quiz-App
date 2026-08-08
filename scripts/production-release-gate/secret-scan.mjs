@@ -7,6 +7,7 @@ const control = "secret-scan";
 const findings = [];
 const ignoredDirs = new Set([".git", "node_modules", "target", "backend/target", "playwright-report", "test-results", "release-gate-artifacts", "archive"]);
 const allowedSecretLikeFiles = new Set([".env.example", ".env.production.example", "backend/.env.example", "backend/config/oauth2-google.example.yml"]);
+const ignoredLocalSecretFiles = new Set(["backend/config/oauth2-google.yml", "backend/src/main/resources/application-local.yml"]);
 const maxFileBytes = 1024 * 1024;
 
 const filePatterns = [
@@ -42,9 +43,19 @@ function shouldIgnorePath(normalized) {
   return [...ignoredDirs].some((ignored) => normalized === ignored || normalized.startsWith(`${ignored}/`));
 }
 
-function scanFile(relative) {
+function isIgnoredLocalSecretPath(relative) {
+  const entry = relative.split("/").pop();
+  return ignoredLocalSecretFiles.has(relative)
+    || /^\.env(\..+)?$/.test(entry)
+    || /^client_secret_.*\.json$/i.test(entry);
+}
+
+function scanFile(relative, options = {}) {
   const path = relative.replaceAll("/", "\\");
   const entry = relative.split("/").pop();
+  if (options.fallbackWalk && isIgnoredLocalSecretPath(relative) && !allowedSecretLikeFiles.has(relative)) {
+    return;
+  }
   if (shouldIgnorePath(relative) || !existsSync(path)) return;
   const stats = statSync(path);
   if (!stats.isFile()) return;
@@ -80,7 +91,7 @@ function walk(dir) {
       walk(path);
       continue;
     }
-    scanFile(normalized);
+    scanFile(normalized, { fallbackWalk: true });
   }
 }
 

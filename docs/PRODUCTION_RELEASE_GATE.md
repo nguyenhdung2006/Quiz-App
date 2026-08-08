@@ -111,9 +111,15 @@ The gate does not deploy and does not mutate production. Staging OAuth browser f
 ## 2026-08-08 Verification Notes
 
 - The gate must be re-run on a clean release candidate before claiming GO.
-- The 2026-08-08 audit reported a secret-scan false positive around empty env
-  placeholders. Current scanner code appears to avoid cross-line assignment
-  matches, but the release gate result is the authority.
+- Task 2 local `npm run gate:secret-scan` is verified PASS after a narrow
+  fallback fix. The root cause was Node failing to spawn Git in this workspace
+  (`spawnSync git EPERM`), which made the fallback filesystem walk scan ignored
+  local `.env` files. The preferred scan path remains
+  `git ls-files --cached --others --exclude-standard`, and tracked source is
+  still scanned when Git listing is available.
+- Secret scan local PASS does not make the release gate GO. The GitHub
+  Production Release Gate for the exact release candidate is still the
+  authority.
 - Render memory incident evidence is external to the repository. The gate should
   not infer memory health from source alone.
 - Backend test pass, frontend build pass, Playwright pass, staging smoke, and
