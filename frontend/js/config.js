@@ -11,6 +11,10 @@ const localFrontendHosts = new Set(["", "localhost", "127.0.0.1", "::1"]);
 const unsafeMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const csrfCookieName = "XSRF-TOKEN";
 const csrfHeaderName = "X-XSRF-TOKEN";
+const csrfFetchTimeoutMs = Math.max(
+0,
+Number(overrides.csrfFetchTimeoutMs ?? 8000)
+);
 const isVercel = host.endsWith(".vercel.app");
 const isLocalFrontend = localFrontendHosts.has(host);
 const isProductionFrontend = productionFrontendHosts.has(host) || isVercel || !isLocalFrontend;
@@ -58,10 +62,16 @@ async function refreshCsrfToken() {
 if (csrfRefreshInFlight) return csrfRefreshInFlight;
 
 csrfRefreshInFlight = (async () => {
+let controller = csrfFetchTimeoutMs > 0 ? new AbortController() : null;
+let timeoutId = controller
+? window.setTimeout(() => controller.abort(), csrfFetchTimeoutMs)
+: null;
+try {
 let response = await fetch(`${apiOrigin}/api/csrf`, {
 method: "GET",
 credentials: "include",
-headers: { Accept: "application/json" }
+headers: { Accept: "application/json" },
+signal: controller?.signal
 });
 
 if (!response.ok) {
@@ -72,6 +82,9 @@ return "";
 let payload = await response.json().catch(() => null);
 csrfTokenValue = String(payload?.token || readCookie(csrfCookieName) || "");
 return csrfTokenValue;
+} finally {
+if (timeoutId) window.clearTimeout(timeoutId);
+}
 })().finally(() => {
 csrfRefreshInFlight = null;
 });

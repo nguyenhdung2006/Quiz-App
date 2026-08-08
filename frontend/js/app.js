@@ -3,8 +3,13 @@
 const AUTH_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 const API_FETCH = window.quizApiFetch || fetch.bind(window);
 const REQUIRE_AUTH = window.quizIsProductionFrontend ? window.quizIsProductionFrontend() : false;
+const APP_CONFIG = window.QUIZ_APP_CONFIG || {};
 const CLOUD_DELETE_QUEUE_KEY = "cloudDeleteQueue";
-const AUTH_PROFILE_RETRY_DELAYS = [500, 1000];
+const AUTH_PROFILE_RETRY_DELAYS = Array.isArray(APP_CONFIG.authProfileRetryDelaysMs)
+? APP_CONFIG.authProfileRetryDelaysMs.map(Number).filter(delay => delay >= 0)
+: [500, 1000];
+const AUTH_SESSION_TIMEOUT_MS = Math.max(0, Number(APP_CONFIG.authSessionTimeoutMs ?? 8000));
+const LOGOUT_TIMEOUT_MS = Math.max(0, Number(APP_CONFIG.logoutTimeoutMs ?? 5000));
 const CLOUD_SYNC_META_KEY = "cloudSyncMeta";
 const STALE_SYNC_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
 const DELETE_RETRY_30_SECONDS = 30 * 1000;
@@ -22,6 +27,7 @@ lastPullAt: null,
 lastSuccessfulSyncAt: null,
 cloudSnapshotUpdatedAt: null,
 hadLocalDataBeforeLastPull: false,
+localUpdatedAtBeforeLastPull: null,
 syncReady: false,
 pullInFlight: null
 };
@@ -236,6 +242,7 @@ function resetCloudSyncStateForAccount() {
 cloudSyncState.hasPulledCloudSnapshot = false;
 cloudSyncState.cloudSnapshotUpdatedAt = null;
 cloudSyncState.hadLocalDataBeforeLastPull = false;
+cloudSyncState.localUpdatedAtBeforeLastPull = null;
 cloudSyncState.lastKnownRevision = null;
 restoreCloudSyncMeta();
 }
@@ -264,6 +271,14 @@ let time = maxTime(times);
 return time ? new Date(time).toISOString() : null;
 }
 
+function localSnapshotUpdatedAt() {
+return snapshotUpdatedAt({
+vocab: getVocab(),
+wrongWords: getWrongWords(),
+quizHistory: typeof getQuizHistory === "function" ? getQuizHistory() : []
+});
+}
+
 function hasLocalSyncData() {
 return getVocab().length > 0 || getWrongWords().length > 0;
 }
@@ -279,7 +294,10 @@ let lastSync = parseTime(cloudSyncState.lastSuccessfulSyncAt);
 if (!lastSync) return false;
 
 let staleAge = Date.now() - lastSync;
-return staleAge > STALE_SYNC_THRESHOLD_MS && cloudUpdated > lastSync;
+if (staleAge <= STALE_SYNC_THRESHOLD_MS || cloudUpdated <= lastSync) return false;
+
+let localUpdated = parseTime(cloudSyncState.localUpdatedAtBeforeLastPull);
+return localUpdated > lastSync;
 }
 
 function blockStaleSyncPush() {
@@ -614,11 +632,13 @@ return false;
 let snapshot = await response.json();
 let cloudUpdatedAt = snapshotUpdatedAt(snapshot);
 let hadLocalData = hasLocalSyncData();
+let localUpdatedAt = localSnapshotUpdatedAt();
 applyServerSnapshot(snapshot);
 cloudSyncState.hasPulledCloudSnapshot = true;
 cloudSyncState.lastPullAt = new Date().toISOString();
 cloudSyncState.cloudSnapshotUpdatedAt = cloudUpdatedAt;
 cloudSyncState.hadLocalDataBeforeLastPull = hadLocalData;
+cloudSyncState.localUpdatedAtBeforeLastPull = localUpdatedAt;
 writeCloudSyncMeta({
 lastPullAt: cloudSyncState.lastPullAt,
 cloudSnapshotUpdatedAt: cloudSyncState.cloudSnapshotUpdatedAt
@@ -1120,8 +1140,24 @@ function wait(ms) {
 return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function fetchWithTimeout(input, options = {}, timeoutMs = 0) {
+let controller = timeoutMs > 0 ? new AbortController() : null;
+let timeoutId = controller
+? window.setTimeout(() => controller.abort(), timeoutMs)
+: null;
+
+try {
+return await API_FETCH(input, {
+...options,
+signal: controller?.signal || options.signal
+});
+} finally {
+if (timeoutId) window.clearTimeout(timeoutId);
+}
+}
+
 async function fetchCurrentUserOnce() {
-let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/me`);
+let response = await fetchWithTimeout(`${AUTH_API_ORIGIN}/api/me`, {}, AUTH_SESSION_TIMEOUT_MS);
 
 if (response.status === 401 || response.status === 403) {
 return { status: "unauthenticated" };
@@ -1325,7 +1361,12 @@ if (result.status === "authenticated") {
 applyProfile(result.profile);
 resetCloudSyncStateForAccount();
 refreshAccountData();
+try {
 await window.quizCsrf?.refresh?.();
+} catch (error) {
+// The next unsafe cloud request will retry CSRF; do not leave bootstrap stuck.
+setSyncStatus("Cloud security token unavailable. Retrying on sync...", "warn");
+}
 cloudSyncReady = true;
 cloudSyncState.syncReady = true;
 let pulled = await pullCloudSnapshot();
@@ -1509,7 +1550,7 @@ button.addEventListener("click", async () => {
 button.disabled = true;
 closeMenu();
 try {
-await API_FETCH(`${AUTH_API_ORIGIN}/logout`, { method: "POST" });
+await fetchWithTimeout(`${AUTH_API_ORIGIN}/logout`, { method: "POST" }, LOGOUT_TIMEOUT_MS);
 } catch (error) {
 // Local cleanup and redirect still keep the visible app state consistent.
 } finally {
