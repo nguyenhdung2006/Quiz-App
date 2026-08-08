@@ -15,7 +15,7 @@ Operational behavior:
 Configuration:
 
 ```text
-OPENAI_API_KEY=
+OPENAI_API_KEY=example-openai-api-key
 AI_MODEL=gpt-4.1-mini
 RATE_LIMIT_MODE=in-memory
 AI_EXPLAIN_RATE_LIMIT_PER_MINUTE=10

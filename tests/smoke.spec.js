@@ -81,6 +81,7 @@ async function preparePage(page, options = {}) {
     const url = route.request().url();
     const method = route.request().method();
     if (url.endsWith("/api/csrf")) {
+      if (options.csrfHangs) return;
       await route.fulfill({
         json: {
           headerName: "X-XSRF-TOKEN",
@@ -91,6 +92,7 @@ async function preparePage(page, options = {}) {
       return;
     }
     if (url.endsWith("/api/me")) {
+      if (options.meHangs) return;
       meRequestCount++;
       const response = Array.isArray(options.meResponses)
         ? options.meResponses[Math.min(meRequestCount - 1, options.meResponses.length - 1)]
@@ -223,7 +225,10 @@ async function preparePage(page, options = {}) {
   });
 
   await page.addInitScript((seed) => {
-    window.QUIZ_APP_CONFIG = { apiOrigin: "http://localhost:8080" };
+    window.QUIZ_APP_CONFIG = {
+      apiOrigin: "http://localhost:8080",
+      ...(seed.config || {})
+    };
     localStorage.clear();
     let accountId = String(seed.profile.email || "").trim().toLowerCase() || "local-guest";
     localStorage.setItem("quizUserProfile", JSON.stringify(seed.profile));
@@ -244,7 +249,8 @@ async function preparePage(page, options = {}) {
     vocab: options.vocab || [],
     wrongWords: options.wrongWords || [],
     pendingDeletes: options.pendingDeletes || null,
-    syncMeta: options.syncMeta || null
+    syncMeta: options.syncMeta || null,
+    config: options.config || null
   });
 
   await page.goto("index.html");
@@ -657,7 +663,7 @@ test("stale returning device does not push over newer cloud snapshot", async ({ 
     profile,
     vocab: [{
       ...word("shared-word", "old local meaning", "sync", 61),
-      updatedAt: "2026-01-01T00:00:00.000Z"
+      updatedAt: "2026-01-15T00:00:00.000Z"
     }],
     syncMeta: {
       lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
@@ -679,6 +685,38 @@ test("stale returning device does not push over newer cloud snapshot", async ({ 
   await expect(page.locator("#cloudSyncStatus")).toContainText("Sync paused to protect your data");
   expect(fatalConsole.syncBodies).toHaveLength(0);
   await expect.poll(() => page.evaluate(() => window.quizCloud?.state?.().hasPulledCloudSnapshot)).toBe(true);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale sync metadata does not pause when local data has no newer edits", async ({ page }) => {
+  const profile = { name: "Old Metadata", email: "old-metadata@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    vocab: [{
+      ...word("unchanged-local-word", "local unchanged", "sync", 65),
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      profile,
+      vocab: [{
+        ...word("cloud-newer-word", "from cloud", "sync", 66),
+        id: 9003,
+        updatedAt: "2026-05-01T00:00:00.000Z"
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  expect(fatalConsole.syncBodies.at(-1).vocab.map(item => item.eng)).toContain("cloud-newer-word");
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
@@ -736,6 +774,66 @@ test("auth bootstrap retries transient /api/me failure before applying profile",
   await expect(page.locator("#profileMenuEmail")).toContainText("retry@example.com");
   await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
   expect(page.url()).toContain("index.html");
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("auth bootstrap times out an unresponsive /api/me instead of staying stuck", async ({ page }) => {
+  const profile = { name: "Hung Session", email: "hung-session@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    profile,
+    meHangs: true,
+    config: {
+      authSessionTimeoutMs: 50,
+      authProfileRetryDelaysMs: [10]
+    }
+  });
+
+  await expect(page.locator("#profileMenuEmail")).toContainText("hung-session@example.com");
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Cloud session temporarily unavailable");
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("csrf refresh timeout does not freeze authenticated bootstrap", async ({ page }) => {
+  const profile = { name: "CSRF Timeout", email: "csrf-timeout@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    csrfHangs: true,
+    cloudSnapshot: {
+      profile,
+      vocab: [],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    },
+    config: {
+      csrfFetchTimeoutMs: 50
+    }
+  });
+
+  await expect.poll(() => fatalConsole.snapshotRequestCount).toBeGreaterThan(0);
+  await expect(page.locator("#profileMenuEmail")).toContainText("csrf-timeout@example.com");
+  await expect(page.locator("#cloudSyncStatus")).not.toContainText("Checking session");
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("logout redirects even when csrf refresh is unresponsive", async ({ page }) => {
+  const profile = { name: "Logout Timeout", email: "logout-timeout@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    csrfHangs: true,
+    config: {
+      csrfFetchTimeoutMs: 50,
+      logoutTimeoutMs: 100
+    }
+  });
+
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true/);
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
