@@ -44,8 +44,9 @@ production-grade. Các khoảng trống lớn nhất là:
   Production Release Gate cho đúng candidate vẫn chưa được xác minh.
 - Staging smoke script đã có manual PASS evidence trong Wave 2, nhưng OAuth
   browser callback và staging DB isolation vẫn là external evidence chưa được
-  chứng minh. Restore rehearsal vẫn là external evidence, không phải source
-  fact.
+  chứng minh. Wave 3 có schema/Flyway/app-start rehearsal trên DB Docker
+  disposable, nhưng backup dump restore và restored `/api/health` smoke vẫn
+  chưa được chứng minh.
 - Public Actuator metrics hiện được gate/config cho phép có chủ ý, nhưng docs
   cũng đặt câu hỏi liệu public metrics có nên tiếp tục mở hay không.
 - Review, analytics, sync, và snapshot flows vẫn load các list lớn theo từng
@@ -65,7 +66,7 @@ production-grade. Các khoảng trống lớn nhất là:
 | Release gate secret scan | PASS LOCALLY / NEEDS GITHUB GATE VERIFICATION | Task 2 đã PASS local: `npm run gate:secret-scan` tạo `secret-scan.json` với `findingCount: 0`. Fallback của `secret-scan.mjs` đã được sửa để không scan ignored local `.env`; script vẫn ưu tiên commit-candidate files bằng `git ls-files --cached --others --exclude-standard`. Không có tracked secret được xác nhận. | Chạy GitHub Production Release Gate trên đúng candidate trước release; thêm scanner fixtures nếu có false-positive mới. |
 | GitHub Actions cho commit hiện tại | PARTIAL / NEEDS RELEASE GATE VERIFICATION | Task 1 đã xác minh CI run `31262520384` PASS cho audited HEAD, nhưng chưa có verified GitHub Production Release Gate run cho cùng candidate. | Kiểm tra Production Release Gate status và artifact cho pushed commit SHA trước release. |
 | Staging smoke | PASS SCRIPT / NEEDS MANUAL OAUTH + DB VERIFICATION | Wave 2 manual run reported `[PASS] staging-smoke` with `STAGING_BACKEND_URL=https://quiz-app-xd9m.onrender.com`, `STAGING_FRONTEND_URL=https://quiz-9j3357ei0-nguyenhdung2006s-projects.vercel.app/`, and `STAGING_TEST_USER_HINT=24020092@gmail.com`. Script verifies backend health, CSRF JSON/cookie, and frontend root. It does not verify Google OAuth browser callback or isolated staging DB. | Keep manual OAuth login/callback evidence separate; confirm Render backend uses intended staging/non-production DB before treating this as full release evidence. |
-| Restore/backup rehearsal | BLOCKED / NEEDS VERIFICATION | Gate yêu cầu `docs/restore-rehearsal-evidence.md` hoặc `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`; hiện chưa có evidence file. | Thực hiện non-production restore rehearsal và ghi lại safe evidence. |
+| Restore/backup rehearsal | GATE PASS / PARTIAL EVIDENCE | Wave 3 tạo `docs/restore-rehearsal-evidence.md` sau khi backend prod-profile context test PASS trên disposable PostgreSQL `localhost:5433`; Flyway validated/applied 4 migrations và Hibernate validate passed. Không có sanitized backup/dump artifact được restore, và `/api/health` chưa được smoke trên app server restored. | Bổ sung restore từ backup/dump thật trên non-production DB và restored `/api/health` smoke trước khi coi là full backup readiness. |
 
 ## Bảng Ưu Tiên
 
@@ -74,7 +75,7 @@ production-grade. Các khoảng trống lớn nhất là:
 | 1 | Easy | High | CI/CD/release gate | CI status cho audited HEAD đã PASS một phần; Production Release Gate cho candidate vẫn chưa verified. | Local pass không phải release signal, và CI PASS không thay thế release-gate artifact. | Kiểm tra Production Release Gate cho đúng commit SHA; link artifacts trong release notes. | GitHub checks hiển thị CI PASS và Production Release Gate PASS hoặc documented BLOCKED controls cho cùng SHA. | 0.15 |
 | 2 | Easy | High | CI/CD/release gate | Local secret scan gate đã PASS sau fallback fix; GitHub Production Release Gate vẫn cần verify cho candidate. | False-positive hoặc bỏ sót real secret sẽ chặn safe release. | Giữ `secret-scan.mjs` ưu tiên `git ls-files --cached --others --exclude-standard`; fallback chỉ bỏ qua ignored local `.env` khi Git listing không khả dụng. Chạy GitHub gate cho đúng SHA. | Local `secret-scan.json` có `findingCount: 0`; không có tracked `.env` hoặc secret-like files; GitHub gate được ghi evidence riêng. | 0.20 |
 | 3 | Easy | High | Deployment/production operations | Staging smoke script có manual PASS evidence; OAuth browser callback và staging DB isolation vẫn thiếu. | Production confidence cần deployed URL behavior thật, cộng authenticated browser flow và database boundary rõ ràng. | Lưu staging smoke evidence; thêm manual OAuth login/logout evidence; confirm Render backend dùng intended staging/non-production DB. | Staging smoke PASS, OAuth browser notes, và DB isolation evidence. | 0.25 |
-| 4 | Easy | High | Deployment/production operations | Thiếu restore rehearsal evidence. | Backups chưa được chứng minh cho đến khi restore được rehearsal. | Restore một non-production backup, verify app startup/health, và tạo `docs/restore-rehearsal-evidence.md` không chứa raw data. | `gate:backup-rollback` PASS. | 0.30 |
+| 4 | Easy | High | Deployment/production operations | Đã có schema/Flyway/app-start rehearsal evidence, nhưng chưa có backup dump restore. | Backups chưa được chứng minh đầy đủ cho đến khi một backup artifact thật được restore và smoke. | Restore một sanitized/non-production backup, verify app startup/health, và cập nhật `docs/restore-rehearsal-evidence.md` không chứa raw data. | `gate:backup-rollback` PASS cộng với backup artifact restore và restored `/api/health` evidence. | 0.30 |
 | 5 | Easy | High | Observability/monitoring | Render memory incident thiếu root-cause data. | Restart lặp lại có thể làm mất niềm tin và che giấu leaks hoặc spikes thật. | Export Render Metrics quanh sự cố, ghi lại RAM/CPU/request trend, và phân loại leak/spike/headroom. | Incident note có metrics timestamps và kết luận. | 0.25 |
 | 6 | Easy | High | Observability/monitoring | Alerting rules mới chỉ được document, chưa connected. | Metrics không có alerts thì không bảo vệ uptime. | Thêm Render hoặc external alert thresholds cho health, 5xx, RAM 75/90%, AI failures, sync conflicts. | Alert config screenshot/export cộng test notification. | 0.20 |
 | 7 | Easy | High | Documentation/product readiness | Docs chứa stale test counts và mâu thuẫn về metrics exposure. | Release decisions trở nên mơ hồ khi docs không thống nhất với source. | Update non-archive docs: bỏ hoặc đánh dấu historical các exact test counts chưa được rerun trong Task 6, làm rõ `metrics` exposure policy, đánh dấu historical schema docs là historical nếu stale. | `rg` xác nhận không còn current doc nào nói chỉ health/info được expose trong khi config expose metrics. | 0.10 |
@@ -211,7 +212,7 @@ production-grade. Các khoảng trống lớn nhất là:
 1. Verify GitHub Actions status cho current pushed commit.
 2. Chạy clean `gate:secret-scan`; thêm scanner fixtures nếu cần.
 3. Configure và chạy staging smoke.
-4. Thêm restore rehearsal evidence.
+4. Bổ sung backup dump restore evidence và restored `/api/health` smoke.
 5. Capture Render memory metrics và classify incident.
 6. Align docs và release gate về Actuator metrics exposure policy.
 7. Refresh stale test counts và historical status banners trong current docs.
@@ -322,15 +323,17 @@ Evidence cập nhật cho Task 5:
 - `gate:backup-rollback` yêu cầu các runbook docs hiện có cộng với concrete
   restore rehearsal evidence qua `docs/restore-rehearsal-evidence.md` hoặc
   `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`.
-- Required docs và required terms đã có, nhưng `docs/restore-rehearsal-evidence.md`
-  và env `RELEASE_RESTORE_REHEARSAL_EVIDENCE` đều đang thiếu, nên gate vẫn
-  BLOCKED / NEEDS VERIFICATION.
-- Đã thêm `docs/restore-rehearsal-checklist.md` như checklist/template chuẩn bị
-  an toàn. Đây không phải evidence hoàn tất và không làm `gate:backup-rollback`
-  PASS.
-- Chỉ chuyển sang PASS sau một restore rehearsal thật trên non-production DB,
-  không dùng production credential, không chứa raw data/secret, và
-  `npm run gate:backup-rollback` báo `[PASS] backup-rollback-readiness`.
+- Required docs và required terms đã có.
+- Wave 3 đã dùng disposable Docker PostgreSQL trên `localhost:5433`, database
+  `quiz_app_restore_rehearsal`, làm schema/Flyway/app-start rehearsal thật:
+  backend `.\mvnw.cmd -B -Dtest=QuizApplicationTests test` PASS với
+  `SPRING_PROFILES_ACTIVE=prod`, `FLYWAY_ENABLED=true`, `JPA_DDL_AUTO=validate`,
+  và process-scoped DB env.
+- `docs/restore-rehearsal-evidence.md` được tạo sau khi rehearsal command PASS;
+  `npm run gate:backup-rollback` vì vậy PASS theo readiness gate hiện tại.
+- Giới hạn vẫn còn: repo không có automated backup/dump restore process, không
+  có sanitized backup/dump artifact được restore, và chưa chạy restored
+  `/api/health` smoke. Đây không phải full production backup readiness.
 
 Evidence cập nhật cho Wave 1 final verification:
 
@@ -341,9 +344,9 @@ Evidence cập nhật cho Wave 1 final verification:
 - Local verified: `gate:secret-scan` PASS và `gate:source-integrity` PASS trên
   clean tree khi chạy ngoài sandbox.
 - PR có thể merge trong phạm vi audit/gate/docs hardening, nhưng không được gọi
-  là production-ready vì backup/restore vẫn BLOCKED, OAuth browser callback và
-  staging DB isolation chưa được chứng minh, còn GitHub Production Release Gate
-  chưa có artifact cho candidate.
+  là production-ready vì backup/restore evidence mới chỉ là schema/Flyway/app-start
+  rehearsal, OAuth browser callback và staging DB isolation chưa được chứng minh,
+  còn GitHub Production Release Gate chưa có artifact cho candidate.
 
 ### Phase 2: Security, Performance, And Release Hardening
 
@@ -398,8 +401,8 @@ Không gọi dự án là production-ready cho đến khi tất cả điều sau
 - Production env validation pass với giá trị thật và không in secrets.
 - Staging OAuth login/logout, vocabulary add/delete, sync, review, analytics,
   và AI fallback/rate-limit smoke pass.
-- Production database backup và non-production restore rehearsal đã được ghi
-  nhận.
+- Production database backup và non-production backup dump restore rehearsal đã
+  được ghi nhận, bao gồm restored `/api/health` smoke.
 - Actuator metrics exposure policy rõ ràng và được test.
 - Visual regression baseline tồn tại trước các UI/CSS churn tiếp theo.
 
@@ -412,7 +415,7 @@ Không gọi dự án là production-ready cho đến khi tất cả điều sau
 - Production Release Gate result trên clean candidate.
 - Staging smoke với staging URLs và test identity thật.
 - Google OAuth browser flow trong staging/production.
-- Restore rehearsal trên non-production database.
+- Full backup dump restore rehearsal trên non-production database.
 - Production Supabase schema drift, duplicate vocabulary, orphan rows, và Flyway
   history state.
 - Large-account memory/latency behavior cho sync, snapshot, review, và

@@ -239,7 +239,7 @@ Commands used:
 
 ## Task 5: Backup/Restore Rehearsal Evidence
 
-Status: BLOCKED / NEEDS VERIFICATION
+Status: PARTIAL PASS / NEEDS BACKUP-DUMP VERIFICATION
 
 Script reviewed:
 
@@ -265,9 +265,9 @@ Current status:
 
 - Required docs: present.
 - Required terms: present.
-- `docs/restore-rehearsal-evidence.md`: MISSING.
+- `docs/restore-rehearsal-evidence.md`: present after Wave 3 schema/Flyway/app-start rehearsal.
 - `RELEASE_RESTORE_REHEARSAL_EVIDENCE`: MISSING.
-- `npm run gate:backup-rollback`: BLOCKED.
+- `npm run gate:backup-rollback`: PASS after the evidence file was created.
 
 Safe docs added:
 
@@ -275,18 +275,27 @@ Safe docs added:
   It is not completed evidence and must not be treated as proof of restore
   success.
 
-Conditions required to move from BLOCKED to PASS:
+Wave 3 rehearsal performed:
 
-- Perform a real restore rehearsal on a non-production database.
-- Do not touch production DB and do not use production credentials.
-- Record only safe metadata: source backup ID/timestamp, target
-  non-production database identifier, restore tool/command shape, verification
-  result, `/api/health` smoke result, operator, and timestamp.
-- Create `docs/restore-rehearsal-evidence.md` only after the real rehearsal is
-  complete, or set `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true` only when the
-  release record links to equivalent external evidence.
-- Run `npm run gate:backup-rollback` and require `[PASS]
-  backup-rollback-readiness`.
+- Target: disposable Docker PostgreSQL on `localhost:5433`, database
+  `quiz_app_restore_rehearsal`.
+- Command: backend Maven context test with `SPRING_PROFILES_ACTIVE=prod`,
+  `FLYWAY_ENABLED=true`, `JPA_DDL_AUTO=validate`, and process-scoped database
+  env values.
+- Result: PASS for schema/Flyway/app-start rehearsal. Flyway validated and
+  applied 4 migrations on PostgreSQL 16.14, Hibernate validate passed, and
+  `QuizApplicationTests.contextLoads` completed successfully.
+- Evidence file: `docs/restore-rehearsal-evidence.md`.
+
+Remaining limitations:
+
+- The project has docs for provider backup/export or `pg_dump`, but no
+  repository script that performs a real backup/dump restore.
+- No sanitized backup/dump artifact was provided, so backup artifact restore is
+  still not verified.
+- `/api/health` was not smoked against a launched restored app server.
+- No production Supabase database was touched.
+- This should not be treated as full production backup/restore readiness.
 
 Safe command template:
 
@@ -311,6 +320,10 @@ Commands used:
 - `Get-Content docs\ROADMAP.md`
 - `Get-Content docs\TROUBLESHOOTING.md`
 - `rg --files docs | rg "restore|rehearsal|backup|rollback"`
+- `Test-NetConnection -ComputerName localhost -Port 5433`
+- Backend `.\mvnw.cmd -B -Dtest=QuizApplicationTests test` with process-scoped
+  non-production PostgreSQL env and `JAVA_TOOL_OPTIONS=-Duser.timezone=UTC`
+- `npm run gate:backup-rollback`
 
 ## Task 6: Docs Contradiction Audit
 
@@ -357,8 +370,9 @@ Current truthful release-gate status after audit:
   Git cannot be executed from Node.
 - Staging smoke: PASS by manual Wave 2 run with configured staging env. OAuth
   browser login/callback remains NEEDS MANUAL VERIFICATION.
-- Backup/rollback: BLOCKED because `docs/restore-rehearsal-evidence.md` and
-  `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true` are missing.
+- Backup/rollback: gate PASS after Wave 3 created
+  `docs/restore-rehearsal-evidence.md`; evidence is limited to
+  schema/Flyway/app-start rehearsal and does not prove backup dump restore.
 
 Commands used:
 
@@ -406,12 +420,12 @@ Local checks for PR HEAD:
 - `git diff --stat`: no output.
 - `git diff --check`: PASS, no output.
 
-Remaining blocked controls:
+Remaining blocked or partial controls:
 
-- `backup-rollback-readiness`: BLOCKED / NEEDS VERIFICATION until a real
-  non-production restore rehearsal is evidenced through
-  `docs/restore-rehearsal-evidence.md` or equivalent external evidence linked
-  with `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`.
+- `backup-rollback-readiness`: PASS by local gate after Wave 3 evidence file,
+  but still PARTIAL / NEEDS BACKUP-DUMP VERIFICATION because no sanitized
+  backup artifact was restored and `/api/health` was not smoked against a
+  launched restored app server.
 
 Remaining manual verification:
 
@@ -452,5 +466,51 @@ What the script does not verify:
 - Google OAuth full browser login/callback.
 - Authenticated user flows after OAuth login.
 - That the Render backend is connected to an isolated staging database.
-- Backup/restore rehearsal evidence.
+- Full backup dump restore and restored `/api/health` smoke evidence.
 - Production readiness.
+
+## Wave 3 Backup/Restore Rehearsal
+
+Date: 2026-08-09
+
+Status: PARTIAL PASS for schema/Flyway/app-start rehearsal; backup dump restore
+still NEEDS VERIFICATION
+
+Target:
+
+- Disposable Docker PostgreSQL on `localhost:5433`.
+- Database: `quiz_app_restore_rehearsal`.
+- Non-production only; production Supabase was not touched.
+
+What was identified:
+
+- The repo does not currently include an automated backup/dump restore process.
+- `npm run gate:backup-rollback` maps to
+  `scripts/production-release-gate/backup-rollback-readiness.mjs`.
+- The gate checks required runbook docs/terms plus concrete evidence via
+  `docs/restore-rehearsal-evidence.md` or
+  `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`; it does not run `pg_dump`, `psql`,
+  Flyway, or `/api/health` itself.
+
+Real rehearsal command result:
+
+- Backend `.\mvnw.cmd -B -Dtest=QuizApplicationTests test` PASS with process
+  env pointing to the disposable PostgreSQL target,
+  `SPRING_PROFILES_ACTIVE=prod`, `FLYWAY_ENABLED=true`, `JPA_DDL_AUTO=validate`,
+  and `JAVA_TOOL_OPTIONS=-Duser.timezone=UTC`.
+- The first attempt without `JAVA_TOOL_OPTIONS=-Duser.timezone=UTC` failed
+  before migration because PostgreSQL rejected JVM timezone `Asia/Saigon`.
+- The successful run connected to PostgreSQL 16.14, validated 4 migrations,
+  applied versions 1 through 4, initialized Hibernate with validate, and loaded
+  the Spring context.
+
+Evidence file:
+
+- `docs/restore-rehearsal-evidence.md`
+
+Limitations:
+
+- No sanitized backup/dump artifact was supplied or restored.
+- No production Supabase DB was touched.
+- No restored app server was launched, so `/api/health` was not smoked.
+- This does not make the project production-ready.

@@ -129,6 +129,10 @@ The gate does not deploy and does not mutate production. Staging OAuth browser f
   health, backend CSRF JSON/cookie, and frontend root only; Google OAuth full
   browser login/callback and staging database isolation remain separate manual
   verification items.
+- Wave 3 created `docs/restore-rehearsal-evidence.md` after a real
+  schema/Flyway/app-start rehearsal on a disposable non-production PostgreSQL
+  target. This is not evidence that a production or sanitized backup dump was
+  restored, and it does not include a restored `/api/health` smoke.
 - Render memory incident evidence is external to the repository. The gate should
   not infer memory health from source alone.
 - Backend test pass, frontend build pass, Playwright pass, staging smoke, and
