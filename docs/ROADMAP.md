@@ -2,9 +2,10 @@
 
 ## Release Blockers
 
-- Capture Render Metrics around the confirmed memory-limit restart and classify
-  the incident as leak, payload/concurrency spike, or insufficient instance
-  headroom.
+- Upgrade the Render instance or connect external observability/alerting, then
+  capture quantitative memory/CPU metrics around the confirmed memory-limit
+  restart and classify the incident as leak, payload/concurrency spike, or
+  insufficient instance headroom.
 - Add a pre-deserialization request-body limit for `/api/sync` and test
   oversized payload rejection.
 - Re-run production release-gate secret scan on a clean tree and confirm the
@@ -29,7 +30,8 @@
 - Add quiz attempt anti-replay only if product requirements demand it.
 - Define tombstone retention and cleanup policy after real data-age needs are known.
 - Upgrade AI rate limiting to distributed storage only when the backend runs multiple instances, AI cost risk is material, or abuse evidence appears.
-- Add external monitoring/APM when production traffic justifies it.
+- Add external monitoring/APM and verify alert delivery when production traffic
+  justifies it.
 
 ## Refactor Candidates
 

@@ -26,7 +26,7 @@ This does not mean the app is production-ready. Current assessment:
 
 | ID | Status | Finding | Source-based assessment | Required verification/action |
 | --- | --- | --- | --- | --- |
-| P0-01 | NEW / OPEN | Render memory-limit restart | The incident is confirmed as a Render memory-limit restart, but source/log evidence is not enough to conclude a Java memory leak. A 512 MB free instance has limited headroom for Spring Boot, JPA, Security, Flyway, and Actuator. | Capture Render Metrics around the incident window, correlate RAM/CPU/request volume/log request IDs, set a tested JVM/RAM budget in staging, and add alert thresholds. |
+| P0-01 | CONFIRMED / OPEN | Render memory-limit restart | Render Events confirms one memory failure on August 7, 2026 at 11:18 PM (`used over 512MB`) and recovery at 11:23 PM. Source/log evidence is still not enough to conclude a Java memory leak, and Render Free does not expose quantitative application memory/CPU metrics. | Upgrade the instance or connect external observability/alerting, capture RAM/CPU/request volume/log request IDs, set a tested JVM/RAM budget in staging, and verify alert delivery. |
 | P0-02 | NEW / OPEN | `/api/sync` large body risk | `SyncRequest` limits list lengths after request deserialization. There is no source-level hard request-body cap before Jackson parses the JSON body, and sync still accepts legacy `wrongWords`, so a large payload can cause a memory spike before validation. | Add a container/Spring request-size limit, shrink/chunk full sync payloads, remove or phase out legacy `wrongWords`, and add oversized-body regression tests. |
 | P0-03 | LOCALLY RESOLVED / GITHUB GATE VERIFY | Production gate secret scan fallback false positive | Task 2 local `npm run gate:secret-scan` is verified PASS after a narrow fix: when Node cannot spawn Git and the script falls back to filesystem walking, ignored local `.env` files are skipped. The preferred scan path remains `git ls-files --cached --others --exclude-standard`, and no tracked secret was confirmed. | Run the GitHub Production Release Gate on a clean candidate and review the artifact for the exact SHA before marking the release blocker closed. |
 | P0-04 | OPEN | Release evidence incomplete | Production readiness still depends on clean source-integrity, staging smoke, backup/restore, Render/Supabase/Google OAuth, and release-gate evidence that cannot be inferred from source alone. | Verify Production Release Gate for the exact candidate, staging smoke env, restore rehearsal evidence, and deployment provider settings. |
@@ -41,7 +41,7 @@ This does not mean the app is production-ready. Current assessment:
 | Sync has no tombstone/delete contract | RESOLVED | Sync V2 requires `syncContractVersion: 2`, `expectedRevision`, stable `wordUid`, `deletions`, and tombstone-aware snapshots. |
 | Production `ddl-auto=update` / Flyway disabled | OBSOLETE for prod, still local default | Default local H2 keeps `ddl-auto=update` and Flyway off. Production profile pins `ddl-auto=validate`, Flyway enabled, and fail-fast safety guard. |
 | CORS wildcard headers/origins | RESOLVED in code | `SecurityConfig` uses configured origins and explicit headers. Deployment env still must be exact. |
-| Observability too thin | PARTIALLY RESOLVED | Request ID, MDC, health counters, Actuator metrics, and gate tests exist. External APM/alerts and Render incident metrics are still absent. |
+| Observability too thin | PARTIALLY RESOLVED | Request ID, MDC, health counters, Actuator metrics, and gate tests exist. Render screenshots confirm the OOM/recovery events, but quantitative memory/CPU metrics are unavailable on Free and alert delivery is not verified. |
 | In-memory AI rate limiter | PARTIALLY RESOLVED | Configurable per-user limiter exists and is acceptable for one backend instance. It is not distributed and should not be used as a multi-instance guarantee. |
 | Public `/actuator/metrics/**` | OPEN | Public metrics are currently permitted. Keep only if intentional for the deployment model; otherwise protect or restrict to monitoring. |
 | Frontend monolith/global state | OPEN | `frontend/js/app.js` and `learning-studio.js` remain large global-script modules. |
@@ -62,7 +62,8 @@ This does not mean the app is production-ready. Current assessment:
 
 ## Verification Still Needed
 
-- Render Metrics around the memory incident and JVM/RSS baseline after boot.
+- Quantitative memory/CPU metrics around the confirmed Render memory incident,
+  JVM/RSS baseline after boot, and alert delivery evidence.
 - GitHub Production Release Gate status and artifact for the exact pushed
   release candidate.
 - Full backend/frontend regression counts from a fresh run, if the release note

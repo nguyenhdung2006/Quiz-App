@@ -133,7 +133,10 @@ The gate does not deploy and does not mutate production. Staging OAuth browser f
   schema/Flyway/app-start rehearsal on a disposable non-production PostgreSQL
   target. This is not evidence that a production or sanitized backup dump was
   restored, and it does not include a restored `/api/health` smoke.
-- Render memory incident evidence is external to the repository. The gate should
-  not infer memory health from source alone.
+- Render screenshots confirmed one memory-limit event on August 7, 2026 at
+  11:18 PM and recovery at 11:23 PM. Quantitative application memory/CPU metrics
+  remain unavailable on the current Free instance, and alert notification
+  delivery is not verified. The gate should not infer monitoring readiness from
+  source or event screenshots alone.
 - Backend test pass, frontend build pass, Playwright pass, staging smoke, and
   restore rehearsal must all be real results, not assumed from docs.

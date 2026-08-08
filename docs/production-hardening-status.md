@@ -40,8 +40,11 @@ in-memory.
 
 Current 2026-08-08 blockers to keep visible:
 
-- Render memory-limit restart is confirmed, but there is not enough evidence to
-  conclude a Java memory leak. Render Metrics around the incident are required.
+- Render memory-limit restart is confirmed by Render Events at August 7, 2026
+  11:18 PM, followed by service recovery at 11:23 PM. There is not enough
+  evidence to conclude a Java memory leak because quantitative memory/CPU
+  metrics are unavailable on the current Render Free instance. Alert delivery is
+  NOT VERIFIED.
 - `/api/sync` still has a large body/payload risk before validation because JSON
   is deserialized before Bean Validation list limits run.
 - Task 2 local `npm run gate:secret-scan` is verified PASS after fixing the
@@ -61,7 +64,7 @@ Current 2026-08-08 blockers to keep visible:
 | A-06 | Medium | CORS allowed wildcard headers | `SecurityConfig.corsConfigurationSource` enumerates allowed origins/methods/headers | `CsrfSecurityTests` and source inspection | VERIFIED_FIXED | Env origins still must be exact in deployment | Gate validates `CORS_ALLOWED_ORIGINS` |
 | A-07 | Medium | Security headers not explicit | `SecurityConfig` sets CSP, Referrer-Policy, X-Content-Type-Options, X-Frame-Options, and HTTPS-gated HSTS | `SecurityHeadersTests`, `SecurityHeadersHstsTests`, `CsrfSecurityTests` PASS | VERIFIED_FIXED | CSP still requires `unsafe-inline` until inline handlers are removed from static HTML | Remove inline handlers in a future frontend cleanup |
 | A-08 | Medium | In-memory AI rate limiter | `AiRateLimitService` configurable minute/day per action/user, metrics on hit | `AiRateLimitTests`, `ObservabilityAndRateLimitTests` PASS | VERIFIED_FIXED | Not distributed; resets per JVM | Upgrade only for multi-instance/cost/abuse evidence |
-| A-09 | Medium | Observability too thin | Request ID filter, MDC cleanup, request metrics, domain counters, actuator metrics | `ObservabilityAndRateLimitTests` PASS | VERIFIED_FIXED | No external APM/Sentry configured | Add external monitoring when production use justifies |
+| A-09 | Medium | Observability too thin | Request ID filter, MDC cleanup, request metrics, domain counters, actuator metrics | `ObservabilityAndRateLimitTests` PASS; Render screenshots confirm one OOM event and recovery | VERIFIED_FIXED for app instrumentation | Quantitative memory/CPU metrics unavailable on Free; alert delivery NOT VERIFIED | Upgrade instance or connect external observability/alerting, then verify delivered alert |
 | A-10 | Medium | Frontend monolith/global state | Central `quizApiFetch` and sync helpers reduce API duplication | Playwright smoke PASS | PARTIALLY_FIXED | `app.js` remains large; no ES module split | Incremental modularization, not rewrite |
 | A-11 | Medium | Backend God service | `SyncService` extracted; `VocabularyService` still owns CRUD/quiz/starter import | Backend tests PASS | PARTIALLY_FIXED | Quiz/CRUD/snapshot services not fully separated | Continue small service extraction |
 | A-12 | Medium | Full scans/query bottlenecks | Some repository queries exist; normalized duplicate still streams user words | Backend tests PASS, no performance benchmark | PARTIALLY_FIXED | Review/analytics/snapshot pagination and query optimization incomplete | Add measured query work before scale |

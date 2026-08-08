@@ -36,8 +36,11 @@ chưa đủ mạnh. Code-hardening đã gần mức 8+, nhưng production readin
 Source hiện tại là một nền tảng beta tốt, chưa phải một hệ thống vận hành ở mức
 production-grade. Các khoảng trống lớn nhất là:
 
-- Một lần Render memory-limit restart đã được xác nhận nhưng chưa có phân loại
-  nguyên nhân gốc.
+- Một lần Render memory-limit restart đã được xác nhận từ Render Events:
+  instance failed vì dùng quá 512 MB lúc August 7, 2026 at 11:18 PM và service
+  recovered lúc August 7, 2026 at 11:23 PM. Render Free instance không cung cấp
+  application memory/CPU metrics định lượng; alerting/notification delivery
+  chưa được verify.
 - `/api/sync` validate kích thước list sau khi Jackson deserializes toàn bộ JSON
   body.
 - CI status cho audited HEAD đã được xác minh PASS một phần, nhưng GitHub
@@ -61,7 +64,7 @@ production-grade. Các khoảng trống lớn nhất là:
 
 | Blocker | Trạng thái | Bằng chứng | Hành động bắt buộc |
 | --- | --- | --- | --- |
-| Render memory-limit restart | OPEN | Docs hiện tại ghi nhận một Render memory-limit restart đã xác nhận, nhưng source không thể xác định leak vs payload spike vs instance headroom. | Capture Render Metrics quanh sự cố, correlate request/log evidence, đặt JVM/RSS budget đã test, và thêm alert thresholds. |
+| Render memory-limit restart | CONFIRMED / METRICS UNAVAILABLE / ALERTING NOT VERIFIED | Render Events confirms `Instance failed ... Ran out of memory (used over 512MB)` at August 7, 2026 at 11:18 PM and `Service recovered` at August 7, 2026 at 11:23 PM. Render Metrics on the Free instance does not expose application memory/CPU metrics; recent logs show normal auth/analytics/sync activity and SecureRandom WARNs, with no new OOM in the last-hour screenshot. | Upgrade the Render instance or connect external observability/alerting, capture memory/CPU/request evidence, verify alert delivery, then classify leak vs payload spike vs instance headroom. |
 | `/api/sync` pre-deserialization payload cap | OPEN | `SyncRequest` có giới hạn list `@Size(max=5000)`, nhưng Spring/Jackson phải parse body trước. | Thêm request-body cap ở container/filter/proxy level, thêm oversized-body tests, sau đó thiết kế chunk/delta sync. |
 | Release gate secret scan | PASS LOCALLY / NEEDS GITHUB GATE VERIFICATION | Task 2 đã PASS local: `npm run gate:secret-scan` tạo `secret-scan.json` với `findingCount: 0`. Fallback của `secret-scan.mjs` đã được sửa để không scan ignored local `.env`; script vẫn ưu tiên commit-candidate files bằng `git ls-files --cached --others --exclude-standard`. Không có tracked secret được xác nhận. | Chạy GitHub Production Release Gate trên đúng candidate trước release; thêm scanner fixtures nếu có false-positive mới. |
 | GitHub Actions cho commit hiện tại | PARTIAL / NEEDS RELEASE GATE VERIFICATION | Task 1 đã xác minh CI run `31262520384` PASS cho audited HEAD, nhưng chưa có verified GitHub Production Release Gate run cho cùng candidate. | Kiểm tra Production Release Gate status và artifact cho pushed commit SHA trước release. |
@@ -76,8 +79,8 @@ production-grade. Các khoảng trống lớn nhất là:
 | 2 | Easy | High | CI/CD/release gate | Local secret scan gate đã PASS sau fallback fix; GitHub Production Release Gate vẫn cần verify cho candidate. | False-positive hoặc bỏ sót real secret sẽ chặn safe release. | Giữ `secret-scan.mjs` ưu tiên `git ls-files --cached --others --exclude-standard`; fallback chỉ bỏ qua ignored local `.env` khi Git listing không khả dụng. Chạy GitHub gate cho đúng SHA. | Local `secret-scan.json` có `findingCount: 0`; không có tracked `.env` hoặc secret-like files; GitHub gate được ghi evidence riêng. | 0.20 |
 | 3 | Easy | High | Deployment/production operations | Staging smoke script có manual PASS evidence; OAuth browser callback và staging DB isolation vẫn thiếu. | Production confidence cần deployed URL behavior thật, cộng authenticated browser flow và database boundary rõ ràng. | Lưu staging smoke evidence; thêm manual OAuth login/logout evidence; confirm Render backend dùng intended staging/non-production DB. | Staging smoke PASS, OAuth browser notes, và DB isolation evidence. | 0.25 |
 | 4 | Easy | High | Deployment/production operations | Đã có schema/Flyway/app-start rehearsal evidence, nhưng chưa có backup dump restore. | Backups chưa được chứng minh đầy đủ cho đến khi một backup artifact thật được restore và smoke. | Restore một sanitized/non-production backup, verify app startup/health, và cập nhật `docs/restore-rehearsal-evidence.md` không chứa raw data. | `gate:backup-rollback` PASS cộng với backup artifact restore và restored `/api/health` evidence. | 0.30 |
-| 5 | Easy | High | Observability/monitoring | Render memory incident thiếu root-cause data. | Restart lặp lại có thể làm mất niềm tin và che giấu leaks hoặc spikes thật. | Export Render Metrics quanh sự cố, ghi lại RAM/CPU/request trend, và phân loại leak/spike/headroom. | Incident note có metrics timestamps và kết luận. | 0.25 |
-| 6 | Easy | High | Observability/monitoring | Alerting rules mới chỉ được document, chưa connected. | Metrics không có alerts thì không bảo vệ uptime. | Thêm Render hoặc external alert thresholds cho health, 5xx, RAM 75/90%, AI failures, sync conflicts. | Alert config screenshot/export cộng test notification. | 0.20 |
+| 5 | Easy | High | Observability/monitoring | Render memory incident đã confirmed nhưng thiếu quantitative memory/CPU data. | Restart lặp lại có thể làm mất niềm tin và che giấu leaks hoặc spikes thật; Free instance không đủ metrics để phân loại. | Upgrade Render instance hoặc connect external observability để capture RAM/CPU/request trend quanh sự cố, rồi phân loại leak/spike/headroom. | Incident note có memory/CPU metrics timestamps và kết luận. | 0.25 |
+| 6 | Easy | High | Observability/monitoring | Alerting rules mới chỉ được document; alert delivery NOT VERIFIED. | Metrics không có verified alert delivery thì không bảo vệ uptime. | Thêm Render hoặc external alert thresholds cho health, 5xx, RAM 75/90%, AI failures, sync conflicts, rồi verify một alert notification thật. | Alert config screenshot/export cộng delivered test notification evidence. | 0.20 |
 | 7 | Easy | High | Documentation/product readiness | Docs chứa stale test counts và mâu thuẫn về metrics exposure. | Release decisions trở nên mơ hồ khi docs không thống nhất với source. | Update non-archive docs: bỏ hoặc đánh dấu historical các exact test counts chưa được rerun trong Task 6, làm rõ `metrics` exposure policy, đánh dấu historical schema docs là historical nếu stale. | `rg` xác nhận không còn current doc nào nói chỉ health/info được expose trong khi config expose metrics. | 0.10 |
 | 8 | Medium | Critical | Security | `/api/sync` thiếu body-size cap trước deserialization. | JSON body lớn có thể làm spike memory trước khi Bean Validation chạy. | Thêm Spring/Tomcat/proxy max request size cho sync, reject sớm với 413, document limits. | MockMvc/container test cho oversized body và local memory smoke. | 0.45 |
 | 9 | Medium | High | Database/performance | Review queue load toàn bộ user words rồi filter/sort trong Java. | Tài khoản lớn sẽ đốt memory/CPU và làm chậm due review. | Thêm repository query theo `nextReview <= now`, optional tag/level, ordered priority, bounded limit. | Repository/service tests cộng query plan trên PostgreSQL. | 0.25 |
@@ -179,7 +182,8 @@ production-grade. Các khoảng trống lớn nhất là:
 ### Deployment/Production Operations
 
 - Không có `render.yaml` hoặc `vercel.json`, nên host config là manual.
-- Render memory incident cần classification dựa trên metrics.
+- Render memory incident đã confirmed, nhưng classification bị chặn vì Free
+  instance không cung cấp application memory/CPU metrics định lượng.
 - JVM/RSS budget chưa được codify trong deployment config.
 - Restore evidence chưa có trong repo.
 - Runbooks tốt, nhưng operational proof chưa đầy đủ.
@@ -187,10 +191,12 @@ production-grade. Các khoảng trống lớn nhất là:
 ### Observability/Monitoring
 
 - Request IDs, MDC, Micrometer, Actuator, và counters đã tồn tại.
-- External alerting/APM mới chỉ được document, chưa integrated.
+- External alerting/APM mới chỉ được document; alerting/notification delivery
+  NOT VERIFIED.
 - Metrics đang public theo source hiện tại; protection/intent cần một quyết
   định.
-- Render Metrics quanh incident vẫn là external và chưa verified.
+- Quantitative Render memory/CPU metrics quanh incident không khả dụng trên
+  Free instance và chưa được verify qua observability khác.
 
 ### Documentation/Product Readiness
 
@@ -213,7 +219,8 @@ production-grade. Các khoảng trống lớn nhất là:
 2. Chạy clean `gate:secret-scan`; thêm scanner fixtures nếu cần.
 3. Configure và chạy staging smoke.
 4. Bổ sung backup dump restore evidence và restored `/api/health` smoke.
-5. Capture Render memory metrics và classify incident.
+5. Upgrade Render instance hoặc connect observability/alerting, capture
+   memory/CPU metrics, và classify incident.
 6. Align docs và release gate về Actuator metrics exposure policy.
 7. Refresh stale test counts và historical status banners trong current docs.
 8. Thêm pre-deserialization body cap cho `/api/sync`.
@@ -232,7 +239,8 @@ production-grade. Các khoảng trống lớn nhất là:
 
 - Verify GitHub Actions và release-gate status cho đúng commit.
 - Đóng các blockers secret-scan, staging-smoke, và restore-rehearsal gate.
-- Capture Render Metrics và thêm alert thresholds.
+- Upgrade instance hoặc connect observability/alerting, rồi verify alert
+  delivery.
 - Thêm `/api/sync` request body cap.
 - Quyết định và align public metrics exposure.
 - Thêm screenshot regression cho UI hiện tại trước các refactors CSS/HTML tiếp
@@ -265,7 +273,8 @@ phải bằng cách đổi behavior.
   Release Gate evidence cho đúng candidate.
 - Configure staging smoke variables và chạy staging smoke.
 - Thực hiện non-production restore rehearsal và ghi evidence.
-- Capture Render memory metrics và classify restart.
+- Capture quantitative memory/CPU metrics sau khi upgrade/connect
+  observability, rồi classify restart.
 - Update current docs để loại bỏ stale test counts và mâu thuẫn về metrics
   exposure.
 
@@ -356,7 +365,7 @@ small public beta.
 - Thêm pre-deserialization body-size cap cho `/api/sync`.
 - Thêm request/payload tests và documented sync payload budget.
 - Quyết định public metrics policy và align `SecurityConfig`, env gate, và docs.
-- Thêm JVM/RSS budget và memory alerts trong staging.
+- Thêm JVM/RSS budget và verified memory alerts trong staging.
 - Thêm repository-bounded review query và giảm analytics repeated list loads.
 - Thêm OpenAPI/contract checks cho core API và Sync V2.
 
@@ -381,7 +390,8 @@ Mục tiêu: giảm regression cost mà không đổi product behavior.
 Mục tiêu: làm production readiness có thể lặp lại.
 
 - Làm deployment phụ thuộc vào GO release-gate artifact cho cùng SHA.
-- Thêm external alert routing và incident runbook links.
+- Thêm external alert routing, verify delivered notification, và incident
+  runbook links.
 - Thêm large-account benchmark reports vào release evidence.
 - Rehearse Supabase schema/Flyway baseline trên một copy trước production.
 - Thêm post-deploy authenticated OAuth smoke discipline.
@@ -393,7 +403,8 @@ verified.
 
 Không gọi dự án là production-ready cho đến khi tất cả điều sau đúng:
 
-- Render memory incident đã được classify và monitor.
+- Render memory incident đã được classify bằng quantitative memory/CPU evidence
+  và alert delivery đã được verify.
 - `/api/sync` reject oversized bodies trước deserialization.
 - CI và Production Release Gate pass cho đúng release commit.
 - Secret scan, source integrity, staging smoke, và backup/restore controls là
@@ -408,7 +419,7 @@ Không gọi dự án là production-ready cho đến khi tất cả điều sau
 
 ## Cần Verification
 
-- Render Metrics quanh memory-limit restart ngày 2026-08-07.
+- Quantitative memory/CPU metrics quanh memory-limit restart ngày 2026-08-07.
 - GitHub Production Release Gate status và artifact cho audited HEAD
   `adc2b0bb825dbd6397bdba3ea67656d2b676f7d4` và bất kỳ release candidate nào
   sau đó.

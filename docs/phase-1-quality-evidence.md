@@ -514,3 +514,38 @@ Limitations:
 - No production Supabase DB was touched.
 - No restored app server was launched, so `/api/health` was not smoked.
 - This does not make the project production-ready.
+
+## Wave 4 Render Memory And Alerting Evidence
+
+Date: 2026-08-09
+
+Status: MEMORY RESTART CONFIRMED / METRICS UNAVAILABLE / ALERTING NOT VERIFIED
+
+Evidence provided from Render screenshots:
+
+- Render Events confirms one memory failure: `Instance failed ... Ran out of
+  memory (used over 512MB)` at August 7, 2026 at 11:18 PM.
+- Render Events confirms recovery: `Service recovered` at August 7, 2026 at
+  11:23 PM.
+- Render Metrics is on a Free instance and states that a paid instance is
+  required to view application metrics such as memory and CPU usage.
+- Recent logs show normal auth, analytics, and sync activity plus
+  `SecureRandom` WARN messages. The last-hour screenshot does not show a new
+  OOM event.
+- No evidence was provided for an alert channel configuration or a delivered
+  notification.
+
+Current conclusion:
+
+- The memory restart risk is confirmed.
+- Quantitative memory/CPU metrics are unavailable from the current Render Free
+  instance and remain not verified through another observability backend.
+- Alerting remains NOT VERIFIED.
+- Monitoring is not production-ready.
+
+Next action:
+
+- Upgrade the Render instance or connect external observability/alerting.
+- Capture memory, CPU, request, and log evidence around the incident class.
+- Verify alert delivery with a real delivered notification before claiming
+  monitoring readiness.
