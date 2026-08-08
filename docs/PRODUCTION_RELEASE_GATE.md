@@ -120,6 +120,10 @@ The gate does not deploy and does not mutate production. Staging OAuth browser f
 - Secret scan local PASS does not make the release gate GO. The GitHub
   Production Release Gate for the exact release candidate is still the
   authority.
+- Task 7b local `npm run gate:source-integrity` is verified PASS on clean PR
+  HEAD `5c74f6e08716c9761ee6b6042963b8ad7214d9e7` when run outside the sandbox.
+  The sandboxed local run may return BLOCKED if Node cannot spawn Git; this is
+  intentional and must not be converted into PASS without a real Git-backed run.
 - Render memory incident evidence is external to the repository. The gate should
   not infer memory health from source alone.
 - Backend test pass, frontend build pass, Playwright pass, staging smoke, and

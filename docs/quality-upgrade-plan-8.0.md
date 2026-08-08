@@ -294,9 +294,13 @@ Evidence cập nhật cho Task 3:
 - BLOCKED thật: `npm run gate:backup-rollback` thiếu restore rehearsal evidence;
   `npm run gate:staging-smoke` thiếu `STAGING_BACKEND_URL`,
   `STAGING_FRONTEND_URL`, và `STAGING_TEST_USER_HINT`.
-- NEEDS VERIFICATION: `gate:source-integrity` cần chạy trên clean release
-  candidate vì script cố ý fail khi working tree dirty. `gate:report` chưa chạy
-  vì các mandatory controls còn BLOCKED/NOT_RUN sẽ tạo NO-GO report.
+- PASS local thật trên clean PR HEAD `5c74f6e08716c9761ee6b6042963b8ad7214d9e7`:
+  `npm run gate:source-integrity`. Sandbox local vẫn có thể trả BLOCKED nếu
+  Node không spawn được Git; Task 7b đã đổi lỗi này từ crash sang BLOCKED rõ
+  ràng, không auto-PASS.
+- `gate:report` chưa chạy vì GitHub Production Release Gate chưa được verify
+  cho PR HEAD và các mandatory controls staging/backup còn BLOCKED, nên report
+  đầy đủ vẫn sẽ là NO-GO cho production-ready.
 
 Evidence cập nhật cho Task 4:
 
@@ -323,6 +327,18 @@ Evidence cập nhật cho Task 5:
 - Chỉ chuyển sang PASS sau một restore rehearsal thật trên non-production DB,
   không dùng production credential, không chứa raw data/secret, và
   `npm run gate:backup-rollback` báo `[PASS] backup-rollback-readiness`.
+
+Evidence cập nhật cho Wave 1 final verification:
+
+- PR HEAD `5c74f6e08716c9761ee6b6042963b8ad7214d9e7` có CI runs
+  `31268078063` và `31268074284` đều completed với conclusion `success`.
+- Không tìm thấy `Production Release Gate` run/artifact cho PR HEAD trong
+  Actions runs trả về theo SHA này.
+- Local verified: `gate:secret-scan` PASS và `gate:source-integrity` PASS trên
+  clean tree khi chạy ngoài sandbox.
+- PR có thể merge trong phạm vi audit/gate/docs hardening, nhưng không được gọi
+  là production-ready vì staging smoke và backup/restore vẫn BLOCKED, còn
+  GitHub Production Release Gate chưa có artifact cho candidate.
 
 ### Phase 2: Security, Performance, And Release Hardening
 

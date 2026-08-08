@@ -9,8 +9,8 @@ Repository: `nguyenhdung2006/Quiz-App`
 Audited HEAD: `adc2b0bb825dbd6397bdba3ea67656d2b676f7d4`
 
 This document records verified evidence for the Phase 1 quality tasks from
-`docs/quality-upgrade-plan-8.0.md`. Do not mark a control PASS here unless it
-was verified against the exact commit above.
+`docs/quality-upgrade-plan-8.0.md`. The original task evidence below is tied to
+the audited HEAD above unless a later section explicitly names a newer commit.
 
 ## Task 1: GitHub Actions Status
 
@@ -351,8 +351,10 @@ Current truthful release-gate status after audit:
 - Frontend static build: PASS local from Task 3.
 - Production env validation: PASS with safe fixture and invalid fixture; real
   production env validation still needs real values.
-- Source integrity: NEEDS VERIFICATION on a clean release candidate because this
-  checkout is intentionally dirty with docs/script evidence changes.
+- Source integrity: PASS local on clean PR HEAD
+  `5c74f6e08716c9761ee6b6042963b8ad7214d9e7` after Task 7b fixed the
+  `spawnSync git EPERM` crash path to return BLOCKED instead of crashing when
+  Git cannot be executed from Node.
 - Staging smoke: BLOCKED because `STAGING_BACKEND_URL`,
   `STAGING_FRONTEND_URL`, and `STAGING_TEST_USER_HINT` are missing.
 - Backup/rollback: BLOCKED because `docs/restore-rehearsal-evidence.md` and
@@ -365,3 +367,50 @@ Commands used:
 - `rg -n "\b[0-9]+\s*(tests?|Playwright|backend tests|frontend tests)|Playwright tests|test counts|98|29|1,050|1050" docs README.md package.json .github\workflows`
 - `rg --files docs | rg "(^docs/README\.md$|README|DEPLOYMENT|PRODUCTION_RELEASE_GATE|deploy\.md|quality-upgrade-plan|phase-1-quality-evidence|restore-rehearsal-checklist)"`
 - `Get-Content` targeted sections from the current docs and actuator config.
+
+## Wave 1 Final Verification
+
+Date: 2026-08-09
+
+PR HEAD: `5c74f6e08716c9761ee6b6042963b8ad7214d9e7`
+
+Status: MERGEABLE FOR AUDIT/GATE/DOCS HARDENING, NOT PRODUCTION-READY
+
+Verified GitHub Actions for PR HEAD:
+
+- Workflow `CI` run `31268078063`: completed with conclusion `success`.
+- CI job `Backend tests and frontend checks`: completed with conclusion
+  `success`.
+- Verified successful CI steps include backend tests, production database safety
+  guards, PostgreSQL Flyway/Hibernate validate, frontend JavaScript syntax, and
+  frontend smoke tests.
+- A second `CI` run for the same SHA, run `31268074284`, also completed with
+  conclusion `success`.
+
+Production Release Gate:
+
+- No `Production Release Gate` workflow run was found for PR HEAD
+  `5c74f6e08716c9761ee6b6042963b8ad7214d9e7` in the Actions runs returned for
+  that SHA.
+- No production release-gate artifact was verified for this PR HEAD.
+- This keeps the release decision below production-ready even though the PR is
+  mergeable for audit/gate/docs hardening.
+
+Local checks for PR HEAD:
+
+- `npm run gate:secret-scan`: PASS.
+- `npm run gate:source-integrity`: PASS when run outside the sandbox on a clean
+  working tree. The sandboxed run returns BLOCKED because Node cannot spawn Git
+  in that environment.
+- `git status --short`: clean.
+- `git diff --stat`: no output.
+- `git diff --check`: PASS, no output.
+
+Remaining blocked controls:
+
+- `staging-smoke`: BLOCKED until `STAGING_BACKEND_URL`,
+  `STAGING_FRONTEND_URL`, and `STAGING_TEST_USER_HINT` are configured.
+- `backup-rollback-readiness`: BLOCKED / NEEDS VERIFICATION until a real
+  non-production restore rehearsal is evidenced through
+  `docs/restore-rehearsal-evidence.md` or equivalent external evidence linked
+  with `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`.
