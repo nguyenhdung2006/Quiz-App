@@ -355,8 +355,8 @@ Current truthful release-gate status after audit:
   `5c74f6e08716c9761ee6b6042963b8ad7214d9e7` after Task 7b fixed the
   `spawnSync git EPERM` crash path to return BLOCKED instead of crashing when
   Git cannot be executed from Node.
-- Staging smoke: BLOCKED because `STAGING_BACKEND_URL`,
-  `STAGING_FRONTEND_URL`, and `STAGING_TEST_USER_HINT` are missing.
+- Staging smoke: PASS by manual Wave 2 run with configured staging env. OAuth
+  browser login/callback remains NEEDS MANUAL VERIFICATION.
 - Backup/rollback: BLOCKED because `docs/restore-rehearsal-evidence.md` and
   `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true` are missing.
 
@@ -408,9 +408,49 @@ Local checks for PR HEAD:
 
 Remaining blocked controls:
 
-- `staging-smoke`: BLOCKED until `STAGING_BACKEND_URL`,
-  `STAGING_FRONTEND_URL`, and `STAGING_TEST_USER_HINT` are configured.
 - `backup-rollback-readiness`: BLOCKED / NEEDS VERIFICATION until a real
   non-production restore rehearsal is evidenced through
   `docs/restore-rehearsal-evidence.md` or equivalent external evidence linked
   with `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`.
+
+Remaining manual verification:
+
+- Google OAuth full browser login/callback is not covered by
+  `staging-smoke.mjs` and remains NEEDS MANUAL VERIFICATION.
+- The backend URL used by Wave 2 is a Render deployed backend, but this document
+  does not prove it is connected to an isolated staging database.
+
+## Wave 2 Staging Smoke Verification
+
+Date: 2026-08-09
+
+Status: PASS for `staging-smoke.mjs`, with limitations
+
+Manual command inputs reported:
+
+- `STAGING_BACKEND_URL=https://quiz-app-xd9m.onrender.com`
+- `STAGING_FRONTEND_URL=https://quiz-9j3357ei0-nguyenhdung2006s-projects.vercel.app/`
+- `STAGING_TEST_USER_HINT=24020092@gmail.com`
+- Command: `npm run gate:staging-smoke`
+
+Manual result reported:
+
+- `[PASS] staging-smoke`
+
+What the script actually verifies:
+
+- Required env vars are present and non-empty.
+- `STAGING_BACKEND_URL` and `STAGING_FRONTEND_URL` use HTTPS and are not
+  localhost, `127.0.0.1`, placeholder, or `example.com`.
+- `GET /api/health` on the backend returns a 2xx response.
+- `GET /api/csrf` on the backend returns a 2xx JSON response and issues a
+  cookie.
+- The frontend root returns a 2xx or 3xx response.
+
+What the script does not verify:
+
+- Google OAuth full browser login/callback.
+- Authenticated user flows after OAuth login.
+- That the Render backend is connected to an isolated staging database.
+- Backup/restore rehearsal evidence.
+- Production readiness.

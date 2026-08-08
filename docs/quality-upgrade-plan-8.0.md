@@ -42,8 +42,10 @@ production-grade. Các khoảng trống lớn nhất là:
   body.
 - CI status cho audited HEAD đã được xác minh PASS một phần, nhưng GitHub
   Production Release Gate cho đúng candidate vẫn chưa được xác minh.
-- Staging smoke và restore rehearsal vẫn là external evidence, không phải source
-  facts.
+- Staging smoke script đã có manual PASS evidence trong Wave 2, nhưng OAuth
+  browser callback và staging DB isolation vẫn là external evidence chưa được
+  chứng minh. Restore rehearsal vẫn là external evidence, không phải source
+  fact.
 - Public Actuator metrics hiện được gate/config cho phép có chủ ý, nhưng docs
   cũng đặt câu hỏi liệu public metrics có nên tiếp tục mở hay không.
 - Review, analytics, sync, và snapshot flows vẫn load các list lớn theo từng
@@ -62,7 +64,7 @@ production-grade. Các khoảng trống lớn nhất là:
 | `/api/sync` pre-deserialization payload cap | OPEN | `SyncRequest` có giới hạn list `@Size(max=5000)`, nhưng Spring/Jackson phải parse body trước. | Thêm request-body cap ở container/filter/proxy level, thêm oversized-body tests, sau đó thiết kế chunk/delta sync. |
 | Release gate secret scan | PASS LOCALLY / NEEDS GITHUB GATE VERIFICATION | Task 2 đã PASS local: `npm run gate:secret-scan` tạo `secret-scan.json` với `findingCount: 0`. Fallback của `secret-scan.mjs` đã được sửa để không scan ignored local `.env`; script vẫn ưu tiên commit-candidate files bằng `git ls-files --cached --others --exclude-standard`. Không có tracked secret được xác nhận. | Chạy GitHub Production Release Gate trên đúng candidate trước release; thêm scanner fixtures nếu có false-positive mới. |
 | GitHub Actions cho commit hiện tại | PARTIAL / NEEDS RELEASE GATE VERIFICATION | Task 1 đã xác minh CI run `31262520384` PASS cho audited HEAD, nhưng chưa có verified GitHub Production Release Gate run cho cùng candidate. | Kiểm tra Production Release Gate status và artifact cho pushed commit SHA trước release. |
-| Staging smoke | BLOCKED / NEEDS VERIFICATION | `staging-smoke.mjs` bị chặn nếu thiếu `STAGING_BACKEND_URL`, `STAGING_FRONTEND_URL`, và `STAGING_TEST_USER_HINT`; OAuth browser callback vẫn cần browser credential evidence thật. | Configure staging secrets, chạy smoke, và lưu artifact. |
+| Staging smoke | PASS SCRIPT / NEEDS MANUAL OAUTH + DB VERIFICATION | Wave 2 manual run reported `[PASS] staging-smoke` with `STAGING_BACKEND_URL=https://quiz-app-xd9m.onrender.com`, `STAGING_FRONTEND_URL=https://quiz-9j3357ei0-nguyenhdung2006s-projects.vercel.app/`, and `STAGING_TEST_USER_HINT=24020092@gmail.com`. Script verifies backend health, CSRF JSON/cookie, and frontend root. It does not verify Google OAuth browser callback or isolated staging DB. | Keep manual OAuth login/callback evidence separate; confirm Render backend uses intended staging/non-production DB before treating this as full release evidence. |
 | Restore/backup rehearsal | BLOCKED / NEEDS VERIFICATION | Gate yêu cầu `docs/restore-rehearsal-evidence.md` hoặc `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`; hiện chưa có evidence file. | Thực hiện non-production restore rehearsal và ghi lại safe evidence. |
 
 ## Bảng Ưu Tiên
@@ -71,7 +73,7 @@ production-grade. Các khoảng trống lớn nhất là:
 | ---: | ---------- | ------ | ---- | -------- | -------------- | --------------- | ------------ | ------------------: |
 | 1 | Easy | High | CI/CD/release gate | CI status cho audited HEAD đã PASS một phần; Production Release Gate cho candidate vẫn chưa verified. | Local pass không phải release signal, và CI PASS không thay thế release-gate artifact. | Kiểm tra Production Release Gate cho đúng commit SHA; link artifacts trong release notes. | GitHub checks hiển thị CI PASS và Production Release Gate PASS hoặc documented BLOCKED controls cho cùng SHA. | 0.15 |
 | 2 | Easy | High | CI/CD/release gate | Local secret scan gate đã PASS sau fallback fix; GitHub Production Release Gate vẫn cần verify cho candidate. | False-positive hoặc bỏ sót real secret sẽ chặn safe release. | Giữ `secret-scan.mjs` ưu tiên `git ls-files --cached --others --exclude-standard`; fallback chỉ bỏ qua ignored local `.env` khi Git listing không khả dụng. Chạy GitHub gate cho đúng SHA. | Local `secret-scan.json` có `findingCount: 0`; không có tracked `.env` hoặc secret-like files; GitHub gate được ghi evidence riêng. | 0.20 |
-| 3 | Easy | High | Deployment/production operations | Staging smoke được cấu hình làm gate nhưng chưa có evidence. | Production confidence cần hành vi URL deployed thật, không chỉ local mocks. | Configure staging URLs/test hint và chạy `npm run gate:staging-smoke`; thêm manual OAuth login/logout evidence. | Staging smoke PASS cộng OAuth browser notes. | 0.25 |
+| 3 | Easy | High | Deployment/production operations | Staging smoke script có manual PASS evidence; OAuth browser callback và staging DB isolation vẫn thiếu. | Production confidence cần deployed URL behavior thật, cộng authenticated browser flow và database boundary rõ ràng. | Lưu staging smoke evidence; thêm manual OAuth login/logout evidence; confirm Render backend dùng intended staging/non-production DB. | Staging smoke PASS, OAuth browser notes, và DB isolation evidence. | 0.25 |
 | 4 | Easy | High | Deployment/production operations | Thiếu restore rehearsal evidence. | Backups chưa được chứng minh cho đến khi restore được rehearsal. | Restore một non-production backup, verify app startup/health, và tạo `docs/restore-rehearsal-evidence.md` không chứa raw data. | `gate:backup-rollback` PASS. | 0.30 |
 | 5 | Easy | High | Observability/monitoring | Render memory incident thiếu root-cause data. | Restart lặp lại có thể làm mất niềm tin và che giấu leaks hoặc spikes thật. | Export Render Metrics quanh sự cố, ghi lại RAM/CPU/request trend, và phân loại leak/spike/headroom. | Incident note có metrics timestamps và kết luận. | 0.25 |
 | 6 | Easy | High | Observability/monitoring | Alerting rules mới chỉ được document, chưa connected. | Metrics không có alerts thì không bảo vệ uptime. | Thêm Render hoặc external alert thresholds cho health, 5xx, RAM 75/90%, AI failures, sync conflicts. | Alert config screenshot/export cộng test notification. | 0.20 |
@@ -291,9 +293,10 @@ Evidence cập nhật cho Task 3:
   `npm run gate:validate-env -- --control=production-env-validation` với safe
   fixture, và `npm run gate:validate-env -- --control=production-env-invalid-fixture
   --expect-invalid`.
-- BLOCKED thật: `npm run gate:backup-rollback` thiếu restore rehearsal evidence;
-  `npm run gate:staging-smoke` thiếu `STAGING_BACKEND_URL`,
-  `STAGING_FRONTEND_URL`, và `STAGING_TEST_USER_HINT`.
+- BLOCKED thật: `npm run gate:backup-rollback` thiếu restore rehearsal evidence.
+- PASS script thật theo manual Wave 2: `npm run gate:staging-smoke` với staging
+  env được cung cấp. OAuth browser callback và staging DB isolation vẫn chưa
+  được script chứng minh.
 - PASS local thật trên clean PR HEAD `5c74f6e08716c9761ee6b6042963b8ad7214d9e7`:
   `npm run gate:source-integrity`. Sandbox local vẫn có thể trả BLOCKED nếu
   Node không spawn được Git; Task 7b đã đổi lỗi này từ crash sang BLOCKED rõ
@@ -306,12 +309,13 @@ Evidence cập nhật cho Task 4:
 
 - `staging-smoke.mjs` yêu cầu đúng ba env:
   `STAGING_BACKEND_URL`, `STAGING_FRONTEND_URL`, và `STAGING_TEST_USER_HINT`.
-- Môi trường local hiện thiếu cả ba env, nên `npm run gate:staging-smoke`
-  tiếp tục BLOCKED. Không hardcode URL/user/secret và không dùng production
-  credential.
-- Để chuyển sang PASS, cần cấu hình staging URLs HTTPS thật và non-secret test
-  user hint; script phải verify `/api/health`, `/api/csrf` có JSON/cookie, và
-  frontend root. OAuth browser callback vẫn cần evidence riêng.
+- Local Codex environment từng thiếu cả ba env nên gate trả BLOCKED. Wave 2
+  manual run với Render backend, Vercel frontend, và non-secret test user hint
+  đã báo `[PASS] staging-smoke`.
+- Script PASS chỉ chứng minh `/api/health`, `/api/csrf` có JSON/cookie, và
+  frontend root. OAuth browser callback vẫn cần evidence riêng; backend URL là
+  Render deployed backend nhưng chưa chứng minh isolated staging DB nếu không có
+  evidence hạ tầng tương ứng.
 
 Evidence cập nhật cho Task 5:
 
@@ -337,8 +341,9 @@ Evidence cập nhật cho Wave 1 final verification:
 - Local verified: `gate:secret-scan` PASS và `gate:source-integrity` PASS trên
   clean tree khi chạy ngoài sandbox.
 - PR có thể merge trong phạm vi audit/gate/docs hardening, nhưng không được gọi
-  là production-ready vì staging smoke và backup/restore vẫn BLOCKED, còn
-  GitHub Production Release Gate chưa có artifact cho candidate.
+  là production-ready vì backup/restore vẫn BLOCKED, OAuth browser callback và
+  staging DB isolation chưa được chứng minh, còn GitHub Production Release Gate
+  chưa có artifact cho candidate.
 
 ### Phase 2: Security, Performance, And Release Hardening
 
