@@ -107,3 +107,14 @@ Local `.env` files are intentionally ignored by Git. The secret scan fails if a 
 ## Current Limitations
 
 The gate does not deploy and does not mutate production. Staging OAuth browser flow and production backup restore can only be marked `PASS` when real, non-production rehearsal evidence is available. Alert platform configuration is documented only until the operator connects Render/Grafana/Prometheus or another alert backend.
+
+## 2026-08-08 Verification Notes
+
+- The gate must be re-run on a clean release candidate before claiming GO.
+- The 2026-08-08 audit reported a secret-scan false positive around empty env
+  placeholders. Current scanner code appears to avoid cross-line assignment
+  matches, but the release gate result is the authority.
+- Render memory incident evidence is external to the repository. The gate should
+  not infer memory health from source alone.
+- Backend test pass, frontend build pass, Playwright pass, staging smoke, and
+  restore rehearsal must all be real results, not assumed from docs.

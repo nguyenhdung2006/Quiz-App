@@ -26,8 +26,8 @@ explanations for wrong answers.
 ```text
 frontend/   Static HTML, CSS, JavaScript, images, sounds
 backend/    Spring Boot REST API and Google OAuth
-database/   PostgreSQL schema
-docs/       Product, OAuth, and backend notes
+database/   PostgreSQL schema reference
+docs/       Current docs, audit reconciliation, operations notes
 archive/    Old project snapshots kept for reference
 ```
 
@@ -58,6 +58,12 @@ http://localhost:8080/login/oauth2/code/google
 
 More detail is in `docs/oauth-google.md`.
 
+## Documentation
+
+Start with `docs/README.md` for the current reading order. Historical audit
+material is preserved under `docs/archive/`; do not treat old findings as
+current without checking source.
+
 ## Deploy
 
 See `docs/DEPLOYMENT.md`, `docs/deploy.md`, and
@@ -69,6 +75,10 @@ Production release is gated. A local code/test pass is not the same as a
 production go decision; the release gate also requires clean source integrity,
 valid production environment variables, staging smoke evidence, and restore
 rehearsal evidence.
+
+Current source is hardened beyond the old 5.6/10 audit baseline, but the project
+should not be described as production-ready until open blockers in
+`docs/technical-audit-report.md` and `docs/ROADMAP.md` are closed and verified.
 
 ## Verify
 

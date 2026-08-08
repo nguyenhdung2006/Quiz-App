@@ -58,6 +58,10 @@ All unsafe API requests must send `X-XSRF-TOKEN` with the token obtained from `G
 
 Vocabulary items in sync must include `wordUid` (UUID). The numeric `id` remains the database primary key and direct CRUD compatibility identifier, but sync identity is `wordUid`; English text is not used as a Sync V2 upsert key. `wrongWords` in the request is deprecated and ignored for vocabulary creation or updates.
 
+Current limitation: list-size validation runs after JSON request-body
+deserialization. Add a pre-deserialization body-size cap before relying on this
+endpoint for large production accounts.
+
 Request shape:
 
 ```json

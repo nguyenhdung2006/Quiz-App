@@ -115,6 +115,18 @@ Gate controls include:
 
 The gate report marks staging/OAuth/restore evidence as `BLOCKED` or `NOT_RUN` unless actually configured and executed.
 
+## Current 2026-08-08 Verification Gaps
+
+These are not pass/fail claims until commands are actually run for the current
+commit:
+
+- Backend Maven tests must pass in an environment with Maven/dependency access.
+- Frontend build must pass through the available npm scripts.
+- Playwright must pass in an environment with browser binaries installed.
+- GitHub Actions status must be checked for the pushed commit.
+- Production secret scan must be re-run cleanly to verify the empty-env-key false
+  positive reported in the 2026-08-08 audit is no longer blocking.
+
 ## Observability And Rate-Limit Verification
 
 Backend:

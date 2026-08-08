@@ -6,6 +6,11 @@ This document complements `docs/deploy.md` with the release-gate-specific produc
 
 Run the GitHub Actions workflow **Production Release Gate** for the exact commit SHA intended for production. Do not deploy production unless the `production-release-gate-report` conclusion is `GO`.
 
+Do not treat source hardening as a production-ready decision. As of 2026-08-08,
+release remains blocked until Render memory evidence, sync payload limits,
+secret-scan verification, staging smoke, and restore rehearsal evidence are
+complete.
+
 ## Environment
 
 Production Render backend must use:

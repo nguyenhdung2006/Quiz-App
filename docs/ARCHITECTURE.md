@@ -57,3 +57,10 @@ HTTP request
 `RequestMetricsFilter` records completed HTTP requests using bounded status labels. Domain failures are also recorded by `HealthCounterService` methods that back both `/api/health/summary` and Micrometer counters.
 
 Distributed rate limiting is not part of the current architecture. The AI limiter remains in-memory because the repository and deployment docs currently show one backend instance. Redis becomes the right design only when the backend runs multiple instances, AI usage creates material cost risk, abuse appears, or process-local limits no longer protect the system.
+
+## Current Scale Boundary
+
+The current architecture is acceptable for small/beta accounts, but full
+snapshot sync, all-user-word analytics/review scans, and public Actuator metrics
+are not a public-scale design. `/api/sync` especially needs a hard body-size
+limit before Jackson deserialization, followed by chunked or delta sync.

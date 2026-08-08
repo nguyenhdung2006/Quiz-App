@@ -2,9 +2,9 @@
 
 ## Summary
 
-WordArena now has a conservative Flyway baseline strategy, but production Flyway rollout should remain staged. The production Supabase audit was manually verified before this plan: no normalized vocabulary duplicates, no orphan `word_stats`, no dangerous NULL corruption, no negative stats corruption, and review NULL timestamps are benign for new words. This means the project can prepare migration discipline, but it should still avoid any automatic production schema replay.
+WordArena now has a conservative Flyway baseline strategy, but production Flyway rollout should remain staged. This file is historical strategy context; `docs/DATABASE.md` is the current schema source-of-truth summary.
 
-`app_users.sync_revision` is now represented by `V2__add_sync_revision.sql`. No tombstone table or tombstone column is part of this strategy.
+Current migrations are V1-V4. V3 adds `vocabulary.word_uid` and `word_tombstones`; V4 adds `word_tombstones.legacy_word_id`.
 
 ## Current Schema Lifecycle
 
@@ -15,7 +15,7 @@ Current backend defaults:
 - `spring.flyway.baseline-on-migrate=${FLYWAY_BASELINE_ON_MIGRATE:false}`
 - Flyway migration directory: `backend/src/main/resources/db/migration`
 - Current baseline file: `backend/src/main/resources/db/migration/V1__baseline_schema.sql`
-- Current highest migration: `backend/src/main/resources/db/migration/V2__add_sync_revision.sql`
+- Current highest migration: `backend/src/main/resources/db/migration/V4__add_legacy_word_id_to_word_tombstones.sql`
 - Legacy manual schema file: `database/schema.sql`
 - Production profile file: `backend/src/main/resources/application-prod.yml`
 
@@ -66,12 +66,7 @@ Interpretation:
 - For existing production Supabase, V1 represents the already-existing baseline and must not be replayed over populated tables.
 - Future changes must start at V2.
 
-Examples:
-
-```text
-V2__add_sync_revision.sql
-V3__add_sync_revision_index.sql
-```
+Examples for future changes should start at `V5__...sql` or later. Do not edit V1-V4 after they have been applied.
 
 ## Environment Strategy
 
@@ -170,9 +165,8 @@ Rules:
 - Name files clearly:
 
 ```text
-V2__add_sync_revision.sql
-V3__add_sync_revision_index.sql
-V4__add_normalized_vocabulary_index.sql
+V5__add_normalized_vocabulary_index.sql
+V6__add_sync_payload_audit_columns.sql
 ```
 
 - Test migrations on a copied/staging database before production.
@@ -186,14 +180,8 @@ V4__add_normalized_vocabulary_index.sql
 - If production schema drifts after the manual audit and before baseline, `JPA_DDL_AUTO=validate` or Flyway validation may fail startup.
 - `database/schema.sql` still exists as a legacy/manual repair reference. It should not be treated as the migration source of truth once Flyway is active.
 - Normalized vocabulary uniqueness is still enforced in service logic, not by a normalized database unique index.
-- Task 3 still needs a separate migration and concurrency design.
+- Sync V2 migrations are now present. Remaining schema work is future additive migration work such as normalized lookup indexes or tombstone retention metadata, if needed.
 
 ## Recommended Next Task
 
-Next safest task:
-
-```text
-Task 7.1 - Stage Flyway baseline on a copied/staging Supabase database.
-```
-
-Only after staging proves clean startup should production run the one-time baseline marker and then start with `SPRING_PROFILES_ACTIVE=prod`. Tombstone work must be a later migration after V2.
+Next safest task: verify the current production/staging schema history against V1-V4 on a backed-up copy, then run the production release gate. Tombstone work is no longer future-only; retention/acknowledgement policy is future work.

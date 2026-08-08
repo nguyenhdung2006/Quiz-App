@@ -1,6 +1,6 @@
 # Production Hardening Status
 
-Last updated: 2026-07-31
+Last updated: 2026-08-08
 
 This file is the reconciliation matrix for `docs/technical-audit-report.md`,
 current source code, tests, configuration, CI, and deployment docs. Code and
@@ -12,21 +12,23 @@ test evidence override older audit text.
 | --- | --- | --- | --- |
 | `C:\Users\nguye\.codex\attachments\9839f0b4-1d95-4b4b-a925-6ef8a9f3620a\pasted-text.txt` | `3A2E439CA866F3247EB7C75530852FC1E42FD85ED8C0A62EBAF983D0912F666A` | No | Master command / source file supplied this run |
 | `SOURCE_FILE_2` | `UNKNOWN - not supplied in this workspace` | Unknown | Requested by command but not available |
-| `docs/technical-audit-report.md` | `19E68BA02E0EA998A2E8653F7EA7F2C1992859964007AE658C77E83772767335` | No | Original technical audit report |
+| `docs/technical-audit-report.md` | Rewritten 2026-08-08 | No | Current synthesized audit; historical original is archived |
 
 ## Current Gate
 
 Production gate: `NOT_READY`.
 
-Reason: code hardening tests pass, but release evidence is incomplete. The
-local gate has `source-integrity=FAIL` because this task leaves uncommitted
-changes by instruction, `production-env-validation=FAIL` because production env
-vars are not loaded in this workspace, and `backup-rollback-readiness` plus
-`staging-smoke` are `BLOCKED` because required external evidence is absent.
+Reason: code hardening exists, but release evidence is incomplete until the
+current commit has a clean release-gate run. `source-integrity` requires a clean
+tree, `production-env-validation` requires real production env vars, and
+`backup-rollback-readiness` plus `staging-smoke` require external evidence.
 
 Original audit score: `64/100`.
 
-Reassessed score: `84/100`.
+Reassessed code-hardening score: `84/100`.
+
+Production readiness remains about `6.2/10` because current source hardening is
+not the same as completed production evidence.
 
 The score improved because P0 integrity, CSRF, production schema safety,
 tombstone sync, explicit response security headers, profile/avatar hardening,
@@ -34,6 +36,16 @@ observability, and release-gate controls are now implemented with tests. It is
 not higher because operational release evidence is missing, OpenAPI/pagination
 and query optimization remain partial, and the AI limiter is intentionally
 in-memory.
+
+Current 2026-08-08 blockers to keep visible:
+
+- Render memory-limit restart is confirmed, but there is not enough evidence to
+  conclude a Java memory leak. Render Metrics around the incident are required.
+- `/api/sync` still has a large body/payload risk before validation because JSON
+  is deserialized before Bean Validation list limits run.
+- The 2026-08-08 audit reported a production release-gate secret-scan false
+  positive on empty env keys. Current scanner source appears newline-safe, but a
+  clean gate run must verify it before marking the release blocker closed.
 
 ## Audit Reconciliation Matrix
 
