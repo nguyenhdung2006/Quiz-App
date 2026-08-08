@@ -12,7 +12,8 @@ handover files are kept for history, but current decisions should start here.
 3. [Domain](DOMAIN.md) - business invariants for quiz, XP, stats, sync, and tombstones.
 4. [API notes](API.md) - CSRF, logout, Sync V2, and direct CRUD behavior.
 5. [Current technical audit](technical-audit-report.md) - reconciled findings and production readiness.
-6. [Roadmap](ROADMAP.md) - release blockers, near-term work, and refactor candidates.
+6. [Quality upgrade plan to 8.0](quality-upgrade-plan-8.0.md) - prioritized action plan from current quality to the 8.0 target.
+7. [Roadmap](ROADMAP.md) - release blockers, near-term work, and refactor candidates.
 
 ## Operations
 
