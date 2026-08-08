@@ -1,0 +1,242 @@
+html[data-theme="light"] body {
+  background:
+    linear-gradient(180deg, rgba(246, 250, 255, 0.92), rgba(240, 246, 255, 0.8) 44%, rgba(246, 250, 255, 0.96)),
+    linear-gradient(115deg, rgba(0, 111, 214, 0.12), transparent 32%, rgba(178, 35, 133, 0.08) 68%, rgba(8, 127, 82, 0.06)),
+    url("../images/quiz.jpg") center top / cover fixed no-repeat;
+}
+
+html[data-theme="light"] body::before {
+  opacity: 0.28;
+}
+
+html[data-theme="light"] .heroPanel,
+html[data-theme="light"] .todayFocusPanel,
+html[data-theme="light"] .startHerePanel,
+html[data-theme="light"] .dashCard,
+html[data-theme="light"] .profilePanel,
+html[data-theme="light"] .leaderboardPanel,
+html[data-theme="light"] .addWordBox,
+html[data-theme="light"] .tableTools,
+html[data-theme="light"] .table-container,
+html[data-theme="light"] .quizOptions,
+html[data-theme="light"] .quizBlock,
+html[data-theme="light"] .resultCard,
+html[data-theme="light"] .reviewTools,
+html[data-theme="light"] .reviewCard,
+html[data-theme="light"] .reviewTodayPanel,
+html[data-theme="light"] .weakWordsCenter,
+html[data-theme="light"] .analyticsMetric,
+html[data-theme="light"] .analyticsPanel,
+html[data-theme="light"] .analyticsHero,
+html[data-theme="light"] .aiDeckWorkspace,
+html[data-theme="light"] .studioWorkspace,
+html[data-theme="light"] .studioPanel,
+html[data-theme="light"] .profileEditorPanel,
+html[data-theme="light"] .previewPanel,
+html[data-theme="light"] .modalContent,
+html[data-theme="light"] .profileMenu,
+html[data-theme="light"] .appFooter {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(246, 250, 255, 0.8)),
+    var(--surface);
+  color: var(--text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    var(--shadow-soft);
+}
+
+html[data-theme="light"] .heroPanel h1,
+html[data-theme="light"] .heroPanel p,
+html[data-theme="light"] .todayFocusPanel h2,
+html[data-theme="light"] .startHereIntro h2,
+html[data-theme="light"] .startHereStep strong,
+html[data-theme="light"] .starterDeckPreviewCard strong,
+html[data-theme="light"] .analyticsHero h3,
+html[data-theme="light"] .dashCard strong,
+html[data-theme="light"] .profilePanel h2,
+html[data-theme="light"] .leaderboardPanel h2,
+html[data-theme="light"] .sectionHeader h2,
+html[data-theme="light"] .reviewTodayHead h2,
+html[data-theme="light"] .reviewSessionCopy strong,
+html[data-theme="light"] .reviewSessionStat strong,
+html[data-theme="light"] .reviewStateCard h3,
+html[data-theme="light"] .reviewRatingBtn strong,
+html[data-theme="light"] .analyticsPanelHead h3,
+html[data-theme="light"] .analyticsMetric strong,
+html[data-theme="light"] .weakWordRow strong,
+html[data-theme="light"] .weakWordsCenterHead h2,
+html[data-theme="light"] .weakFixCard strong,
+html[data-theme="light"] .reviewWordMain > strong,
+html[data-theme="light"] .performanceRow strong,
+html[data-theme="light"] .insightCard strong,
+html[data-theme="light"] .quizBlock h2,
+html[data-theme="light"] #question,
+html[data-theme="light"] .reviewCard h3,
+html[data-theme="light"] .resultCard h2,
+html[data-theme="light"] .profileMenu strong,
+html[data-theme="light"] .profileMenuItem,
+html[data-theme="light"] .sidebarBrand strong,
+html[data-theme="light"] .appTopbarTitle strong,
+html[data-theme="light"] .studioPanel h2,
+html[data-theme="light"] .studioPanel h3,
+html[data-theme="light"] .studioPanel h4,
+html[data-theme="light"] .previewHeader h2,
+html[data-theme="light"] .previewCard h3,
+html[data-theme="light"] .appFooter strong {
+  color: var(--text);
+  text-shadow: none;
+}
+
+html[data-theme="light"] .heroEyebrow,
+html[data-theme="light"] .dashLabel,
+html[data-theme="light"] .profilePanel p,
+html[data-theme="light"] .profileStats span,
+html[data-theme="light"] .leaderboardTabs span,
+html[data-theme="light"] .analyticsMetric span,
+html[data-theme="light"] .analyticsPanelHead span,
+html[data-theme="light"] .pressureLabel,
+html[data-theme="light"] .weakWordMeta,
+html[data-theme="light"] .performanceMeta,
+html[data-theme="light"] .insightCard span,
+html[data-theme="light"] .reviewQueueMeta,
+html[data-theme="light"] .reviewAnswerDetails p,
+html[data-theme="light"] .reviewSessionCopy span,
+html[data-theme="light"] .reviewSessionProgress span,
+html[data-theme="light"] .reviewSessionStat small,
+html[data-theme="light"] .reviewStateCard p,
+html[data-theme="light"] .reviewRatingBtn span,
+html[data-theme="light"] .weakFixCard span,
+html[data-theme="light"] .weakFixCard small,
+html[data-theme="light"] .reviewFeedback span,
+html[data-theme="light"] .emptyStudio,
+html[data-theme="light"] .todayFocusPanel p,
+html[data-theme="light"] .startHereIntro p,
+html[data-theme="light"] .startHereStep p,
+html[data-theme="light"] .startHereNext,
+html[data-theme="light"] .starterDeckPreviewCard span,
+html[data-theme="light"] .analyticsHero p,
+html[data-theme="light"] .profileMenu span,
+html[data-theme="light"] .trustNote,
+html[data-theme="light"] .appFooter span,
+html[data-theme="light"] .appFooter p {
+  color: var(--text-muted);
+}
+
+html[data-theme="light"] .utilityBar,
+html[data-theme="light"] .appSidebar,
+html[data-theme="light"] .appTopbar,
+html[data-theme="light"] .authCluster,
+html[data-theme="light"] .profileTrigger,
+html[data-theme="light"] .utilityBtn,
+html[data-theme="light"] .miniBtn,
+html[data-theme="light"] .homeBtn,
+html[data-theme="light"] .logoutBtn {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+}
+
+html[data-theme="light"] .addWordBox input,
+html[data-theme="light"] .addWordBox select,
+html[data-theme="light"] .searchBox input,
+html[data-theme="light"] .filterCluster select,
+html[data-theme="light"] .editingRow input,
+html[data-theme="light"] .editingRow select,
+html[data-theme="light"] .profileFormField input,
+html[data-theme="light"] .profileFormField select,
+html[data-theme="light"] .profileFormField textarea {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text);
+}
+
+html[data-theme="light"] .addWordBox input::placeholder,
+html[data-theme="light"] .searchBox input::placeholder,
+html[data-theme="light"] .profileFormField input::placeholder,
+html[data-theme="light"] .profileFormField textarea::placeholder {
+  color: rgba(35, 58, 88, 0.5);
+}
+
+html[data-theme="light"] .leaderboardList li,
+html[data-theme="light"] .reviewQueueItem,
+html[data-theme="light"] .reviewAnswerDetails,
+html[data-theme="light"] .reviewSessionOverview,
+html[data-theme="light"] .reviewSessionStat,
+html[data-theme="light"] .reviewStateCard,
+html[data-theme="light"] .reviewRatingBtn,
+html[data-theme="light"] .weakFixCard,
+html[data-theme="light"] .reviewTodayBody .emptyStudio,
+html[data-theme="light"] .weakWordRow,
+html[data-theme="light"] .performanceRow,
+html[data-theme="light"] .insightCard,
+html[data-theme="light"] .aiDeckItem,
+html[data-theme="light"] .studioShortcut,
+html[data-theme="light"] .apiStateMessage,
+html[data-theme="light"] #accuracyTrendChart {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+html[data-theme="light"] .aiDeckInput textarea {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text);
+}
+
+html[data-theme="light"] .aiDeckOptions select {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text);
+}
+
+html[data-theme="light"] .curatedDeckControls input,
+html[data-theme="light"] .curatedDeckControls select {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text);
+}
+
+html[data-theme="light"] .aiDeckField input,
+html[data-theme="light"] .aiDeckField select {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text);
+}
+
+html[data-theme="light"] .aiDeckItem strong {
+  color: var(--text);
+}
+
+html[data-theme="light"] .xpBar,
+html[data-theme="light"] .pressureTrack {
+  border-color: var(--line);
+  background: rgba(16, 32, 51, 0.09);
+}
+
+html[data-theme="light"] .analyticsMetric--feature,
+html[data-theme="light"] .analyticsPanel--pressure,
+html[data-theme="light"] .analyticsPanel--weak,
+html[data-theme="light"] .analyticsPanel--insights,
+html[data-theme="light"] .analyticsPanel--performance {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), color-mix(in srgb, var(--metric-accent, var(--cyan)), transparent 92%)),
+    var(--surface);
+}
+
+html[data-theme="light"] .reviewFeedback {
+  background: rgba(8, 127, 82, 0.08);
+}
+
+html[data-theme="light"] .reviewStateCard--complete {
+  background: rgba(8, 127, 82, 0.08);
+}
+
+html[data-theme="light"] .trustNote {
+  border-color: rgba(8, 127, 82, 0.2);
+  background: rgba(8, 127, 82, 0.06);
+}
+
+html[data-theme="light"] .selected {
+  color: white;
+}

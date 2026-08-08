@@ -75,10 +75,11 @@ Do not split code in this docs-only task. Candidates over about 1000 lines:
 
 | File | Lines | Risk |
 | --- | ---: | --- |
-| `frontend/css/modern.css` | 5484 | Large cascade; visual regression risk. |
+| `frontend/css/modern.css` | 4428 | PARTIALLY RESOLVED: light-theme and responsive tails moved to `modern-theme-light.css` and `modern-responsive.css`; core cascade remains large. |
 | `frontend/js/app.js` | 1833 | Auth, sync, profile, import/export, dashboard wrappers coupled through globals. |
 | `frontend/css/design-system.css` | 1576 | Large stylesheet; verify whether every selector is active before cleanup. |
 | `frontend/js/learning-studio.js` | 1460 | Studio, decks, CSV, AI deck, focus, and profile/history logic are coupled. |
+| `frontend/index.html` | 1212 | Static app shell is large; fragmenting it would require a template/build step and may change delivery semantics. |
 | `tests/smoke.spec.js` | 1050 | Test file can be split by feature after current docs work. |
 
 ## Historical Inputs
