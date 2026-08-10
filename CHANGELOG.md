@@ -8,6 +8,8 @@
   artifact blocking.
 - Updated release-gate docs/status to keep missing real deployment env as
   `BLOCKED`, not production readiness.
+- Added a configurable pre-deserialization `/api/sync` request body cap with a
+  `413 Payload Too Large` JSON error envelope.
 
 ## 2026-07-31
 

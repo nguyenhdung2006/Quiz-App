@@ -115,6 +115,11 @@ Authorization remains per authenticated `AppUser`: `wordUid` is unique only with
 
 The server ignores client-supplied `wrongWords` for vocabulary creation/update and ignores client-managed progress stats/mastery in sync payloads. This prevents stale or forged client payloads from creating vocabulary through the wrong-bank channel or overwriting server-managed learning progress.
 
+`POST /api/sync` is capped before JSON deserialization by
+`app.sync.max-request-body-bytes` / `SYNC_MAX_REQUEST_BODY_BYTES` (default
+`1048576`). Oversized bodies return `413 Payload Too Large` with an `ApiError`
+envelope instead of reaching the controller.
+
 ## Production Release Gate Security Controls
 
 The production release gate adds these fail-closed security checks:

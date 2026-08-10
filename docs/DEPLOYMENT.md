@@ -7,10 +7,10 @@ This document complements `docs/deploy.md` with the release-gate-specific produc
 Run the GitHub Actions workflow **Production Release Gate** for the exact commit SHA intended for production. Do not deploy production unless the `production-release-gate-report` conclusion is `GO`.
 
 Do not treat source hardening as a production-ready decision. As of 2026-08-08,
-release remains blocked until Render memory evidence, sync payload limits,
-GitHub Production Release Gate verification, staging smoke, and restore
-rehearsal evidence are complete. Local Task 2 secret scan is PASS, but that does
-not replace a clean release-gate run for the exact candidate SHA.
+release remains blocked until Render memory evidence, GitHub Production Release
+Gate verification, staging smoke, and restore rehearsal evidence are complete.
+Local Task 2 secret scan is PASS, but that does not replace a clean release-gate
+run for the exact candidate SHA.
 
 ## Environment
 
@@ -59,6 +59,8 @@ Operational environment variable names:
 - `AI_DECK_RATE_LIMIT_PER_MINUTE`
 - `AI_DECK_RATE_LIMIT_PER_DAY`
 - `AI_RATE_LIMIT_MINUTE_WINDOW`
+- `SYNC_MAX_REQUEST_BODY_BYTES` (defaults to `1048576`; caps `POST /api/sync`
+  before JSON deserialization)
 
 Never print or paste secret values into release reports.
 
