@@ -1,6 +1,6 @@
 # Audit Remediation Status
 
-Last updated: 2026-08-11 03:30 +07
+Last updated: 2026-08-11 04:05 +07
 
 This document tracks the re-audit of `docs/full-project-audit.md` dated
 2026-08-09. Source at `HEAD` remains the authority; the audit report is treated
@@ -31,7 +31,7 @@ as a hypothesis list.
 | ID | Status | Severity | Priority | Difficulty | Evidence | Root cause | Plan | Test needed | Fix now |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | AUD-001 | FIXED in working tree | S4 | P0 | D2 | `backup-rollback-readiness.mjs` accepted `docs/restore-rehearsal-evidence.md` although `Result` is `PARTIAL PASS` and backup/health are not verified | Gate checked file existence and keywords, not evidence quality | Parse required evidence fields and block incomplete evidence | PASS/PARTIAL/FAIL/malformed fixtures | Done |
-| AUD-002 | Confirmed | S4 | P0 | D2 | Local `gate:validate-env` fails without real deployment env; workflow also has fixture paths | Release gate validates provided env values but does not prove deployed Render/Vercel settings | Separate fixture self-test from real deployed-env attestation | Fixture matrix plus real redacted deployment evidence freshness check | Yes, next |
+| AUD-002 | FIXED in working tree | S4 | P0 | D2 | Workflow previously wrote safe fixture output to `production-env-validation`; local env without deployment evidence now produces `BLOCKED` | Release gate confused validator self-test with deployed environment proof | Safe fixture writes `production-env-validator-self-test`; real `production-env-validation` requires redacted deployment source/id/timestamp and rejects fixture-like values | `npm run test:gate:validate-env`; `npm run test:gate:report`; `npm run gate:validate-env` | Done |
 | AUD-003 | Confirmed | S4 | P1 | D3 | `/api/sync` uses `@RequestBody SyncRequest`; item caps are Bean Validation after deserialization | No pre-Jackson byte cap for sync request body | Add configurable request byte filter for `/api/sync`, return 413 envelope, client UX | Content-Length, chunked/no-length, boundary, client 413 tests | Yes, after AUD-002 |
 | AUD-004 | Partially fixed | S3 | P1 | D3 | Playwright blocks stale push; UI mainly says refresh before syncing | Data overwrite protection exists; recovery choice/artifact UX is thin | Add recovery flow: pull cloud, export local backup, choose merge/replace/cancel | Stale local changes recovery tests | Later batch B/C |
 | AUD-005 | Confirmed | S3 | P1 | D4 | `SyncService.snapshot()` returns full vocab/tombstones; sync loads full live words and tombstones | Snapshot design favors simplicity; no pagination/delta/retention yet | Measure first, bulk/paginate only on trigger | Query count, 10k-word fixture, payload/heap measurements | Not before metrics |
@@ -51,20 +51,26 @@ as a hypothesis list.
 
 | ID | Severity | Evidence | Root cause | Plan | Fix now |
 | --- | --- | --- | --- | --- | --- |
-| NEW-001 | S3 | `production-release-gate-report.json` aggregated old controls from 2026-07-31 while local baseline on 2026-08-11 passed 98 backend and 29 frontend tests | `generate-report.mjs` accepts existing control artifacts without freshness or commit-SHA checks | Require mandatory controls to carry current commit SHA/run timestamp, or mark stale controls BLOCKED | Yes, with AUD-002/AUD-012 |
+| NEW-001 | S3 | `production-release-gate-report.json` aggregated old controls from 2026-07-31 while local baseline on 2026-08-11 passed 98 backend and 29 frontend tests | `generate-report.mjs` accepted existing control artifacts without commit-SHA checks | Report now marks controls without matching `commitSha` as `BLOCKED` | Done with AUD-002 |
 
 ## Fixed In This Batch
 
 | ID | Files changed | Behavior changed | Tests/checks |
 | --- | --- | --- | --- |
 | AUD-001 | `scripts/production-release-gate/backup-rollback-readiness.mjs`, `scripts/production-release-gate/backup-rollback-readiness.test.mjs`, `package.json` | Backup readiness now blocks partial restore evidence and requires complete backup, restore, app verification, health, and final PASS fields | `npm run test:gate:backup-rollback` PASS; `npm run gate:backup-rollback` returns BLOCKED for current partial evidence |
+| AUD-002 | `scripts/production-release-gate/validate-production-env.mjs`, `scripts/production-release-gate/generate-report.mjs`, `scripts/production-release-gate/lib.mjs`, `.github/workflows/production-release-gate.yml`, `package.json`, docs | Production env fixture is now a self-test; real production env validation is BLOCKED without deployment evidence and FAILS unsafe/fixture-like values; report blocks stale control artifacts | `npm run test:gate:validate-env` PASS; `npm run test:gate:report` PASS; `npm run gate:validate-env` BLOCKED in this local workspace |
 
-Commit: this commit (`fix(audit): block partial restore evidence gate`).
+## Commits
+
+| ID | Commit |
+| --- | --- |
+| AUD-001 | `081d21d fix(audit): block partial restore evidence gate` |
+| AUD-002 | this commit (`fix(audit): harden production environment gate`) |
 
 ## Blocked
 
 - Staging/OAuth smoke requires real staging URLs and non-secret test identity metadata.
-- Production env validation requires redacted real deployment values; this local workspace should not invent them.
+- Production env validation requires redacted real deployment values plus `RELEASE_ENV_SOURCE`, `RELEASE_DEPLOYMENT_ID`, and `RELEASE_ENV_CAPTURED_AT`; this local workspace should not invent them.
 - Full backup restore requires a real sanitized/non-production backup artifact and restored app health smoke.
 - Source integrity through Node is blocked in this sandbox by `spawnSync git EPERM`; direct Git commands are available.
 
@@ -78,10 +84,10 @@ Commit: this commit (`fix(audit): block partial restore evidence gate`).
 
 ## Highest Value Next Steps
 
-1. Fix AUD-002/AUD-012/NEW-001 so release reports cannot use stale or fixture-only evidence as real deployment proof.
-2. Add `/api/sync` byte cap before deserialization with a 413 API envelope and client message.
-3. Run or prepare the staging restore/OAuth/CRUD/sync/delete evidence checklist without marking missing external work PASS.
-4. Add modal focus/Escape/restore behavior and a keyboard Playwright test.
-5. Build import preview plus backup-before-replace, then add localStorage quota failure feedback.
+1. Add `/api/sync` byte cap before deserialization with a 413 API envelope and client message.
+2. Run or prepare the staging restore/OAuth/CRUD/sync/delete evidence checklist without marking missing external work PASS.
+3. Add modal focus/Escape/restore behavior and a keyboard Playwright test.
+4. Build import preview plus backup-before-replace, then add localStorage quota failure feedback.
+5. Decide metrics exposure/alert ownership policy and align security tests with it.
 
 Current maturity after this batch: hardened MVP / portfolio-ready / controlled beta candidate. It is not production-ready because production env, real backup restore, staging OAuth, and bounded sync evidence are still incomplete.

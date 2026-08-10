@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-11
+
+- Hardened the production release gate so production environment validation is
+  separate from validator fixtures and requires redacted deployment evidence.
+- Added release-gate tests for production env validation and stale control
+  artifact blocking.
+- Updated release-gate docs/status to keep missing real deployment env as
+  `BLOCKED`, not production readiness.
+
 ## 2026-07-31
 
 - Added explicit Spring Security response headers with compatible CSP, Referrer-Policy, X-Content-Type-Options, frame deny policy, and HTTPS-gated HSTS.

@@ -9,6 +9,8 @@
     "gate:validate-env": "node scripts/production-release-gate/validate-production-env.mjs",
     "gate:backup-rollback": "node scripts/production-release-gate/backup-rollback-readiness.mjs",
     "test:gate:backup-rollback": "node scripts/production-release-gate/backup-rollback-readiness.test.mjs",
+    "test:gate:validate-env": "node scripts/production-release-gate/validate-production-env.test.mjs",
+    "test:gate:report": "node scripts/production-release-gate/generate-report.test.mjs",
     "gate:staging-smoke": "node scripts/production-release-gate/staging-smoke.mjs",
     "gate:report": "node scripts/production-release-gate/generate-report.mjs",
     "test:frontend": "playwright test",

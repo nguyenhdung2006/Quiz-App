@@ -38,6 +38,16 @@ Required secret/environment variable names:
 - `CORS_ALLOWED_ORIGINS`
 - `OAUTH_SUCCESS_REDIRECT_URI`
 
+Release-gate deployed environment evidence names:
+
+- `RELEASE_ENV_SOURCE`
+- `RELEASE_DEPLOYMENT_ID`
+- `RELEASE_ENV_CAPTURED_AT`
+
+These values must describe the real deployment or signed redacted environment
+manifest for the exact release candidate. The validator fixture in CI is only a
+self-test and must not be used as production readiness evidence.
+
 Operational environment variable names:
 
 - `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE`

@@ -27,7 +27,8 @@ The gate runs these controls:
 | Frontend Playwright smoke | Playwright report and test results |
 | Flyway rehearsal | temporary PostgreSQL migration and repeat validation logs |
 | Two-device sync | backend SyncContract V2 tests and targeted frontend sync smoke tests |
-| Production environment validation | redacted variable presence and configuration safety |
+| Production env validator self-test | safe and unsafe fixtures that test validator logic only |
+| Production environment validation | redacted deployed environment presence, deployment evidence, and configuration safety |
 | Backup/rollback readiness | concrete docs and rehearsal evidence |
 | Staging smoke | real staging health/CSRF/frontend checks when staging variables exist |
 
@@ -79,6 +80,28 @@ These names are required for staging smoke. Do not store production user secrets
 
 If they are absent, the staging control is `BLOCKED` and the final conclusion is `NO-GO`.
 
+## Required Production Environment Evidence
+
+The safe fixture in `.github/workflows/production-release-gate.yml` is a
+validator self-test only. It must write `production-env-validator-self-test`, not
+`production-env-validation`.
+
+`production-env-validation` is `BLOCKED` unless the workflow receives real
+deployment/environment evidence for the candidate:
+
+- `RELEASE_ENV_SOURCE`: one of `deployed`, `render`, `signed-manifest`, or
+  `manual-attestation`.
+- `RELEASE_DEPLOYMENT_ID`: a deployment or signed manifest identifier, not a
+  placeholder.
+- `RELEASE_ENV_CAPTURED_AT`: ISO-8601 timestamp for when the redacted
+  environment assertions were captured.
+
+The production runtime variables are validated through redacted presence and
+safety assertions. Missing values are `BLOCKED`; unsafe values such as localhost
+URLs, wildcard CORS, weak/default secrets, disabled Flyway, mutating
+`ddl-auto`, or fixture-like values are `FAIL`. Secret values must never be
+printed in artifacts.
+
 ## Required Restore Rehearsal Evidence
 
 Backup/rollback readiness is `BLOCKED` until one of these exists:
@@ -96,6 +119,8 @@ Useful local checks:
 npm run gate:source-integrity
 npm run gate:secret-scan
 npm run gate:validate-env
+npm run test:gate:validate-env
+npm run test:gate:report
 npm run build:frontend
 npm run test:frontend
 cd backend
@@ -138,5 +163,6 @@ The gate does not deploy and does not mutate production. Staging OAuth browser f
   remain unavailable on the current Free instance, and alert notification
   delivery is not verified. The gate should not infer monitoring readiness from
   source or event screenshots alone.
-- Backend test pass, frontend build pass, Playwright pass, staging smoke, and
-  restore rehearsal must all be real results, not assumed from docs.
+- Backend test pass, frontend build pass, Playwright pass, staging smoke,
+  deployed production env validation, and restore rehearsal must all be real
+  results for the same commit SHA, not assumed from docs or stale artifacts.

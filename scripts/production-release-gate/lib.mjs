@@ -1,7 +1,36 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 export const reportDir = process.env.RELEASE_GATE_REPORT_DIR || "release-gate-artifacts";
+
+export function gitIdentity() {
+  const envSha = process.env.GITHUB_SHA || "";
+  const envBranch = process.env.GITHUB_REF_NAME || "";
+  if (envSha && envBranch) {
+    return { commitSha: envSha, branch: envBranch };
+  }
+
+  try {
+    const head = readFileSync(".git/HEAD", "utf8").trim();
+    if (head.startsWith("ref: ")) {
+      const ref = head.slice("ref: ".length);
+      const shaPath = `.git/${ref}`;
+      return {
+        commitSha: envSha || (existsSync(shaPath) ? readFileSync(shaPath, "utf8").trim() : "unknown"),
+        branch: envBranch || ref.replace("refs/heads/", "")
+      };
+    }
+    return {
+      commitSha: envSha || head,
+      branch: envBranch || "detached"
+    };
+  } catch {
+    return {
+      commitSha: envSha || "unknown",
+      branch: envBranch || "unknown"
+    };
+  }
+}
 
 export function ensureDir(path) {
   mkdirSync(path, { recursive: true });
@@ -13,10 +42,13 @@ export function writeJson(path, data) {
 }
 
 export function writeControl(name, status, details = {}) {
+  const identity = gitIdentity();
   const control = {
     name,
     status,
     generatedAt: new Date().toISOString(),
+    commitSha: identity.commitSha,
+    branch: identity.branch,
     ...details
   };
   writeJson(join(reportDir, "controls", `${name}.json`), control);
@@ -51,9 +83,9 @@ export function boolEnv(name) {
   return String(raw).trim().toLowerCase();
 }
 
-export function redactedPresence(name) {
+export function redactedPresence(name, env = process.env) {
   return {
     name,
-    present: Boolean(process.env[name] && String(process.env[name]).trim())
+    present: Boolean(env[name] && String(env[name]).trim())
   };
 }

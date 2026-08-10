@@ -54,7 +54,7 @@ jobs:
       - name: Secret scan
         run: npm run gate:secret-scan
 
-      - name: Validate production env with safe fixture
+      - name: Validate production env validator accepts safe fixture
         env:
           DATABASE_URL: jdbc:postgresql://aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
           DATABASE_USERNAME: release_gate_user
@@ -77,6 +77,35 @@ jobs:
           AI_DECK_RATE_LIMIT_PER_DAY: "20"
           MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics
           LOGGING_LEVEL_ROOT: INFO
+        run: npm run gate:validate-env -- --control=production-env-validator-self-test --self-test
+
+      - name: Validate deployed production env
+        continue-on-error: true
+        env:
+          RELEASE_ENV_SOURCE: ${{ vars.RELEASE_ENV_SOURCE }}
+          RELEASE_DEPLOYMENT_ID: ${{ vars.RELEASE_DEPLOYMENT_ID }}
+          RELEASE_ENV_CAPTURED_AT: ${{ vars.RELEASE_ENV_CAPTURED_AT }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+          CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS }}
+          SESSION_COOKIE_SECURE: ${{ vars.SESSION_COOKIE_SECURE }}
+          SESSION_COOKIE_SAME_SITE: ${{ vars.SESSION_COOKIE_SAME_SITE }}
+          SESSION_COOKIE_PATH: ${{ vars.SESSION_COOKIE_PATH }}
+          JPA_DDL_AUTO: ${{ vars.JPA_DDL_AUTO }}
+          FLYWAY_ENABLED: ${{ vars.FLYWAY_ENABLED }}
+          FLYWAY_BASELINE_ON_MIGRATE: ${{ vars.FLYWAY_BASELINE_ON_MIGRATE }}
+          SPRING_PROFILES_ACTIVE: ${{ vars.SPRING_PROFILES_ACTIVE }}
+          RATE_LIMIT_MODE: ${{ vars.RATE_LIMIT_MODE }}
+          AI_EXPLAIN_RATE_LIMIT_PER_MINUTE: ${{ vars.AI_EXPLAIN_RATE_LIMIT_PER_MINUTE }}
+          AI_EXPLAIN_RATE_LIMIT_PER_DAY: ${{ vars.AI_EXPLAIN_RATE_LIMIT_PER_DAY }}
+          AI_DECK_RATE_LIMIT_PER_MINUTE: ${{ vars.AI_DECK_RATE_LIMIT_PER_MINUTE }}
+          AI_DECK_RATE_LIMIT_PER_DAY: ${{ vars.AI_DECK_RATE_LIMIT_PER_DAY }}
+          MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: ${{ vars.MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE }}
+          LOGGING_LEVEL_ROOT: ${{ vars.LOGGING_LEVEL_ROOT }}
         run: npm run gate:validate-env -- --control=production-env-validation
 
       - name: Validate production env rejects unsafe fixture
