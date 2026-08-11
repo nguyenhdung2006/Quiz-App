@@ -7,6 +7,7 @@ const CLOUD_DELETE_QUEUE_KEY = "cloudDeleteQueue";
 const AUTH_PROFILE_RETRY_DELAYS = [500, 1000];
 const CLOUD_SYNC_META_KEY = "cloudSyncMeta";
 const STALE_SYNC_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+const STALE_RECOVERY_ENABLED = Boolean(window.QUIZ_APP_CONFIG?.staleRecoveryEnabled);
 const DELETE_RETRY_30_SECONDS = 30 * 1000;
 const DELETE_RETRY_5_MINUTES = 5 * 60 * 1000;
 const DELETE_RETRY_1_HOUR = 60 * 60 * 1000;
@@ -24,6 +25,15 @@ cloudSnapshotUpdatedAt: null,
 hadLocalDataBeforeLastPull: false,
 syncReady: false,
 pullInFlight: null
+};
+let staleRecoveryState = {
+isOpen: false,
+snapshot: null,
+openedRevision: null,
+lastFocused: null,
+busy: false,
+backupCreated: false,
+message: ""
 };
 
 const STARTER_WORDS = [
@@ -269,22 +279,357 @@ return getVocab().length > 0 || getWrongWords().length > 0;
 }
 
 function isStaleDeviceRisk() {
-if (!cloudSyncState.hasPulledCloudSnapshot) return false;
-if (!cloudSyncState.hadLocalDataBeforeLastPull) return false;
+return isStaleDeviceRiskFor(
+cloudSyncState.hadLocalDataBeforeLastPull,
+cloudSyncState.cloudSnapshotUpdatedAt,
+cloudSyncState.lastSuccessfulSyncAt
+);
+}
 
-let cloudUpdated = parseTime(cloudSyncState.cloudSnapshotUpdatedAt);
+function isStaleDeviceRiskFor(hadLocalData, cloudUpdatedAt, lastSuccessfulSyncAt) {
+if (!hadLocalData) return false;
+
+let cloudUpdated = parseTime(cloudUpdatedAt);
 if (!cloudUpdated) return false;
 
-let lastSync = parseTime(cloudSyncState.lastSuccessfulSyncAt);
+let lastSync = parseTime(lastSuccessfulSyncAt);
 if (!lastSync) return false;
 
 let staleAge = Date.now() - lastSync;
 return staleAge > STALE_SYNC_THRESHOLD_MS && cloudUpdated > lastSync;
 }
 
-function blockStaleSyncPush() {
+function blockStaleSyncPush(snapshot = staleRecoveryState.snapshot) {
 setSyncStatus("Sync paused to protect your data", "warn");
+if (STALE_RECOVERY_ENABLED) {
+openStaleRecoveryPanel(snapshot);
+}
 return false;
+}
+
+function currentAccountId() {
+return typeof getCurrentAccountId === "function" ? getCurrentAccountId() : "local-guest";
+}
+
+function cloneJson(value, fallback) {
+try {
+return JSON.parse(JSON.stringify(value));
+} catch (error) {
+return fallback;
+}
+}
+
+function recoveryLocalState() {
+return {
+accountId: currentAccountId(),
+vocab: cloneJson(getVocab(), []),
+wrongWords: cloneJson(getWrongWords(), []),
+pendingDeletes: cloneJson(readPendingCloudDeletes(), []),
+syncMeta: cloneJson(readCloudSyncMeta(), {})
+};
+}
+
+function restoreRecoveryLocalState(state) {
+if (!state || state.accountId !== currentAccountId()) return false;
+vocab = cloneJson(state.vocab, []);
+wrongWords = cloneJson(state.wrongWords, []);
+writePendingCloudDeletes(cloneJson(state.pendingDeletes, []));
+try {
+localStorage.setItem(cloudSyncMetaKey(), JSON.stringify(cloneJson(state.syncMeta, {})));
+} catch (error) {
+return false;
+}
+restoreCloudSyncMeta();
+save();
+refreshAccountData();
+return true;
+}
+
+function backupPayload(reason = "manual") {
+return {
+version: 2,
+exportedAt: new Date().toISOString(),
+reason,
+accountId: currentAccountId(),
+vocab: cloneJson(getVocab(), []),
+wrongWords: cloneJson(getWrongWords(), []),
+cloudSync: {
+meta: cloneJson(readCloudSyncMeta(), {}),
+pendingDeletes: cloneJson(readPendingCloudDeletes(), [])
+}
+};
+}
+
+function downloadJsonBackup(payload, filenamePrefix = "vocab-quiz-backup") {
+if (window.QUIZ_TEST_FORCE_EXPORT_FAILURE) {
+throw new Error("Forced export failure.");
+}
+let blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+let url = URL.createObjectURL(blob);
+let a = document.createElement("a");
+a.href = url;
+a.download = `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.json`;
+document.body.appendChild(a);
+try {
+a.click();
+} finally {
+a.remove();
+URL.revokeObjectURL(url);
+}
+return true;
+}
+
+function exportLocalBackup(reason = "manual", filenamePrefix = "vocab-quiz-backup") {
+downloadJsonBackup(backupPayload(reason), filenamePrefix);
+return true;
+}
+
+function snapshotCounts(snapshot) {
+return {
+vocab: Array.isArray(snapshot?.vocab) ? snapshot.vocab.length : 0,
+wrongWords: Array.isArray(snapshot?.wrongWords) ? snapshot.wrongWords.length : 0,
+tombstones: Array.isArray(snapshot?.tombstones) ? snapshot.tombstones.length : 0,
+pendingDeletes: readPendingCloudDeletes().length
+};
+}
+
+function recoverySummary(snapshot = staleRecoveryState.snapshot) {
+let counts = snapshotCounts(snapshot);
+return {
+lastSuccessfulSyncAt: cloudSyncState.lastSuccessfulSyncAt || "Unknown",
+cloudRevision: normalizeRevision(snapshot?.revision),
+localKnownRevision: cloudSyncState.lastKnownRevision,
+localWords: getVocab().length,
+localWrongWords: getWrongWords().length,
+cloudWords: counts.vocab,
+cloudWrongWords: counts.wrongWords,
+cloudTombstones: counts.tombstones,
+pendingDeletes: counts.pendingDeletes,
+online: navigator.onLine !== false
+};
+}
+
+function panelText(value) {
+return value === null || value === undefined || value === "" ? "Unknown" : String(value);
+}
+
+function ensureStaleRecoveryPanel() {
+let panel = document.getElementById("staleRecoveryPanel");
+if (panel) return panel;
+
+panel = document.createElement("div");
+panel.id = "staleRecoveryPanel";
+panel.className = "staleRecoveryOverlay hidden";
+panel.setAttribute("role", "dialog");
+panel.setAttribute("aria-modal", "true");
+panel.setAttribute("aria-labelledby", "staleRecoveryTitle");
+panel.innerHTML = `
+<section class="staleRecoveryPanel" tabindex="-1">
+  <button class="staleRecoveryClose" id="staleRecoveryCloseBtn" type="button" aria-label="Cancel recovery">x</button>
+  <div class="staleRecoveryHead">
+    <span class="heroEyebrow">Sync paused</span>
+    <h2 id="staleRecoveryTitle">Stale Device Recovery</h2>
+    <p>Your local deck is older than the latest cloud activity. Push is blocked until you choose a safe path.</p>
+  </div>
+  <div class="staleRecoverySummary" id="staleRecoverySummary"></div>
+  <div class="staleRecoveryActions">
+    <button class="utilityBtn" id="staleRecoveryExportBtn" type="button">Export local backup</button>
+    <button class="utilityBtn" id="staleRecoveryUseCloudBtn" type="button">Use cloud</button>
+    <button class="miniBtn" id="staleRecoveryMergeBtn" type="button" disabled>Merge safely</button>
+    <button class="miniBtn" id="staleRecoveryKeepLocalBtn" type="button" disabled>Keep local as new changes</button>
+    <button class="miniBtn" id="staleRecoveryCancelBtn" type="button">Cancel</button>
+  </div>
+  <p class="staleRecoveryNote" id="staleRecoveryDisabledNote">Safe merge and local-as-new require a reliable baseline/change set, which this device does not have yet.</p>
+  <p class="staleRecoveryStatus" id="staleRecoveryStatus" role="status" aria-live="polite"></p>
+</section>`;
+document.body.appendChild(panel);
+
+panel.querySelector("#staleRecoveryExportBtn")?.addEventListener("click", () => {
+try {
+exportLocalBackup("stale-recovery", "wordarena-stale-local-backup");
+staleRecoveryState.backupCreated = true;
+setStaleRecoveryStatus("Local backup download started.");
+toast("Exported local recovery backup.", "ok");
+} catch (error) {
+staleRecoveryState.backupCreated = false;
+setStaleRecoveryStatus("Backup failed. Local data was not changed.");
+toast("Backup failed. Local data was not changed.", "err");
+}
+});
+panel.querySelector("#staleRecoveryUseCloudBtn")?.addEventListener("click", useCloudForStaleRecovery);
+panel.querySelector("#staleRecoveryCancelBtn")?.addEventListener("click", closeStaleRecoveryPanel);
+panel.querySelector("#staleRecoveryCloseBtn")?.addEventListener("click", closeStaleRecoveryPanel);
+panel.addEventListener("keydown", event => {
+if (event.key === "Escape" && !staleRecoveryState.busy) {
+event.preventDefault();
+closeStaleRecoveryPanel();
+}
+});
+return panel;
+}
+
+function setStaleRecoveryStatus(message) {
+staleRecoveryState.message = message || "";
+let status = document.getElementById("staleRecoveryStatus");
+if (status) status.textContent = staleRecoveryState.message;
+}
+
+function updateStaleRecoveryPanel(snapshot = staleRecoveryState.snapshot) {
+let summary = recoverySummary(snapshot);
+let host = document.getElementById("staleRecoverySummary");
+if (!host) return;
+host.innerHTML = "";
+let rows = [
+["Last successful sync", panelText(summary.lastSuccessfulSyncAt)],
+["Local known revision", panelText(summary.localKnownRevision)],
+["Cloud revision", panelText(summary.cloudRevision)],
+["Local words", String(summary.localWords)],
+["Cloud words", String(summary.cloudWords)],
+["Wrong-bank local/cloud", `${summary.localWrongWords} / ${summary.cloudWrongWords}`],
+["Pending deletions", String(summary.pendingDeletes)],
+["Cloud tombstones", String(summary.cloudTombstones)],
+["Connection", summary.online ? "Online" : "Offline"]
+];
+for (let [label, value] of rows) {
+let item = document.createElement("div");
+item.className = "staleRecoverySummaryItem";
+let labelEl = document.createElement("span");
+labelEl.textContent = label;
+let valueEl = document.createElement("strong");
+valueEl.textContent = value;
+item.append(labelEl, valueEl);
+host.appendChild(item);
+}
+let useCloud = document.getElementById("staleRecoveryUseCloudBtn");
+if (useCloud) useCloud.disabled = staleRecoveryState.busy || !summary.online;
+let exportBtn = document.getElementById("staleRecoveryExportBtn");
+if (exportBtn) exportBtn.disabled = staleRecoveryState.busy;
+}
+
+function openStaleRecoveryPanel(snapshot) {
+if (!snapshot) return;
+let panel = ensureStaleRecoveryPanel();
+staleRecoveryState.isOpen = true;
+staleRecoveryState.snapshot = snapshot;
+staleRecoveryState.openedRevision = normalizeRevision(snapshot.revision);
+staleRecoveryState.lastFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+staleRecoveryState.backupCreated = false;
+panel.classList.remove("hidden");
+document.body.classList.add("modalOpen");
+updateStaleRecoveryPanel(snapshot);
+setStaleRecoveryStatus("Export is available. Push remains blocked until recovery succeeds.");
+panel.querySelector(".staleRecoveryPanel")?.focus();
+}
+
+function closeStaleRecoveryPanel() {
+let panel = document.getElementById("staleRecoveryPanel");
+if (panel) panel.classList.add("hidden");
+document.body.classList.remove("modalOpen");
+staleRecoveryState.isOpen = false;
+staleRecoveryState.busy = false;
+setSyncStatus("Sync paused to protect your data", "warn");
+let focusTarget = staleRecoveryState.lastFocused;
+if (focusTarget && document.contains(focusTarget)) focusTarget.focus();
+}
+
+async function fetchCloudSnapshotRaw() {
+if (!cloudSyncReady) return null;
+try {
+let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/snapshot`);
+if (!response.ok) return null;
+return await response.json();
+} catch (error) {
+return null;
+}
+}
+
+function cloudOnlyWords(words, deleted) {
+return (Array.isArray(words) ? words : [])
+.filter(word =>
+!deleted.uids.has(String(word?.wordUid || word?.word_uid || "").trim())
+&& !deleted.legacyIds.has(String(word?.id || ""))
+)
+.map(fromServerWord)
+.filter(word => word.eng && word.vie);
+}
+
+function applyCloudSnapshotAuthoritative(snapshot) {
+let deleted = tombstoneIdentitySets(snapshot);
+let nextVocab = cloudOnlyWords(snapshot?.vocab, deleted);
+let nextWrongWords = cloudOnlyWords(snapshot?.wrongWords, deleted);
+let now = new Date().toISOString();
+let cloudUpdatedAt = snapshotUpdatedAt(snapshot);
+
+vocab = nextVocab;
+wrongWords = nextWrongWords;
+writePendingCloudDeletes([]);
+if (snapshot?.profile) applyProfile(snapshot.profile);
+if (snapshot?.progress) latestProgressSummary = snapshot.progress;
+if (Array.isArray(snapshot?.achievements)) latestAchievements = snapshot.achievements;
+cloudSyncState.hasPulledCloudSnapshot = true;
+cloudSyncState.lastPullAt = now;
+cloudSyncState.lastSuccessfulSyncAt = now;
+cloudSyncState.cloudSnapshotUpdatedAt = cloudUpdatedAt;
+cloudSyncState.hadLocalDataBeforeLastPull = false;
+rememberCloudRevision(snapshot?.revision);
+writeCloudSyncMeta({
+lastPullAt: cloudSyncState.lastPullAt,
+lastSuccessfulSyncAt: cloudSyncState.lastSuccessfulSyncAt,
+cloudSnapshotUpdatedAt: cloudSyncState.cloudSnapshotUpdatedAt
+});
+save();
+refreshAccountData();
+}
+
+async function useCloudForStaleRecovery() {
+if (staleRecoveryState.busy) return;
+if (navigator.onLine === false) {
+setStaleRecoveryStatus("You appear offline. Export local backup now, then retry recovery when cloud is reachable.");
+return;
+}
+if (!confirm("Use the latest cloud copy? A local backup download will start first. Local changes are replaced only after backup and cloud fetch succeed.")) {
+setStaleRecoveryStatus("Recovery cancelled. Local data was not changed.");
+return;
+}
+
+let before = recoveryLocalState();
+staleRecoveryState.busy = true;
+updateStaleRecoveryPanel();
+setStaleRecoveryStatus("Preparing local backup...");
+
+try {
+exportLocalBackup("stale-recovery-use-cloud", "wordarena-stale-local-backup");
+staleRecoveryState.backupCreated = true;
+setStaleRecoveryStatus("Checking latest cloud snapshot...");
+
+let latest = await fetchCloudSnapshotRaw();
+if (!latest) {
+throw new Error("Cloud snapshot unavailable.");
+}
+
+let latestRevision = normalizeRevision(latest.revision);
+if (staleRecoveryState.openedRevision !== null
+&& latestRevision !== null
+&& latestRevision !== staleRecoveryState.openedRevision) {
+staleRecoveryState.snapshot = latest;
+staleRecoveryState.openedRevision = latestRevision;
+setStaleRecoveryStatus("Cloud changed while recovery was open. Review the refreshed summary before choosing again.");
+return;
+}
+
+applyCloudSnapshotAuthoritative(latest);
+closeStaleRecoveryPanel();
+setSyncStatus("Synced", "ok");
+toast("Cloud copy applied after local backup.", "ok");
+} catch (error) {
+restoreRecoveryLocalState(before);
+setSyncStatus("Sync paused to protect your data", "warn");
+setStaleRecoveryStatus("Recovery failed. Local data was not changed.");
+toast("Recovery failed. Local data was not changed.", "err");
+} finally {
+staleRecoveryState.busy = false;
+updateStaleRecoveryPanel();
+}
 }
 
 function queuePendingCloudDelete(word) {
@@ -603,7 +948,6 @@ cloudSyncState.pullInFlight = (async () => {
 setSyncStatus("Waiting for cloud snapshot...", "syncing");
 
 try {
-await flushPendingCloudDeletes();
 let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/snapshot`);
 
 if (!response.ok) {
@@ -614,7 +958,7 @@ return false;
 let snapshot = await response.json();
 let cloudUpdatedAt = snapshotUpdatedAt(snapshot);
 let hadLocalData = hasLocalSyncData();
-applyServerSnapshot(snapshot);
+rememberCloudRevision(snapshot.revision);
 cloudSyncState.hasPulledCloudSnapshot = true;
 cloudSyncState.lastPullAt = new Date().toISOString();
 cloudSyncState.cloudSnapshotUpdatedAt = cloudUpdatedAt;
@@ -623,6 +967,12 @@ writeCloudSyncMeta({
 lastPullAt: cloudSyncState.lastPullAt,
 cloudSnapshotUpdatedAt: cloudSyncState.cloudSnapshotUpdatedAt
 });
+if (isStaleDeviceRiskFor(hadLocalData, cloudUpdatedAt, cloudSyncState.lastSuccessfulSyncAt)) {
+staleRecoveryState.snapshot = snapshot;
+blockStaleSyncPush(snapshot);
+return false;
+}
+applyServerSnapshot(snapshot);
 setSyncStatus("Synced", "ok");
 return true;
 } catch (error) {
@@ -1597,24 +1947,14 @@ update();
 }
 
 function exportData() {
-let data = {
-version: 1,
-exportedAt: new Date().toISOString(),
-vocab: getVocab(),
-wrongWords: getWrongWords()
-};
-
-let blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-let url = URL.createObjectURL(blob);
-let a = document.createElement("a");
-a.href = url;
-a.download = `vocab-quiz-backup-${new Date().toISOString().slice(0, 10)}.json`;
-document.body.appendChild(a);
-a.click();
-a.remove();
-URL.revokeObjectURL(url);
-
+try {
+exportLocalBackup("manual");
 toast("Exported backup JSON.", "ok");
+return true;
+} catch (error) {
+toast("Export failed. Please try again.", "err");
+return false;
+}
 }
 
 function cleanWord(word) {

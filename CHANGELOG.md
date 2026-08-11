@@ -10,6 +10,10 @@
   `BLOCKED`, not production readiness.
 - Added a configurable pre-deserialization `/api/sync` request body cap with a
   `413 Payload Too Large` JSON error envelope.
+- Added a feature-flagged stale-device recovery entry point that blocks stale
+  push/apply paths, supports local backup export and backup-first `Use cloud`,
+  and keeps unsafe merge/local-as-new choices disabled until a reliable baseline
+  exists.
 
 ## 2026-07-31
 

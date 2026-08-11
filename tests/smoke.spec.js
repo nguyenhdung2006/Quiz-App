@@ -67,10 +67,14 @@ async function preparePage(page, options = {}) {
     achievements: [],
     quizHistory: []
   };
-  const cloudSnapshot = {
-    ...baseCloudSnapshot,
-    revision: options.revision ?? baseCloudSnapshot.revision ?? 0
-  };
+  const normalizeSnapshot = (snapshot) => ({
+    ...snapshot,
+    revision: options.revision ?? snapshot.revision ?? 0
+  });
+  const cloudSnapshots = Array.isArray(options.cloudSnapshots) && options.cloudSnapshots.length
+    ? options.cloudSnapshots.map(normalizeSnapshot)
+    : [normalizeSnapshot(baseCloudSnapshot)];
+  const cloudSnapshot = cloudSnapshots[0];
 
   page.on("console", (message) => {
     if (message.type() === "error") fatalConsole.push(message.text());
@@ -114,7 +118,7 @@ async function preparePage(page, options = {}) {
     }
     if (url.endsWith("/api/snapshot")) {
       snapshotRequestCount++;
-      if (options.snapshotFails) {
+      if (options.snapshotFails || (options.snapshotFailsAfter && snapshotRequestCount > options.snapshotFailsAfter)) {
         await route.fulfill({
           status: options.snapshotStatus || 503,
           contentType: "application/json",
@@ -122,7 +126,9 @@ async function preparePage(page, options = {}) {
         });
         return;
       }
-      await route.fulfill({ json: cloudSnapshot });
+      await route.fulfill({
+        json: cloudSnapshots[Math.min(snapshotRequestCount - 1, cloudSnapshots.length - 1)]
+      });
       return;
     }
     if (url.endsWith("/api/sync")) {
@@ -223,7 +229,31 @@ async function preparePage(page, options = {}) {
   });
 
   await page.addInitScript((seed) => {
-    window.QUIZ_APP_CONFIG = { apiOrigin: "http://localhost:8080" };
+    window.QUIZ_APP_CONFIG = {
+      apiOrigin: "http://localhost:8080",
+      staleRecoveryEnabled: Boolean(seed.staleRecoveryEnabled)
+    };
+    if (seed.fixedNow) {
+      const RealDate = Date;
+      const fixedTime = new RealDate(seed.fixedNow).getTime();
+      Date = class extends RealDate {
+        constructor(...args) {
+          super(...(args.length ? args : [fixedTime]));
+        }
+
+        static now() {
+          return fixedTime;
+        }
+
+        static parse(value) {
+          return RealDate.parse(value);
+        }
+
+        static UTC(...args) {
+          return RealDate.UTC(...args);
+        }
+      };
+    }
     localStorage.clear();
     let accountId = String(seed.profile.email || "").trim().toLowerCase() || "local-guest";
     localStorage.setItem("quizUserProfile", JSON.stringify(seed.profile));
@@ -244,7 +274,9 @@ async function preparePage(page, options = {}) {
     vocab: options.vocab || [],
     wrongWords: options.wrongWords || [],
     pendingDeletes: options.pendingDeletes || null,
-    syncMeta: options.syncMeta || null
+    syncMeta: options.syncMeta || null,
+    fixedNow: options.fixedNow || null,
+    staleRecoveryEnabled: options.staleRecoveryEnabled || false
   });
 
   await page.goto("index.html");
@@ -719,6 +751,556 @@ test("stale returning device does not push over newer cloud snapshot", async ({ 
   await expect(page.locator("#cloudSyncStatus")).toContainText("Sync paused to protect your data");
   expect(fatalConsole.syncBodies).toHaveLength(0);
   await expect.poll(() => page.evaluate(() => window.quizCloud?.state?.().hasPulledCloudSnapshot)).toBe(true);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale guard does not trigger before seven day boundary", async ({ page }) => {
+  const profile = { name: "Recent Device", email: "recent-device@example.com", avatar: "images/icon.png" };
+  const sixDaysAgo = new Date(Date.now() - (6 * 24 * 60 * 60 * 1000)).toISOString();
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    vocab: [{
+      ...word("recent-local", "local", "sync", 65),
+      updatedAt: sixDaysAgo
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: sixDaysAgo
+    },
+    cloudSnapshot: {
+      profile,
+      vocab: [{
+        ...word("recent-cloud", "cloud", "sync", 66),
+        updatedAt: new Date().toISOString()
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect(page.locator("#staleRecoveryPanel")).toHaveCount(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale guard boundary is strictly greater than seven days", async ({ page }) => {
+  const profile = { name: "Boundary Device", email: "boundary-device@example.com", avatar: "images/icon.png" };
+  const fixedNow = "2026-01-08T00:00:00.000Z";
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    fixedNow,
+    vocab: [{
+      ...word("boundary-local", "local", "sync", 67),
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      profile,
+      vocab: [{
+        ...word("boundary-cloud", "cloud", "sync", 68),
+        updatedAt: new Date().toISOString()
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect(page.locator("#staleRecoveryPanel")).toHaveCount(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale guard preserves local state and retry remains fail-closed", async ({ page }) => {
+  const profile = { name: "Stale Retry", email: "stale-retry@example.com", avatar: "images/icon.png" };
+  const localWord = {
+    ...word("stale-local", "unsynced local", "sync", 69),
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    vocab: [localWord],
+    pendingDeletes: [{
+      wordUid: "00000000-0000-4000-8000-000000000701",
+      queuedAt: "2026-01-02T00:00:00.000Z",
+      attempts: 0,
+      lastAttemptAt: null,
+      lastStatus: "queued",
+      lastError: null
+    }],
+    deleteFails: true,
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      profile,
+      vocab: [{
+        ...word("cloud-newer", "new cloud", "sync", 70),
+        updatedAt: "2026-05-01T00:00:00.000Z"
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Sync paused to protect your data");
+  await page.locator("#syncRetryBtn").click();
+  await page.waitForTimeout(300);
+
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  const localState = await page.evaluate((accountId) => ({
+    vocab: JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]"),
+    queue: JSON.parse(localStorage.getItem(`quizAccount:${accountId}:cloudDeleteQueue`) || "[]")
+  }), fatalConsole.accountId);
+  expect(localState.vocab.map(item => item.eng)).toContain("stale-local");
+  expect(localState.queue).toHaveLength(1);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale recovery feature flag opens panel with unsafe choices disabled", async ({ page }) => {
+  const profile = { name: "Recovery Flag", email: "recovery-flag@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    staleRecoveryEnabled: true,
+    profile,
+    vocab: [{
+      ...word("flag-local", "local", "sync", 71),
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      revision: 4,
+      profile,
+      vocab: [{
+        ...word("flag-cloud", "cloud", "sync", 72),
+        updatedAt: "2026-05-01T00:00:00.000Z"
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect(page.locator("#staleRecoveryPanel")).toBeVisible();
+  await expect(page.locator("#staleRecoveryMergeBtn")).toBeDisabled();
+  await expect(page.locator("#staleRecoveryKeepLocalBtn")).toBeDisabled();
+  await expect(page.locator("#staleRecoverySummary")).toContainText("Cloud revision");
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale recovery cancel keeps local state and push blocked", async ({ page }) => {
+  const profile = { name: "Recovery Cancel", email: "recovery-cancel@example.com", avatar: "images/icon.png" };
+  const localWord = {
+    ...word("cancel-local", "local remains", "sync", 73),
+    updatedAt: "2026-01-01T00:00:00.000Z"
+  };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    staleRecoveryEnabled: true,
+    profile,
+    vocab: [localWord],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      revision: 5,
+      profile,
+      vocab: [{
+        ...word("cancel-cloud", "cloud", "sync", 74),
+        updatedAt: "2026-05-01T00:00:00.000Z"
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await page.locator("#staleRecoveryCancelBtn").click();
+  await expect(page.locator("#staleRecoveryPanel")).toBeHidden();
+  await page.locator("#syncRetryBtn").click();
+  await page.waitForTimeout(300);
+
+  const words = await page.evaluate((accountId) =>
+    JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]").map(item => item.eng),
+    fatalConsole.accountId
+  );
+  expect(words).toContain("cancel-local");
+  expect(words).not.toContain("cancel-cloud");
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale recovery export succeeds without mutating local data", async ({ page }) => {
+  const profile = { name: "Recovery Export", email: "recovery-export@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    staleRecoveryEnabled: true,
+    profile,
+    vocab: [{
+      ...word("export-local", "local", "sync", 75),
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      revision: 6,
+      profile,
+      vocab: [{
+        ...word("export-cloud", "cloud", "sync", 76),
+        updatedAt: "2026-05-01T00:00:00.000Z"
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#staleRecoveryExportBtn").click();
+  const download = await downloadPromise;
+
+  expect(download.suggestedFilename()).toContain("wordarena-stale-local-backup");
+  await expect(page.locator("#staleRecoveryStatus")).toContainText("Local backup download started");
+  const words = await page.evaluate((accountId) =>
+    JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]").map(item => item.eng),
+    fatalConsole.accountId
+  );
+  expect(words).toContain("export-local");
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale recovery export failure keeps local data", async ({ page }) => {
+  const profile = { name: "Recovery Export Fail", email: "recovery-export-fail@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    staleRecoveryEnabled: true,
+    profile,
+    vocab: [{
+      ...word("export-fail-local", "local", "sync", 77),
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      revision: 7,
+      profile,
+      vocab: [{
+        ...word("export-fail-cloud", "cloud", "sync", 78),
+        updatedAt: "2026-05-01T00:00:00.000Z"
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await page.evaluate(() => {
+    window.QUIZ_TEST_FORCE_EXPORT_FAILURE = true;
+  });
+  await page.locator("#staleRecoveryExportBtn").click();
+
+  await expect(page.locator("#staleRecoveryStatus")).toContainText("Backup failed");
+  const words = await page.evaluate((accountId) =>
+    JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]").map(item => item.eng),
+    fatalConsole.accountId
+  );
+  expect(words).toContain("export-fail-local");
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale recovery offline keeps local state and still allows export", async ({ page }) => {
+  const profile = { name: "Recovery Offline", email: "recovery-offline@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    staleRecoveryEnabled: true,
+    profile,
+    vocab: [{
+      ...word("offline-local", "local", "sync", 79),
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      revision: 8,
+      profile,
+      vocab: [{
+        ...word("offline-cloud", "cloud", "sync", 80),
+        updatedAt: "2026-05-01T00:00:00.000Z"
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+  });
+  await page.locator("#staleRecoveryUseCloudBtn").click();
+  await expect(page.locator("#staleRecoveryStatus")).toContainText("offline");
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#staleRecoveryExportBtn").click();
+  await downloadPromise;
+
+  const words = await page.evaluate((accountId) =>
+    JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]").map(item => item.eng),
+    fatalConsole.accountId
+  );
+  expect(words).toContain("offline-local");
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale recovery use cloud replaces local only after backup and confirmation", async ({ page }) => {
+  const profile = { name: "Recovery Cloud", email: "recovery-cloud@example.com", avatar: "images/icon.png" };
+  const deletedUid = "00000000-0000-4000-8000-000000000802";
+  const otherAccountKey = "quizAccount:other@example.com:vocab";
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    staleRecoveryEnabled: true,
+    profile,
+    vocab: [{
+      ...word("use-cloud-local", "local", "sync", 81),
+      wordUid: "00000000-0000-4000-8000-000000000801",
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    pendingDeletes: [{
+      wordUid: "00000000-0000-4000-8000-000000000803",
+      queuedAt: "2026-01-02T00:00:00.000Z",
+      attempts: 0,
+      lastAttemptAt: null,
+      lastStatus: "queued",
+      lastError: null
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      revision: 9,
+      profile,
+      vocab: [
+        {
+          ...word("use-cloud-cloud", "cloud", "sync", 82),
+          wordUid: "00000000-0000-4000-8000-000000000804",
+          updatedAt: "2026-05-01T00:00:00.000Z"
+        },
+        {
+          ...word("deleted-cloud-word", "should not resurrect", "sync", 83),
+          wordUid: deletedUid,
+          updatedAt: "2026-05-01T00:00:00.000Z"
+        }
+      ],
+      tombstones: [{
+        wordUid: deletedUid,
+        deletedAt: "2026-05-02T00:00:00.000Z",
+        deletedRevision: 9
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await page.evaluate(([key]) => {
+    localStorage.setItem(key, JSON.stringify([{ eng: "other-account-word", vie: "other" }]));
+  }, [otherAccountKey]);
+  page.once("dialog", dialog => dialog.accept());
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#staleRecoveryUseCloudBtn").click();
+  await downloadPromise;
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+
+  const state = await page.evaluate(([accountId, otherKey]) => ({
+    words: JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]").map(item => item.eng),
+    queue: localStorage.getItem(`quizAccount:${accountId}:cloudDeleteQueue`),
+    other: JSON.parse(localStorage.getItem(otherKey) || "[]").map(item => item.eng)
+  }), [fatalConsole.accountId, otherAccountKey]);
+  expect(state.words).toEqual(["use-cloud-cloud"]);
+  expect(state.queue).toBeNull();
+  expect(state.other).toEqual(["other-account-word"]);
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale recovery use cloud fetch failure rolls back local state", async ({ page }) => {
+  const profile = { name: "Recovery Fetch Fail", email: "recovery-fetch-fail@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    staleRecoveryEnabled: true,
+    snapshotFailsAfter: 1,
+    profile,
+    vocab: [{
+      ...word("fetch-fail-local", "local", "sync", 84),
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      revision: 10,
+      profile,
+      vocab: [{
+        ...word("fetch-fail-cloud", "cloud", "sync", 85),
+        updatedAt: "2026-05-01T00:00:00.000Z"
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  page.once("dialog", dialog => dialog.accept());
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#staleRecoveryUseCloudBtn").click();
+  await downloadPromise;
+
+  await expect(page.locator("#staleRecoveryStatus")).toContainText("Recovery failed");
+  const words = await page.evaluate((accountId) =>
+    JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]").map(item => item.eng),
+    fatalConsole.accountId
+  );
+  expect(words).toContain("fetch-fail-local");
+  expect(words).not.toContain("fetch-fail-cloud");
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale recovery detects cloud revision change before applying", async ({ page }) => {
+  const profile = { name: "Recovery Revision", email: "recovery-revision@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    staleRecoveryEnabled: true,
+    profile,
+    vocab: [{
+      ...word("revision-local", "local", "sync", 86),
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshots: [
+      {
+        revision: 11,
+        profile,
+        vocab: [{
+          ...word("revision-cloud-old", "cloud", "sync", 87),
+          updatedAt: "2026-05-01T00:00:00.000Z"
+        }],
+        wrongWords: [],
+        progress: {},
+        achievements: [],
+        quizHistory: []
+      },
+      {
+        revision: 12,
+        profile,
+        vocab: [{
+          ...word("revision-cloud-new", "cloud", "sync", 88),
+          updatedAt: "2026-05-02T00:00:00.000Z"
+        }],
+        wrongWords: [],
+        progress: {},
+        achievements: [],
+        quizHistory: []
+      }
+    ]
+  });
+
+  page.once("dialog", dialog => dialog.accept());
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#staleRecoveryUseCloudBtn").click();
+  await downloadPromise;
+
+  await expect(page.locator("#staleRecoveryStatus")).toContainText("Cloud changed");
+  await expect(page.locator("#staleRecoveryPanel")).toBeVisible();
+  await expect(page.locator("#staleRecoverySummary")).toContainText("12");
+  const words = await page.evaluate((accountId) =>
+    JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]").map(item => item.eng),
+    fatalConsole.accountId
+  );
+  expect(words).toContain("revision-local");
+  expect(words).not.toContain("revision-cloud-new");
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("stale recovery persistence failure keeps local state", async ({ page }) => {
+  const profile = { name: "Recovery Persist Fail", email: "recovery-persist-fail@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    staleRecoveryEnabled: true,
+    profile,
+    vocab: [{
+      ...word("persist-fail-local", "local", "sync", 89),
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      revision: 13,
+      profile,
+      vocab: [{
+        ...word("persist-fail-cloud", "cloud", "sync", 90),
+        updatedAt: "2026-05-01T00:00:00.000Z"
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await page.evaluate(() => {
+    const originalSetItem = Storage.prototype.setItem;
+    let thrown = false;
+    Storage.prototype.setItem = function (key, value) {
+      if (!thrown && String(key).includes(":vocab")) {
+        thrown = true;
+        throw new Error("forced persistence failure");
+      }
+      return originalSetItem.call(this, key, value);
+    };
+  });
+  page.once("dialog", dialog => dialog.accept());
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#staleRecoveryUseCloudBtn").click();
+  await downloadPromise;
+
+  await expect(page.locator("#staleRecoveryStatus")).toContainText("Recovery failed");
+  const words = await page.evaluate((accountId) =>
+    JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]").map(item => item.eng),
+    fatalConsole.accountId
+  );
+  expect(words).toContain("persist-fail-local");
+  expect(words).not.toContain("persist-fail-cloud");
+  expect(fatalConsole.syncBodies).toHaveLength(0);
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
