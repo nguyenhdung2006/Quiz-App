@@ -44,6 +44,28 @@ attributes, `javascript:` URLs, or inline script blocks. Use stable ids,
 `data-ui-action`, or existing module init functions with `addEventListener`
 instead. The smoke suite has a static guard for `index.html` and `login.html`.
 
+## Local Import Safety
+
+JSON import parses and validates the selected file before opening
+`#importReviewDialog`. Preview is read-only and shows current/incoming counts,
+invalid entries, merge duplicates, and estimated Merge/Replace outcomes.
+
+- `Cancel` and Escape close the dialog without changing vocabulary, wrong-bank,
+  sync metadata, or pending deletions.
+- `Merge into current data` keeps existing local entries and all their fields;
+  incoming duplicates are skipped using normalized English spelling.
+- `Replace local data` is never the default action. It first downloads a local
+  recovery backup and is blocked if backup creation fails.
+- Imported backup sync metadata and pending deletions are ignored. The current
+  account's sync state is preserved.
+- The next vocabulary and wrong-bank state is built and validated in memory.
+  A storage-capacity probe runs before commit; any write failure restores the
+  previous storage values and leaves in-memory state unchanged.
+
+Legacy array imports and versioned `{ vocab, wrongWords }` backup payloads stay
+supported. CSV import remains merge-only and now rejects missing required
+headers or unterminated quoted fields without mutating local vocabulary.
+
 # Sync V2 Local Identity
 
 Frontend words now carry a stable `wordUid`. `normalizeWord()` creates a UUID for legacy/local words and `main.js` persists normalized data on startup so offline-created identity survives rename, refresh, and later login.

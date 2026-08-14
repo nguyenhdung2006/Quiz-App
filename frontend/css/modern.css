@@ -764,6 +764,172 @@ button,
   font-weight: 800;
 }
 
+.importReviewOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 22000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(2, 6, 18, 0.78);
+  backdrop-filter: blur(14px);
+}
+
+.importReviewOverlay.hidden {
+  display: none !important;
+}
+
+.importReviewPanel {
+  position: relative;
+  width: min(780px, 100%);
+  max-height: min(780px, calc(100dvh - 36px));
+  overflow: auto;
+  overflow-x: hidden;
+  padding: 20px;
+  border: 1px solid rgba(158, 241, 255, 0.24);
+  border-radius: 12px;
+  background: rgba(8, 14, 30, 0.98);
+  box-shadow: var(--shadow-soft);
+  color: var(--text);
+}
+
+.importReviewClose {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.importReviewHead {
+  padding-right: 46px;
+}
+
+.importReviewHead h2 {
+  margin: 6px 0 8px;
+  color: white;
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+
+.importReviewHead p,
+.importReviewNote,
+.importReviewStatus,
+.importReviewMode p {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.importReviewSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.importReviewSummaryItem,
+.importReviewMode {
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid rgba(158, 241, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.importReviewSummaryItem span,
+.importReviewSummaryItem strong {
+  display: block;
+}
+
+.importReviewSummaryItem span {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.importReviewSummaryItem strong {
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+  color: white;
+  font-size: 1rem;
+}
+
+.importReviewModes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.importReviewMode h3 {
+  margin: 0 0 6px;
+  color: var(--cyan);
+  font-size: 0.96rem;
+}
+
+.importReviewMode p {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.importReviewMode--danger {
+  border-color: rgba(255, 95, 126, 0.34);
+  background: rgba(255, 95, 126, 0.08);
+}
+
+.importReviewMode--danger h3 {
+  color: #ffb0c1;
+}
+
+.importReviewNote {
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+}
+
+.importReviewStatus {
+  min-height: 23px;
+  margin: 8px 0;
+  font-weight: 800;
+}
+
+.importReviewStatus[data-tone="err"] {
+  color: #ffb0c1;
+}
+
+.importReviewStatus[data-tone="warn"] {
+  color: var(--yellow);
+}
+
+.importReviewActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.importReviewActions button {
+  min-height: 42px;
+  white-space: normal;
+}
+
+.importReviewActions button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.importReplaceBtn {
+  border-color: rgba(255, 95, 126, 0.56);
+  background: rgba(255, 95, 126, 0.17);
+  color: #ffd4dd;
+}
+
 .appSidebar {
   position: fixed;
   top: 16px;

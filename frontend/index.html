@@ -773,6 +773,46 @@ Hmm... choose one before moving on!
 
 </div>
 
+<!-- IMPORT REVIEW -->
+<div id="importReviewDialog" class="importReviewOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="importReviewTitle" aria-describedby="importReviewDescription">
+<section class="importReviewPanel" tabindex="-1">
+<button class="importReviewClose" id="importReviewCloseBtn" type="button" aria-label="Cancel import">x</button>
+<header class="importReviewHead">
+<span class="heroEyebrow">Import safety review</span>
+<h2 id="importReviewTitle">Review before changing local data</h2>
+<p id="importReviewDescription">The file has been parsed and validated. No local data has changed yet.</p>
+</header>
+
+<div class="importReviewSummary" aria-label="Import preview counts">
+<div class="importReviewSummaryItem"><span>Current local words</span><strong id="importCurrentCount">0</strong></div>
+<div class="importReviewSummaryItem"><span>Incoming words</span><strong id="importIncomingCount">0</strong></div>
+<div class="importReviewSummaryItem"><span>Incoming wrong-bank words</span><strong id="importWrongCount">0</strong></div>
+<div class="importReviewSummaryItem"><span>Merge duplicates skipped</span><strong id="importDuplicateCount">0</strong></div>
+<div class="importReviewSummaryItem"><span>Invalid entries skipped</span><strong id="importInvalidCount">0</strong></div>
+<div class="importReviewSummaryItem"><span>Pending cloud deletions preserved</span><strong id="importPendingDeleteCount">0</strong></div>
+</div>
+
+<div class="importReviewModes">
+<section class="importReviewMode">
+<h3>Merge into current data</h3>
+<p>Estimated main deck: <strong id="importMergeFinalCount">0</strong> words. Existing local entries and fields win; incoming duplicates are skipped.</p>
+</section>
+<section class="importReviewMode importReviewMode--danger">
+<h3>Replace local data</h3>
+<p>Estimated main deck: <strong id="importReplaceFinalCount">0</strong> words. A downloadable recovery backup is required and created first.</p>
+</section>
+</div>
+
+<p class="importReviewNote" id="importMetadataNote"></p>
+<p class="importReviewStatus" id="importReviewStatus" role="status" aria-live="polite"></p>
+<div class="importReviewActions">
+<button class="miniBtn" id="importCancelBtn" type="button">Cancel</button>
+<button class="utilityBtn" id="importMergeBtn" type="button">Merge into current data</button>
+<button class="utilityBtn importReplaceBtn" id="importReplaceBtn" type="button">Replace local data</button>
+</div>
+</section>
+</div>
+
 <!-- APP PREVIEW / GUIDE -->
 <div id="appPreview" class="previewOverlay hidden" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
 <div class="previewPanel">

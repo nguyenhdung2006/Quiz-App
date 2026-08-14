@@ -648,8 +648,40 @@
 
   .studioOverlay,
   .previewOverlay,
-  .profileEditorOverlay {
+  .profileEditorOverlay,
+  .importReviewOverlay {
     padding: 12px;
+  }
+
+  .importReviewPanel {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 14px;
+  }
+
+  .importReviewClose {
+    top: 10px;
+    right: 10px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .importReviewHead {
+    padding-right: 50px;
+  }
+
+  .importReviewSummary,
+  .importReviewModes {
+    grid-template-columns: 1fr;
+  }
+
+  .importReviewActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .importReviewActions button {
+    width: 100%;
   }
 
   .studioTabs {

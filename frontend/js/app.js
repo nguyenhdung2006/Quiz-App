@@ -52,6 +52,11 @@ busy: false,
 backupCreated: false,
 message: ""
 };
+let importReviewState = {
+normalized: null,
+lastFocused: null,
+busy: false
+};
 
 const STARTER_WORDS = [
 { eng: "resilient", vie: "kiên cường", pos: "adj", tag: "mindset", ipa: "/ri-ZIL-yuhnt/", level: "B1", context: "learning after difficulty", example: "She stayed resilient after the hard exam.", exampleMeaning: "Cô ấy vẫn kiên cường sau bài kiểm tra khó.", collocation: "resilient learner, remain resilient", synonyms: "strong, tough", antonyms: "fragile", commonMistake: "Do not use resilient for every kind of strong object.", note: "Useful for school and life." },
@@ -192,6 +197,16 @@ byId.set(key, { ...(existing || {}), ...clean });
 }
 }
 return Array.from(byId.values());
+}
+
+function peekPendingCloudDeletes() {
+try {
+let raw = localStorage.getItem(cloudDeleteQueueKey());
+let items = raw ? JSON.parse(raw) : [];
+return Array.isArray(items) ? normalizeDeleteQueue(items) : [];
+} catch (error) {
+return [];
+}
 }
 
 function writePendingCloudDeletes(items) {
@@ -385,7 +400,7 @@ vocab: cloneJson(getVocab(), []),
 wrongWords: cloneJson(getWrongWords(), []),
 cloudSync: {
 meta: cloneJson(readCloudSyncMeta(), {}),
-pendingDeletes: cloneJson(readPendingCloudDeletes(), [])
+pendingDeletes: cloneJson(peekPendingCloudDeletes(), [])
 }
 };
 }
@@ -2065,19 +2080,26 @@ if (!payload) return null;
 
 let importedVocab = [];
 let importedWrong = [];
+let includesSyncMetadata = false;
 
 if (Array.isArray(payload)) {
 importedVocab = payload;
 } else if (typeof payload === "object") {
 importedVocab = Array.isArray(payload.vocab) ? payload.vocab : [];
 importedWrong = Array.isArray(payload.wrongWords) ? payload.wrongWords : [];
+includesSyncMetadata = Boolean(payload.cloudSync);
 } else {
 return null;
 }
 
+let vocab = importedVocab.map(cleanWord).filter(Boolean);
+let wrongWords = importedWrong.map(cleanWord).filter(Boolean);
+
 return {
-vocab: importedVocab.map(cleanWord).filter(Boolean),
-wrongWords: importedWrong.map(cleanWord).filter(Boolean)
+vocab,
+wrongWords,
+invalidCount: (importedVocab.length - vocab.length) + (importedWrong.length - wrongWords.length),
+includesSyncMetadata
 };
 }
 
@@ -2106,6 +2128,259 @@ added++;
 return { merged, added, skipped };
 }
 
+function importReviewSummary(normalized) {
+let vocabResult = mergeByEnglishWithStats(getVocab(), normalized.vocab);
+let wrongResult = mergeByEnglishWithStats(getWrongWords(), normalized.wrongWords);
+return {
+currentVocab: getVocab().length,
+currentWrong: getWrongWords().length,
+incomingVocab: normalized.vocab.length,
+incomingWrong: normalized.wrongWords.length,
+invalid: normalized.invalidCount,
+duplicates: vocabResult.skipped + wrongResult.skipped,
+mergeFinal: vocabResult.merged.length,
+replaceFinal: normalized.vocab.length,
+pendingDeletes: peekPendingCloudDeletes().length,
+includesSyncMetadata: normalized.includesSyncMetadata
+};
+}
+
+function setImportReviewText(id, value) {
+let element = document.getElementById(id);
+if (element) element.textContent = String(value);
+}
+
+function updateImportReviewDialog() {
+let normalized = importReviewState.normalized;
+if (!normalized) return;
+let summary = importReviewSummary(normalized);
+setImportReviewText("importCurrentCount", summary.currentVocab);
+setImportReviewText("importIncomingCount", summary.incomingVocab);
+setImportReviewText("importWrongCount", summary.incomingWrong);
+setImportReviewText("importDuplicateCount", summary.duplicates);
+setImportReviewText("importInvalidCount", summary.invalid);
+setImportReviewText("importMergeFinalCount", summary.mergeFinal);
+setImportReviewText("importReplaceFinalCount", summary.replaceFinal);
+setImportReviewText("importPendingDeleteCount", summary.pendingDeletes);
+setImportReviewText(
+"importMetadataNote",
+summary.includesSyncMetadata
+? "This backup contains sync metadata. Import ignores it and preserves this account's current sync metadata and pending deletions."
+: "Import preserves this account's current sync metadata and pending deletions."
+);
+}
+
+function importDialogFocusable() {
+let dialog = document.getElementById("importReviewDialog");
+if (!dialog) return [];
+return Array.from(dialog.querySelectorAll("button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex='-1'])"))
+.filter(element => !element.hidden && element.getClientRects().length > 0);
+}
+
+function closeImportReviewDialog() {
+if (importReviewState.busy) return;
+let dialog = document.getElementById("importReviewDialog");
+if (!dialog || dialog.classList.contains("hidden")) return;
+dialog.classList.add("hidden");
+document.body.classList.remove("modalOpen");
+let lastFocused = importReviewState.lastFocused;
+importReviewState.normalized = null;
+importReviewState.lastFocused = null;
+setImportReviewStatus("");
+lastFocused?.focus?.();
+}
+
+function setImportReviewBusy(busy) {
+importReviewState.busy = Boolean(busy);
+["importCancelBtn", "importMergeBtn", "importReplaceBtn", "importReviewCloseBtn"].forEach(id => {
+let button = document.getElementById(id);
+if (button) button.disabled = importReviewState.busy;
+});
+}
+
+function setImportReviewStatus(message, tone = "") {
+let status = document.getElementById("importReviewStatus");
+if (!status) return;
+status.textContent = message || "";
+status.dataset.tone = tone;
+}
+
+function openImportReviewDialog(normalized, opener) {
+let dialog = document.getElementById("importReviewDialog");
+if (!dialog) return false;
+importReviewState.normalized = normalized;
+importReviewState.lastFocused = opener || document.activeElement;
+setImportReviewBusy(false);
+setImportReviewStatus("Review the counts, then choose an import mode.");
+updateImportReviewDialog();
+dialog.classList.remove("hidden");
+document.body.classList.add("modalOpen");
+window.setTimeout(() => document.getElementById("importCancelBtn")?.focus(), 0);
+return true;
+}
+
+function restoreStorageValue(key, rawValue) {
+if (rawValue === null) localStorage.removeItem(key);
+else localStorage.setItem(key, rawValue);
+}
+
+function persistImportedData(nextVocab, nextWrongWords) {
+let accountId = currentAccountId();
+let vocabKey = typeof accountStorageKey === "function" ? accountStorageKey("vocab", accountId) : "vocab";
+let wrongKey = typeof accountStorageKey === "function" ? accountStorageKey("wrongWords", accountId) : "wrongWords";
+let probeKey = typeof accountStorageKey === "function" ? accountStorageKey("importCapacityProbe", accountId) : "importCapacityProbe";
+let previousVocabRaw = localStorage.getItem(vocabKey);
+let previousWrongRaw = localStorage.getItem(wrongKey);
+let serializedVocab;
+let serializedWrong;
+let serializedProbe;
+let wroteVocab = false;
+let wroteWrong = false;
+
+try {
+serializedVocab = JSON.stringify(nextVocab);
+serializedWrong = JSON.stringify(nextWrongWords);
+serializedProbe = JSON.stringify({ vocab: nextVocab, wrongWords: nextWrongWords });
+localStorage.setItem(probeKey, serializedProbe);
+localStorage.removeItem(probeKey);
+localStorage.setItem(vocabKey, serializedVocab);
+wroteVocab = true;
+localStorage.setItem(wrongKey, serializedWrong);
+wroteWrong = true;
+} catch (error) {
+try {
+localStorage.removeItem(probeKey);
+if (wroteVocab) restoreStorageValue(vocabKey, previousVocabRaw);
+if (wroteWrong) restoreStorageValue(wrongKey, previousWrongRaw);
+} catch (rollbackError) {
+return { ok: false, error, rollbackError };
+}
+return { ok: false, error };
+}
+
+vocab = nextVocab;
+wrongWords = nextWrongWords;
+renderTable();
+renderMistakeTable();
+updateStats();
+refreshOnboardingPanel();
+return { ok: true };
+}
+
+function buildImportState(mode, normalized) {
+let importedAt = new Date().toISOString();
+if (mode === "replace") {
+return {
+vocab: normalized.vocab.map(word => stampWordUpdatedAt(normalizeWord(word), importedAt)),
+wrongWords: normalized.wrongWords.map(word => stampWordUpdatedAt(normalizeWord(word), importedAt)),
+added: normalized.vocab.length,
+skipped: 0
+};
+}
+
+let vocabResult = mergeByEnglishWithStats(getVocab(), normalized.vocab);
+let wrongResult = mergeByEnglishWithStats(getWrongWords(), normalized.wrongWords);
+return {
+vocab: vocabResult.merged,
+wrongWords: wrongResult.merged,
+added: vocabResult.added,
+skipped: vocabResult.skipped + wrongResult.skipped
+};
+}
+
+function isValidImportState(state) {
+if (!state || !Array.isArray(state.vocab) || !Array.isArray(state.wrongWords)) return false;
+return [...state.vocab, ...state.wrongWords].every(word =>
+word && typeof word === "object"
+&& normalizeEnglishKey(word.eng)
+&& String(word.vie || "").trim()
+);
+}
+
+function commitReviewedImport(mode) {
+let normalized = importReviewState.normalized;
+if (!normalized || importReviewState.busy || !["merge", "replace"].includes(mode)) return;
+setImportReviewBusy(true);
+
+let next;
+try {
+next = buildImportState(mode, normalized);
+} catch (error) {
+setImportReviewBusy(false);
+setImportReviewStatus("The import could not be prepared. Local data was not changed.", "err");
+return;
+}
+if (!isValidImportState(next)) {
+setImportReviewBusy(false);
+setImportReviewStatus("The prepared import state is invalid. Local data was not changed.", "err");
+return;
+}
+
+if (mode === "replace") {
+try {
+setImportReviewStatus("Creating a recovery backup before replace...", "warn");
+exportLocalBackup("pre-import-replace", "wordarena-pre-import-backup");
+} catch (error) {
+setImportReviewBusy(false);
+setImportReviewStatus("Backup failed. Replace was blocked and local data was not changed.", "err");
+toast("Backup failed. Replace was blocked.", "err");
+return;
+}
+}
+
+let result = persistImportedData(next.vocab, next.wrongWords);
+if (!result.ok) {
+setImportReviewBusy(false);
+setImportReviewStatus(
+result.rollbackError
+? "Save failed and storage rollback could not be verified. Stop importing and export the current data before continuing."
+: "Save failed, possibly because browser storage is full. Local data was kept unchanged.",
+"err"
+);
+toast("Import was not saved. Local data was kept unchanged.", "err");
+return;
+}
+
+setImportReviewBusy(false);
+closeImportReviewDialog();
+if (mode === "replace") {
+toast(`Backup downloaded. Replaced local data with ${next.added} imported words.`, "ok");
+} else {
+toast(`Imported ${next.added} words. Kept local fields and skipped ${next.skipped} duplicates.`, next.added ? "ok" : "warn");
+}
+}
+
+function initImportReviewDialog() {
+let dialog = document.getElementById("importReviewDialog");
+if (!dialog) return;
+document.getElementById("importCancelBtn")?.addEventListener("click", closeImportReviewDialog);
+document.getElementById("importReviewCloseBtn")?.addEventListener("click", closeImportReviewDialog);
+document.getElementById("importMergeBtn")?.addEventListener("click", () => commitReviewedImport("merge"));
+document.getElementById("importReplaceBtn")?.addEventListener("click", () => commitReviewedImport("replace"));
+dialog.addEventListener("click", event => {
+if (event.target === dialog) closeImportReviewDialog();
+});
+dialog.addEventListener("keydown", event => {
+if (event.key === "Escape" && !importReviewState.busy) {
+event.preventDefault();
+closeImportReviewDialog();
+return;
+}
+if (event.key !== "Tab") return;
+let focusable = importDialogFocusable();
+if (!focusable.length) return;
+let first = focusable[0];
+let last = focusable[focusable.length - 1];
+if (event.shiftKey && document.activeElement === first) {
+event.preventDefault();
+last.focus();
+} else if (!event.shiftKey && document.activeElement === last) {
+event.preventDefault();
+first.focus();
+}
+});
+}
+
 async function importStarterWords() {
 if (await window.quizCloud?.importSamples()) {
 toast("Imported starter words to your cloud deck.", "ok");
@@ -2132,6 +2407,7 @@ let file = document.getElementById("importFile");
 exportBtn?.addEventListener("click", exportData);
 importBtn?.addEventListener("click", () => file?.click());
 sampleImportBtn?.addEventListener("click", importStarterWords);
+initImportReviewDialog();
 
 file?.addEventListener("change", async () => {
 let selectedFile = file.files?.[0];
@@ -2159,27 +2435,7 @@ if (!normalized || normalized.vocab.length === 0) {
 toast("Import file has no valid vocab.", "warn");
 return;
 }
-
-let replace = confirm(
-`Import ${normalized.vocab.length} words.\n\nOK = Replace current data\nCancel = Merge into current`
-);
-
-if (replace) {
-let importedAt = new Date().toISOString();
-setData(
-normalized.vocab.map(word => stampWordUpdatedAt(normalizeWord(word), importedAt)),
-normalized.wrongWords.map(word => stampWordUpdatedAt(normalizeWord(word), importedAt))
-);
-toast(`Imported ${normalized.vocab.length} words by replacing current data.`, "ok");
-} else {
-let vocabResult = mergeByEnglishWithStats(getVocab(), normalized.vocab);
-let wrongResult = mergeByEnglishWithStats(getWrongWords(), normalized.wrongWords);
-setData(
-vocabResult.merged,
-wrongResult.merged
-);
-toast(`Imported ${vocabResult.added} words. Skipped ${vocabResult.skipped} duplicates.`, vocabResult.added ? "ok" : "warn");
-}
+openImportReviewDialog(normalized, importBtn);
 } catch (error) {
 toast("Import failed. Please use a valid JSON backup.", "err");
 }

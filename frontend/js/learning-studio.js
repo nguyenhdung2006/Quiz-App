@@ -1463,6 +1463,9 @@ function parseCsv(text) {
 let lines = text.replace(/\r/g, "").split("\n").filter(line => line.trim());
 if (!lines.length) return [];
 let headers = splitCsvLine(lines.shift()).map(value => value.trim().toLowerCase());
+let hasEnglish = headers.includes("eng") || headers.includes("english");
+let hasVietnamese = headers.includes("vie") || headers.includes("vietnamese");
+if (!hasEnglish || !hasVietnamese) return [];
 return lines.map(line => {
 let values = splitCsvLine(line);
 let row = {};
@@ -1504,6 +1507,7 @@ current = "";
 current += char;
 }
 }
+if (quoted) throw new Error("Unterminated quoted CSV field.");
 values.push(current.trim());
 return values;
 }

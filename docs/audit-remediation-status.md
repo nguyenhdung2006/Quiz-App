@@ -1,6 +1,6 @@
 # Audit Remediation Status
 
-Last updated: 2026-08-15 03:47 +07
+Last updated: 2026-08-15 +07
 
 This document tracks the re-audit of `docs/full-project-audit.md` dated
 2026-08-09. Source at `HEAD` remains the authority; the audit report is treated
@@ -15,7 +15,7 @@ as a hypothesis list.
 | Working tree before fix | dirty due untracked audit attachments only | `git status --short` showed `docs/full-project-audit.docx`, `docs/full-project-audit.md`, `full-project-audit.docx`, `~$ll-project-audit.docx` |
 | Commits since 2026-08-09 | 4 docs/evidence commits | `git log --since='2026-08-09 00:00:00'` |
 | Backend tests | PASS, 106 tests, 0 failures/errors/skips | `cd backend; .\mvnw.cmd test` |
-| Frontend smoke | PASS, 51 Chromium tests | `npm run test:frontend` |
+| Frontend smoke | PASS, 60 Chromium tests | `npm run test:frontend` |
 | Frontend static build | PASS | `npm run build:frontend` |
 | Backend package | PASS | `cd backend; .\mvnw.cmd clean package -DskipTests` |
 | Docs drift check | PASS | `npm run test:docs-drift` |
@@ -43,7 +43,7 @@ as a hypothesis list.
 | AUD-010 | FIXED | S2 | P2 | D2 | Mobile app shell now keeps six primary workspace routes directly visible, moves Tools into a keyboard-usable disclosure, wraps sync status without clipping, keeps full status text in `aria-label`/`title`, and preserves table overflow inside its container | Dense desktop sidebar actions and long sync/status copy were compressed into the mobile first viewport | Compact mobile nav/status treatment at <=620px without changing desktop/768 behavior | Playwright viewport/overflow/menu/status/table checks at 320, 390, 768, and desktop | Done |
 | AUD-011 | PARTIALLY FIXED | S2 | P2 | D3 | `frontend/index.html` no longer has inline event handlers, inline style attributes, `javascript:` URLs, or inline script blocks; enforced CSP now removes `script-src 'unsafe-inline'`; report-only CSP tries stricter script/style policy | Legacy static markup used inline handlers; current JS still performs inline style updates for progress/timer/effects | Keep delegated `data-ui-action` wiring; defer style cleanup/report-only evidence before removing `style-src 'unsafe-inline'` | Static HTML guard, CSP header test, frontend critical flows, backend tests/package | Done for script CSP and handler removal only |
 | AUD-012 | FIXED | S2 | P2 | D2 | Controller routes for auth/profile/health/vocab/sync/review/analytics/AI exceeded `docs/API.md`; `docs/TESTING.md` stopped at V3 though migrations reached V4; product docs kept CSV in roadmap; backend PostgreSQL docs overstated auth requirements | Manual docs had no deterministic owner/check against route, env, migration, and product-state facts | Reconcile canonical docs and add a lightweight local docs drift check for routes, public endpoints, env keys, latest migration, CSV state, and auth wording | `npm run test:docs-drift`; backend regression suite | Done |
-| AUD-013 | Confirmed | S3 | P2 | D3 | Import uses `confirm` Replace/Merge and no automatic pre-replace backup | Destructive import relies on native confirm and user memory | Add preview modal, Replace/Merge/Cancel, pre-replace backup artifact, quota handling | Import replace/merge/quota tests | Later batch B |
+| AUD-013 | FIXED | S3 | P2 | D3 | JSON import now validates into a read-only preview; Replace/Merge/Cancel are explicit; Replace downloads backup first; storage failure rolls back and stays visible | Native confirm and `setData()` previously combined mode selection with non-transactional two-key persistence and no quota feedback | Keep the review dialog and local-wins merge rule; use capacity probe plus rollback while retaining legacy JSON formats | Malformed JSON/CSV, large preview, duplicate/cancel, backup failure/order, merge, replace, quota rollback, keyboard, CSP, and 320/390 viewport coverage | Done |
 | AUD-014 | Confirmed | S1 | P3 | D2 | Frontend analytics/review use `new Date()` local system timezone | Product timezone is implicit browser local time | Define product timezone policy before changing behavior | Date boundary tests | Not urgent |
 | AUD-015 | Confirmed | S1 | P3 | D2 | `package.json` has no lint/typecheck/coverage script | Vanilla JS project lacks quality tooling | Add lightweight changed-file syntax/lint visibility first | CI script verifies changed JS | Later |
 | AUD-016 | Confirmed candidate | S0 | P4 | D1 | `design-system.css` and `login-modern.css` are not linked by current HTML | Historical/unused CSS left in repo | Do not delete until reference and visual regression checks prove unused | Asset reference scan and screenshots | No |
@@ -68,6 +68,7 @@ as a hypothesis list.
 | AUD-010 | `frontend/index.html`, `frontend/js/app.js`, `frontend/css/modern.css`, `frontend/css/modern-responsive.css`, `tests/smoke.spec.js`, docs | Mobile primary nav is a compact 3-column grid; secondary Tools actions are reachable through a click/keyboard disclosure with Escape close; sync status uses compact visible copy where safe, wraps long warnings, and exposes full text via `aria-label`/`title`; current primary page sets `aria-current="page"`; profile trigger has a distinct account-menu name. | `node --check frontend\js\app.js` PASS; targeted Playwright app-shell/mobile tests PASS, 7 tests; `npm run test:frontend` PASS, 50 tests; `npm run build:frontend` PASS |
 | AUD-011 | `frontend/index.html`, `frontend/js/app.js`, `backend/src/main/java/com/quizapp/config/SecurityConfig.java`, `backend/src/test/java/com/quizapp/SecurityHeadersTests.java`, `tests/smoke.spec.js`, docs | Removed inline `oncontextmenu`/`onclick` handlers from the main frontend markup, replaced them with delegated `data-ui-action` listeners, added a static HTML guard against inline handlers/styles/scripts and `javascript:` URLs, removed `script-src 'unsafe-inline'` from enforced CSP, and added a stricter report-only CSP. `style-src 'unsafe-inline'` remains enforced because JS-driven style updates are still present. | `node --check frontend\js\app.js` PASS; targeted frontend critical flow tests PASS; `cd backend; .\mvnw.cmd -Dtest=SecurityHeadersTests test` PASS; full frontend/backend/package checks PASS |
 | AUD-012 | `docs/API.md`, `docs/TESTING.md`, `docs/product.md`, `docs/backend-postgres.md`, `docs/DEPLOYMENT.md`, `README.md`, `scripts/audit-docs-drift-check.mjs`, `package.json`, docs | API docs now cover current controller route groups and auth/public status; testing docs point to Flyway V4; product docs reflect CSV import/template as current and CSV export as future; backend PostgreSQL docs list public/bootstrap and actuator endpoints accurately; docs drift check fails on missing controller route docs, stale V3 migration wording, missing env docs, stale CSV roadmap, or old auth overstatement. | `npm run test:docs-drift` PASS; backend tests PASS; backend package PASS |
+| AUD-013 | `frontend/index.html`, `frontend/js/app.js`, `frontend/js/learning-studio.js`, `frontend/css/modern.css`, `frontend/css/modern-responsive.css`, `tests/smoke.spec.js`, docs | Replaced native-confirm JSON import with read-only preview and explicit actions; Replace is backup-first; Merge keeps local fields and skips normalized-English duplicates; imported sync metadata is ignored; capacity probe and two-key rollback prevent quota/write failures from changing live state; malformed CSV is rejected safely. | `node --check` for changed JS PASS; targeted import Playwright tests PASS; `npm run test:frontend` PASS, 60 tests; `npm run build:frontend` PASS |
 
 ## Commits
 
@@ -83,6 +84,7 @@ as a hypothesis list.
 | AUD-010 | this commit (`fix(audit): compact mobile navigation and sync status`) |
 | AUD-011 | this commit (`fix(audit): add CSP report-only guardrails`) |
 | AUD-012 | this commit (`docs(audit): reconcile API docs and drift checks`) |
+| AUD-013 | this commit (`fix(audit): add safe import preview and rollback`) |
 
 ## Blocked
 
@@ -96,6 +98,7 @@ as a hypothesis list.
 - AUD-010 is local UI remediation only; it does not provide real staging, OAuth, restore, smoke, or release evidence for AUD-006.
 - AUD-011 still has style CSP risk: `style-src 'unsafe-inline'` remains enforced until progress/timer/effects style updates are migrated and observed under report-only CSP.
 - AUD-012 does not add generated OpenAPI or deployed consumer contract evidence; it adds local route/docs drift checks only.
+- AUD-013 still relies on browser `localStorage`; site-data clearing and conservative capacity limits remain platform risks. It does not provide real staging/release evidence for AUD-006.
 
 ## Do Not Do Now
 
@@ -110,7 +113,6 @@ as a hypothesis list.
 1. Design a backwards-compatible client baseline/change-set for future safe stale merges without pretending it fixes already-stale devices.
 2. Run or prepare the staging restore/OAuth/CRUD/sync/delete evidence checklist without marking missing external work PASS.
 3. Keep the AUD-009 keyboard regression tests in the frontend smoke suite when Learning Studio tabs or modal controls change.
-4. Build import preview plus backup-before-replace, then add localStorage quota failure feedback.
-5. Decide metrics exposure/alert ownership policy and align security tests with it.
+4. Decide metrics exposure/alert ownership policy and align security tests with it.
 
 Current maturity after this batch: hardened MVP / portfolio-ready / controlled beta candidate. It is not production-ready because production env, real backup restore, and staging OAuth evidence are still incomplete.

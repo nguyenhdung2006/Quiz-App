@@ -351,6 +351,24 @@ async function statusDoesNotClipText(page) {
   });
 }
 
+async function uploadJsonImport(page, payload, filename = "audit-import.json") {
+  const content = typeof payload === "string" ? payload : JSON.stringify(payload);
+  await page.locator("#importFile").setInputFiles({
+    name: filename,
+    mimeType: "application/json",
+    buffer: Buffer.from(content)
+  });
+}
+
+async function readImportStorage(page, accountId = "local-guest") {
+  return page.evaluate((id) => ({
+    vocab: JSON.parse(localStorage.getItem(`quizAccount:${id}:vocab`) || "[]"),
+    wrongWords: JSON.parse(localStorage.getItem(`quizAccount:${id}:wrongWords`) || "[]"),
+    pendingDeletes: JSON.parse(localStorage.getItem(`quizAccount:${id}:cloudDeleteQueue`) || "[]"),
+    syncMeta: JSON.parse(localStorage.getItem(`quizAccount:${id}:cloudSyncMeta`) || "{}")
+  }), accountId);
+}
+
 async function loadConfigOnly(page) {
   await page.goto("about:blank");
   await page.evaluate(() => {
@@ -717,6 +735,224 @@ test("local vocabulary can add and delete a word", async ({ page }) => {
 
   expect(fatalConsole).toEqual([]);
 });
+
+test("malformed JSON and CSV imports do not mutate local vocabulary", async ({ page }) => {
+  const fatalConsole = await preparePage(page, {
+    vocab: [word("keep-local", "giu local", "audit", 101)]
+  });
+  const before = await readImportStorage(page, fatalConsole.accountId);
+
+  await uploadJsonImport(page, "{not valid json");
+  await expect(page.locator("#importReviewDialog")).toBeHidden();
+  expect(await readImportStorage(page, fatalConsole.accountId)).toEqual(before);
+
+  await page.getByRole("button", { name: "Studio" }).click();
+  await page.locator("#studioBtn").click();
+  await page.locator(".studioTab[data-studio-tab='csv']").click();
+  await page.locator("#csvImportFile").setInputFiles({
+    name: "malformed.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from('eng,vie\n"unterminated,khong hop le')
+  });
+  await expect(page.locator("#csvImportResult")).toContainText("CSV import failed");
+  expect(await readImportStorage(page, fatalConsole.accountId)).toEqual(before);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("large JSON import opens preview without mutating storage", async ({ page }) => {
+  const fatalConsole = await preparePage(page, {
+    vocab: [word("existing", "hien co", "audit", 102)]
+  });
+  const before = await readImportStorage(page, fatalConsole.accountId);
+  const incoming = Array.from({ length: 1200 }, (_, index) =>
+    word(`large-${index}`, `nghia-${index}`, "large", index + 2000)
+  );
+
+  await uploadJsonImport(page, { vocab: incoming, wrongWords: [] }, "large-import.json");
+  await expect(page.locator("#importReviewDialog")).toBeVisible();
+  await expect(page.locator("#importIncomingCount")).toHaveText("1200");
+  await expect(page.locator("#importMergeFinalCount")).toHaveText("1201");
+  expect(await readImportStorage(page, fatalConsole.accountId)).toEqual(before);
+
+  await page.locator("#importCancelBtn").click();
+  expect(await readImportStorage(page, fatalConsole.accountId)).toEqual(before);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("import preview reports duplicates and invalid rows; Escape cancels with no change", async ({ page }) => {
+  const localAlpha = { ...word("Alpha", "local meaning", "local", 103), note: "keep-local-note" };
+  const fatalConsole = await preparePage(page, { vocab: [localAlpha] });
+  const before = await readImportStorage(page, fatalConsole.accountId);
+
+  await uploadJsonImport(page, {
+    vocab: [
+      { ...word(" alpha ", "incoming meaning", "incoming", 104), note: "incoming-note" },
+      word("Beta", "beta meaning", "incoming", 105),
+      { eng: "invalid-without-meaning" }
+    ],
+    wrongWords: []
+  });
+
+  await expect(page.locator("#importReviewDialog")).toBeVisible();
+  await expect(page.locator("#importDuplicateCount")).toHaveText("1");
+  await expect(page.locator("#importInvalidCount")).toHaveText("1");
+  await expect(page.locator("#importMergeFinalCount")).toHaveText("2");
+  await expect(page.locator("#importReplaceFinalCount")).toHaveText("2");
+  await expect(page.locator("#importCancelBtn")).toBeFocused();
+
+  for (let index = 0; index < 8; index++) {
+    await page.keyboard.press("Tab");
+    expect(await activeElementIsInside(page, "#importReviewDialog")).toBeTruthy();
+  }
+  await page.keyboard.press("Shift+Tab");
+  expect(await activeElementIsInside(page, "#importReviewDialog")).toBeTruthy();
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#importReviewDialog")).toBeHidden();
+  await expect(page.locator("#importBtn")).toBeFocused();
+  expect(await readImportStorage(page, fatalConsole.accountId)).toEqual(before);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("safe merge keeps local fields, adds new words, and preserves sync state", async ({ page }) => {
+  const profile = { name: "Merge Import", email: "merge-import@example.com", avatar: "images/icon.png" };
+  const localAlpha = { ...word("Alpha", "local meaning", "local", 106), note: "keep-local-note" };
+  const pendingDeletes = [{ wordUid: "00000000-0000-4000-8000-000000000999", queuedAt: "2026-08-01T00:00:00.000Z" }];
+  const syncMeta = { lastKnownRevision: 22, lastSuccessfulSyncAt: "2026-08-01T00:00:00.000Z" };
+  const fatalConsole = await preparePage(page, { profile, vocab: [localAlpha], pendingDeletes, syncMeta });
+
+  await uploadJsonImport(page, {
+    vocab: [
+      { ...word(" alpha ", "incoming meaning", "incoming", 107), note: "overwrite-attempt" },
+      word("Beta", "beta meaning", "incoming", 108)
+    ],
+    wrongWords: [],
+    cloudSync: { meta: { lastKnownRevision: 999 }, pendingDeletes: [] }
+  });
+  await expect(page.locator("#importMetadataNote")).toContainText("ignores it");
+  await page.locator("#importMergeBtn").click();
+  await expect(page.locator("#importReviewDialog")).toBeHidden();
+
+  const after = await readImportStorage(page, fatalConsole.accountId);
+  expect(after.vocab.map(item => item.eng)).toEqual(["Alpha", "Beta"]);
+  expect(after.vocab.find(item => item.eng === "Alpha").note).toBe("keep-local-note");
+  expect(after.pendingDeletes).toEqual(pendingDeletes);
+  expect(after.syncMeta).toEqual(syncMeta);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("replace is blocked when the pre-import backup cannot be created", async ({ page }) => {
+  const fatalConsole = await preparePage(page, {
+    vocab: [word("keep-after-backup-fail", "giu lai", "audit", 109)]
+  });
+  const before = await readImportStorage(page, fatalConsole.accountId);
+  await page.evaluate(() => {
+    window.QUIZ_TEST_FORCE_EXPORT_FAILURE = true;
+  });
+
+  await uploadJsonImport(page, { vocab: [word("blocked-replace", "khong thay", "audit", 110)] });
+  await page.locator("#importReplaceBtn").click();
+
+  await expect(page.locator("#importReviewStatus")).toContainText("Backup failed");
+  await expect(page.locator("#importReviewDialog")).toBeVisible();
+  expect(await readImportStorage(page, fatalConsole.accountId)).toEqual(before);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("replace downloads backup before committing and preserves sync metadata", async ({ page }) => {
+  const profile = { name: "Replace Import", email: "replace-import@example.com", avatar: "images/icon.png" };
+  const pendingDeletes = [{ legacyWordId: "77", queuedAt: "2026-08-02T00:00:00.000Z" }];
+  const syncMeta = { lastKnownRevision: 31, lastSuccessfulSyncAt: "2026-08-02T00:00:00.000Z" };
+  const fatalConsole = await preparePage(page, {
+    profile,
+    vocab: [word("old-local", "cu", "audit", 111)],
+    wrongWords: [word("old-wrong", "sai cu", "audit", 112)],
+    pendingDeletes,
+    syncMeta
+  });
+
+  await page.evaluate((accountId) => {
+    const originalClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (String(this.download).includes("wordarena-pre-import-backup")) {
+        window.__auditBackupObservedState = JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]").map(item => item.eng);
+      }
+      return originalClick.call(this);
+    };
+  }, fatalConsole.accountId);
+
+  await uploadJsonImport(page, {
+    version: 2,
+    vocab: [word("new-local", "moi", "audit", 113)],
+    wrongWords: [word("new-wrong", "sai moi", "audit", 114)],
+    cloudSync: { meta: { lastKnownRevision: 999 }, pendingDeletes: [] }
+  });
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#importReplaceBtn").click();
+  const download = await downloadPromise;
+
+  expect(download.suggestedFilename()).toContain("wordarena-pre-import-backup");
+  expect(await page.evaluate(() => window.__auditBackupObservedState)).toEqual(["old-local"]);
+  const after = await readImportStorage(page, fatalConsole.accountId);
+  expect(after.vocab.map(item => item.eng)).toEqual(["new-local"]);
+  expect(after.wrongWords.map(item => item.eng)).toEqual(["new-wrong"]);
+  expect(after.pendingDeletes).toEqual(pendingDeletes);
+  expect(after.syncMeta).toEqual(syncMeta);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("replace quota failure rolls storage back and surfaces a visible error", async ({ page }) => {
+  const profile = { name: "Quota Import", email: "quota-import@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    profile,
+    vocab: [word("quota-old", "du lieu cu", "audit", 115)],
+    wrongWords: [word("quota-old-wrong", "sai cu", "audit", 116)]
+  });
+  const before = await readImportStorage(page, fatalConsole.accountId);
+
+  await page.evaluate(() => {
+    const originalSetItem = Storage.prototype.setItem;
+    let thrown = false;
+    Storage.prototype.setItem = function (key, value) {
+      if (!thrown && String(key).endsWith(":wrongWords")) {
+        thrown = true;
+        const error = new DOMException("Storage quota exceeded", "QuotaExceededError");
+        throw error;
+      }
+      return originalSetItem.call(this, key, value);
+    };
+  });
+
+  await uploadJsonImport(page, {
+    vocab: [word("quota-new", "du lieu moi", "audit", 117)],
+    wrongWords: [word("quota-new-wrong", "sai moi", "audit", 118)]
+  });
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator("#importReplaceBtn").click();
+  await downloadPromise;
+
+  await expect(page.locator("#importReviewStatus")).toContainText("storage is full");
+  await expect(page.locator("#importReviewDialog")).toBeVisible();
+  expect(await readImportStorage(page, fatalConsole.accountId)).toEqual(before);
+  expect(fatalConsole).toEqual([]);
+});
+
+for (const width of [320, 390]) {
+  test(`import review dialog stays within a ${width}px mobile viewport`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 780 });
+    const fatalConsole = await preparePage(page, {
+      vocab: [word("mobile-local", "mobile", "audit", width)]
+    });
+
+    await uploadJsonImport(page, {
+      vocab: [word("mobile-incoming-with-a-long-name", "mobile incoming", "audit", width + 1)]
+    });
+    await expect(page.locator("#importReviewDialog")).toBeVisible();
+    await expectWithinViewport(page, ".importReviewPanel");
+    await expectNoDocumentHorizontalOverflow(page);
+    expect(fatalConsole).toEqual([]);
+  });
+}
 
 test("sync merge collapses spacing and case duplicate English words", async ({ page }) => {
   const profile = { name: "Cloud Tester", email: "cloud@example.com", avatar: "images/icon.png" };

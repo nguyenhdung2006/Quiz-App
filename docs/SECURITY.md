@@ -151,6 +151,19 @@ The request ID comes from `X-Request-ID` only when it is short and contains safe
 
 Root logging should stay at `INFO` in production. `DEBUG`, `TRACE`, and `ALL` are rejected by the production environment gate because they can expose framework internals and excessive request context.
 
+## Local Data Import Safety
+
+JSON import does not apply file content during parsing or preview. Replace is an
+explicit destructive action and requires a successful downloadable backup
+first. Merge keeps local fields on duplicate English keys. Imported sync
+metadata and pending deletion data are not trusted or applied.
+
+Import persistence uses a capacity probe and restores prior vocabulary and
+wrong-bank storage values if a write fails, including quota failures. The UI
+surfaces the failure without logging raw vocabulary content. Browser site-data
+clearing and the inherent capacity limits of `localStorage` remain platform
+risks; this remediation does not migrate data to IndexedDB.
+
 ## Rate Limit Policy
 
 AI endpoints are the current cost-sensitive surface and use an in-memory per-user limiter:
