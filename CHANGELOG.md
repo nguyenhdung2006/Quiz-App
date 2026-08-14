@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-15
+
+- Hardened Learning Studio modal accessibility with initial focus, Tab/Shift+Tab focus trap, Escape close, opener focus restore, ARIA dialog description, ARIA tab/panel state, roving tabindex, and keyboard tab navigation tests.
+
 ## 2026-08-11
 
 - Hardened the production release gate so production environment validation is

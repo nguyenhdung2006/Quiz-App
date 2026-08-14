@@ -289,6 +289,13 @@ async function preparePage(page, options = {}) {
   return fatalConsole;
 }
 
+async function activeElementIsInside(page, selector) {
+  return page.evaluate((targetSelector) => {
+    const root = document.querySelector(targetSelector);
+    return Boolean(root && root.contains(document.activeElement));
+  }, selector);
+}
+
 async function loadConfigOnly(page) {
   await page.goto("about:blank");
   await page.evaluate(() => {
@@ -1514,6 +1521,85 @@ test("review queue renders ratings and accepts one local review", async ({ page 
   await expect(page.locator("#reviewTodayBody")).toContainText("Review Complete");
   await expect(page.locator(".reviewSessionOverview")).toContainText("Progress: 1 / 1");
   await expect(page.locator(".reviewCompletionStats")).toContainText("Good");
+
+  expect(fatalConsole).toEqual([]);
+});
+
+test("learning studio modal traps focus, closes with Escape, and restores focus", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const fatalConsole = await preparePage(page);
+
+  await page.getByRole("button", { name: "Studio" }).click();
+  await page.locator("#studioBtn").click();
+
+  const modal = page.locator("#learningStudio");
+  await expect(modal).toBeVisible();
+  await expect(modal).toHaveAttribute("role", "dialog");
+  await expect(modal).toHaveAttribute("aria-modal", "true");
+  await expect(modal).toHaveAttribute("aria-labelledby", "studioTitle");
+  await expect(modal).toHaveAttribute("aria-describedby", "studioDescription");
+  await expect(page.locator("#studioCloseBtn")).toBeFocused();
+
+  await page.keyboard.press("Shift+Tab");
+  expect(await activeElementIsInside(page, "#learningStudio")).toBeTruthy();
+
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#studioCloseBtn")).toBeFocused();
+
+  for (let index = 0; index < 12; index++) {
+    await page.keyboard.press("Tab");
+    expect(await activeElementIsInside(page, "#learningStudio")).toBeTruthy();
+  }
+
+  await page.keyboard.press("Escape");
+  await expect(modal).toBeHidden();
+  await expect(page.locator("#studioBtn")).toBeFocused();
+
+  expect(fatalConsole).toEqual([]);
+});
+
+test("learning studio tabs expose ARIA state and keyboard navigation", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+
+  await page.getByRole("button", { name: "Studio" }).click();
+  await page.locator("#studioBtn").click();
+
+  const tablist = page.locator(".studioTabs");
+  await expect(tablist).toHaveAttribute("role", "tablist");
+  await expect(tablist.getByRole("tab")).toHaveCount(7);
+
+  const profileTab = page.locator(".studioTab[data-studio-tab='profile']");
+  const historyTab = page.locator(".studioTab[data-studio-tab='history']");
+  const csvTab = page.locator(".studioTab[data-studio-tab='csv']");
+  await expect(profileTab).toHaveAttribute("aria-selected", "true");
+  await expect(profileTab).toHaveAttribute("aria-controls", "studioViewProfile");
+  await expect(page.locator("#studioViewProfile")).toHaveAttribute("role", "tabpanel");
+  await expect(page.locator("#studioViewProfile")).toHaveAttribute("aria-labelledby", await profileTab.getAttribute("id"));
+  await expect(page.locator("#studioViewProfile")).toBeVisible();
+  await expect(page.locator("#studioViewHistory")).toBeHidden();
+
+  await profileTab.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(historyTab).toBeFocused();
+  await expect(historyTab).toHaveAttribute("aria-selected", "true");
+  await expect(historyTab).toHaveAttribute("tabindex", "0");
+  await expect(profileTab).toHaveAttribute("tabindex", "-1");
+  await expect(page.locator("#studioViewHistory")).toBeVisible();
+  await expect(page.locator("#studioViewProfile")).toBeHidden();
+
+  await page.keyboard.press("End");
+  await expect(csvTab).toBeFocused();
+  await expect(csvTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#studioViewCsv")).toBeVisible();
+
+  await page.keyboard.press("Home");
+  await expect(profileTab).toBeFocused();
+  await expect(profileTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator("#studioViewProfile")).toBeVisible();
+
+  await page.keyboard.press("ArrowLeft");
+  await expect(csvTab).toBeFocused();
+  await expect(page.locator("#studioViewCsv")).toBeVisible();
 
   expect(fatalConsole).toEqual([]);
 });

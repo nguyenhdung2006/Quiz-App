@@ -83,6 +83,14 @@ recommended: true
 };
 
 const STARTER_DECK_KEYS = ["daily-life", "conversation", "travel", "university", "toeic", "ielts", "academic"];
+const STUDIO_FOCUSABLE_SELECTOR = [
+"a[href]",
+"button:not([disabled])",
+"textarea:not([disabled])",
+"input:not([disabled])",
+"select:not([disabled])",
+"[tabindex]:not([tabindex='-1'])"
+].join(",");
 
 const BADGES = [
 { code: "FIRST_WORD", name: "First Word", description: "Add your first word.", test: () => getWords().length > 0 },
@@ -154,6 +162,7 @@ let aiDeckCooldownUntil = 0;
 let aiDeckCooldownTimer = null;
 let lastAiDeckRequest = null;
 let generatedCuratedDeckWords = [];
+let studioLastFocusedElement = null;
 const CURATED_DECK_ITEMS = Array.isArray(window.WORD_ARENA_CURATED_DECKS) ? window.WORD_ARENA_CURATED_DECKS : [];
 const CURATED_TOPIC_ALIASES = {
 ielts: "ielts",
@@ -220,29 +229,152 @@ return getHistory()
 .reduce((sum, item) => sum + Number(item.correctAnswers || 0), 0);
 }
 
-function openStudio(tab = "profile") {
+function studioPanelId(tab) {
+return `studioView${tab[0].toUpperCase()}${tab.slice(1)}`;
+}
+
+function getStudioOverlay() {
+return document.getElementById("learningStudio");
+}
+
+function isStudioOpen() {
+return !getStudioOverlay()?.classList.contains("hidden");
+}
+
+function getStudioTabs() {
+return Array.from(document.querySelectorAll(".studioTab"));
+}
+
+function isVisibleFocusable(element) {
+return Boolean(element && !element.disabled && element.tabIndex >= 0 && (element.offsetWidth || element.offsetHeight || element.getClientRects().length));
+}
+
+function getStudioFocusableElements() {
+let overlay = getStudioOverlay();
+if (!overlay) return [];
+return Array.from(overlay.querySelectorAll(STUDIO_FOCUSABLE_SELECTOR)).filter(isVisibleFocusable);
+}
+
+function setupStudioA11y() {
+let overlay = getStudioOverlay();
+if (!overlay) return;
+overlay.setAttribute("role", "dialog");
+overlay.setAttribute("aria-modal", "true");
+overlay.setAttribute("aria-labelledby", "studioTitle");
+overlay.tabIndex = -1;
+if (document.getElementById("studioDescription")) overlay.setAttribute("aria-describedby", "studioDescription");
+document.getElementById("studioCloseBtn")?.setAttribute("aria-label", "Close learning studio");
+document.querySelector(".studioTabs")?.setAttribute("role", "tablist");
+getStudioTabs().forEach(button => {
+let tab = button.dataset.studioTab;
+let panelId = studioPanelId(tab);
+button.id = button.id || `studioTab${tab[0].toUpperCase()}${tab.slice(1)}`;
+button.setAttribute("role", "tab");
+button.setAttribute("aria-controls", panelId);
+});
+document.querySelectorAll(".studioView").forEach(view => {
+let tab = view.id.replace(/^studioView/, "");
+let tabId = `studioTab${tab}`;
+view.setAttribute("role", "tabpanel");
+view.setAttribute("aria-labelledby", tabId);
+});
+}
+
+function focusStudioInitial() {
+let closeButton = document.getElementById("studioCloseBtn");
+if (isVisibleFocusable(closeButton)) {
+closeButton.focus();
+return;
+}
+let firstFocusable = getStudioFocusableElements()[0];
+if (firstFocusable) firstFocusable.focus();
+}
+
+function restoreStudioFocus() {
+let fallback = document.getElementById("studioBtn");
+let target = studioLastFocusedElement?.isConnected ? studioLastFocusedElement : fallback;
+studioLastFocusedElement = null;
+if (isVisibleFocusable(target)) target.focus();
+}
+
+function trapStudioFocus(event) {
+let focusable = getStudioFocusableElements();
+if (!focusable.length) {
+event.preventDefault();
+getStudioOverlay()?.focus();
+return;
+}
+let first = focusable[0];
+let last = focusable[focusable.length - 1];
+let active = document.activeElement;
+if (!getStudioOverlay()?.contains(active)) {
+event.preventDefault();
+first.focus();
+return;
+}
+if (event.shiftKey && active === first) {
+event.preventDefault();
+last.focus();
+return;
+}
+if (!event.shiftKey && active === last) {
+event.preventDefault();
+first.focus();
+}
+}
+
+function openStudio(tab = "profile", trigger = document.activeElement) {
 let overlay = document.getElementById("learningStudio");
 if (!overlay) return;
+if (!isStudioOpen() && trigger instanceof HTMLElement) studioLastFocusedElement = trigger;
 renderStudio();
+setupStudioA11y();
 switchStudioTab(tab);
 overlay.classList.remove("hidden");
 document.body.classList.add("modalOpen");
+requestAnimationFrame(focusStudioInitial);
 }
 
 function closeStudio() {
 let overlay = document.getElementById("learningStudio");
 if (!overlay) return;
+let wasOpen = !overlay.classList.contains("hidden");
 overlay.classList.add("hidden");
 document.body.classList.remove("modalOpen");
+if (wasOpen) restoreStudioFocus();
 }
 
-function switchStudioTab(tab) {
-document.querySelectorAll(".studioTab").forEach(button => {
-button.classList.toggle("is-active", button.dataset.studioTab === tab);
+function switchStudioTab(tab, options = {}) {
+let tabs = getStudioTabs();
+tabs.forEach(button => {
+let active = button.dataset.studioTab === tab;
+button.classList.toggle("is-active", active);
+button.setAttribute("aria-selected", String(active));
+button.tabIndex = active ? 0 : -1;
+if (active && options.focusTab) button.focus();
 });
 document.querySelectorAll(".studioView").forEach(view => {
-view.classList.toggle("is-active", view.id === `studioView${tab[0].toUpperCase()}${tab.slice(1)}`);
+let active = view.id === studioPanelId(tab);
+view.classList.toggle("is-active", active);
+view.hidden = !active;
+view.setAttribute("aria-hidden", String(!active));
 });
+}
+
+function moveStudioTabFocus(event) {
+let tabs = getStudioTabs();
+let currentIndex = tabs.indexOf(event.currentTarget);
+if (currentIndex < 0) return;
+let nextIndex = currentIndex;
+if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabs.length;
+else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+else if (event.key === "Home") nextIndex = 0;
+else if (event.key === "End") nextIndex = tabs.length - 1;
+else if (event.key === "Enter" || event.key === " ") nextIndex = currentIndex;
+else return;
+event.preventDefault();
+let nextTab = tabs[nextIndex];
+switchStudioTab(nextTab.dataset.studioTab, { focusTab: true });
 }
 
 function renderStudio() {
@@ -1416,8 +1548,9 @@ URL.revokeObjectURL(url);
 }
 
 function initStudio() {
-document.getElementById("studioBtn")?.addEventListener("click", () => openStudio("profile"));
-document.getElementById("aiDeckBtn")?.addEventListener("click", () => openStudio("aiDeck"));
+setupStudioA11y();
+document.getElementById("studioBtn")?.addEventListener("click", event => openStudio("profile", event.currentTarget));
+document.getElementById("aiDeckBtn")?.addEventListener("click", event => openStudio("aiDeck", event.currentTarget));
 document.getElementById("studioCloseBtn")?.addEventListener("click", closeStudio);
 document.getElementById("studioSyncBtn")?.addEventListener("click", () => {
 window.quizCloud?.syncNow?.();
@@ -1425,10 +1558,14 @@ renderStudio();
 toastStudio("Studio refreshed.");
 });
 document.querySelectorAll("[data-studio-tab]").forEach(button => {
-button.addEventListener("click", () => openStudio(button.dataset.studioTab));
+button.addEventListener("click", event => {
+if (button.classList.contains("studioTab")) return;
+openStudio(button.dataset.studioTab, event.currentTarget);
+});
 });
 document.querySelectorAll(".studioTab").forEach(button => {
-button.addEventListener("click", () => switchStudioTab(button.dataset.studioTab));
+button.addEventListener("click", () => switchStudioTab(button.dataset.studioTab, { focusTab: true }));
+button.addEventListener("keydown", moveStudioTabFocus);
 });
 document.getElementById("startFocusBtn")?.addEventListener("click", startFocus);
 document.getElementById("curatedGenerateBtn")?.addEventListener("click", generateCuratedDeck);
@@ -1452,7 +1589,13 @@ document.getElementById("learningStudio")?.addEventListener("click", event => {
 if (event.target.id === "learningStudio") closeStudio();
 });
 document.addEventListener("keydown", event => {
-if (event.key === "Escape" && !document.getElementById("learningStudio")?.classList.contains("hidden")) closeStudio();
+if (!isStudioOpen()) return;
+if (event.key === "Escape") {
+event.preventDefault();
+closeStudio();
+return;
+}
+if (event.key === "Tab") trapStudioFocus(event);
 });
 }
 
