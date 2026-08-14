@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 class SecurityHeadersTests {
     private static final String CSP = "Content-Security-Policy";
+    private static final String CSP_REPORT_ONLY = "Content-Security-Policy-Report-Only";
     private static final String HSTS = "Strict-Transport-Security";
 
     @Autowired
@@ -34,11 +35,15 @@ class SecurityHeadersTests {
                 .andExpect(header().string(CSP, containsString("default-src 'self'")))
                 .andExpect(header().string(CSP, containsString("object-src 'none'")))
                 .andExpect(header().string(CSP, containsString("frame-ancestors 'none'")))
-                .andExpect(header().string(CSP, containsString("script-src 'self' 'unsafe-inline'")))
+                .andExpect(header().string(CSP, containsString("script-src 'self'")))
+                .andExpect(header().string(CSP, not(containsString("script-src 'self' 'unsafe-inline'"))))
                 .andExpect(header().string(CSP, containsString("style-src 'self' 'unsafe-inline'")))
                 .andExpect(header().string(CSP, containsString("img-src 'self' data: https:")))
                 .andExpect(header().string(CSP, containsString("connect-src 'self' http://localhost:8080 http://127.0.0.1:8080 https://quiz-app-xd9m.onrender.com")))
                 .andExpect(header().string(CSP, not(containsString("unsafe-eval"))))
+                .andExpect(header().string(CSP_REPORT_ONLY, containsString("script-src 'self'")))
+                .andExpect(header().string(CSP_REPORT_ONLY, containsString("style-src 'self'")))
+                .andExpect(header().string(CSP_REPORT_ONLY, not(containsString("unsafe-inline"))))
                 .andExpect(header().doesNotExist(HSTS));
     }
 

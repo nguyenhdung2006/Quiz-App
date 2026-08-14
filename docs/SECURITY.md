@@ -83,7 +83,7 @@ object-src 'none';
 frame-ancestors 'none';
 frame-src 'none';
 form-action 'self';
-script-src 'self' 'unsafe-inline';
+script-src 'self';
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: https:;
 font-src 'self' data:;
@@ -91,7 +91,16 @@ media-src 'self';
 connect-src 'self' http://localhost:8080 http://127.0.0.1:8080 https://quiz-app-xd9m.onrender.com
 ```
 
-Current limitation: `unsafe-inline` is still required because `frontend/index.html` uses inline event handlers such as `onclick` and `oncontextmenu`, and the app still relies on static script tags rather than a bundled nonce/hash workflow. The policy does not allow `unsafe-eval`.
+The backend also sends `Content-Security-Policy-Report-Only` with stricter
+`script-src 'self'` and `style-src 'self'` directives so future inline style
+work can be observed before enforcement.
+
+Current limitation: `frontend/index.html` no longer uses inline event handlers
+or `javascript:` URLs, so `script-src 'unsafe-inline'` is no longer required in
+the enforced policy. `style-src 'unsafe-inline'` remains in the enforced policy
+because the current static frontend still uses JavaScript-driven inline style
+updates for progress bars, timers, effects, and small transitions. The policy
+does not allow `unsafe-eval`.
 
 ## Profile And Avatar Safety
 

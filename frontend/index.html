@@ -27,8 +27,8 @@
 
 </head>
 
-<body oncontextmenu="return false">
-<button class="homeBtn" onclick="goHome()" type="button" aria-label="Go home" title="Go home">
+<body>
+<button class="homeBtn" data-ui-action="go-home" type="button" aria-label="Go home" title="Go home">
 <span class="btnIcon" aria-hidden="true">&#8962;</span>
 <span>Home</span>
 </button>
@@ -114,7 +114,7 @@
 <button class="utilityBtn appQuickAction" type="button" data-app-page="review">Review Today</button>
 <button class="miniBtn appQuickAction" type="button" data-app-page="aiDeck">Generate AI Deck</button>
 <button class="miniBtn appQuickAction" type="button" data-app-page="vocabulary">Add Words</button>
-<button class="miniBtn appQuickAction" type="button" onclick="startQuiz()">Start Quiz</button>
+<button class="miniBtn appQuickAction" type="button" data-ui-action="start-quiz">Start Quiz</button>
 </div>
 </section>
 
@@ -505,7 +505,7 @@
 </details>
 
 <div class="addActions">
-<button class="addBtn" onclick="addWord()" aria-label="Add word" title="Add word">+</button>
+<button class="addBtn" type="button" data-ui-action="add-word" aria-label="Add word" title="Add word">+</button>
 <button class="miniBtn" id="addQuizNowBtn" type="button">Add + Quiz</button>
 <button class="miniBtn" id="previewSpeakBtn" type="button">Speak</button>
 <button class="miniBtn" id="generateExampleBtn" type="button">Example</button>
@@ -631,11 +631,11 @@
 
 <div class="practiceActions" data-app-page-panel="dashboard">
 
-<button class="bigBtn startBtn" onclick="startQuiz()">Start Quiz</button>
-<button class="bigBtn wrongBtn" onclick="openMistakeScreen()">Practice Wrong Words</button>
-<button class="bigBtn favoriteBtn" onclick="practiceFavorites()">Practice Favorites</button>
-<button class="bigBtn dailyBtn" onclick="startDailyChallenge()"><span class="btnIcon" aria-hidden="true">&#9719;</span><span>Daily Challenge</span></button>
-<button class="bigBtn challengeBtn" onclick="openChallengeMenu()"><span class="btnIcon" aria-hidden="true">&#9889;</span><span>Challenge</span></button>
+<button class="bigBtn startBtn" type="button" data-ui-action="start-quiz">Start Quiz</button>
+<button class="bigBtn wrongBtn" type="button" data-ui-action="open-mistake-screen">Practice Wrong Words</button>
+<button class="bigBtn favoriteBtn" type="button" data-ui-action="practice-favorites">Practice Favorites</button>
+<button class="bigBtn dailyBtn" type="button" data-ui-action="start-daily-challenge"><span class="btnIcon" aria-hidden="true">&#9719;</span><span>Daily Challenge</span></button>
+<button class="bigBtn challengeBtn" type="button" data-ui-action="open-challenge-menu"><span class="btnIcon" aria-hidden="true">&#9889;</span><span>Challenge</span></button>
 
 </div>
 
@@ -645,7 +645,7 @@
 <div id="challengeMenu" class="hidden">
 
 <div class="challengePanel" role="dialog" aria-modal="true" aria-labelledby="challengeTitle">
-<button class="challengeCloseBtn" onclick="closeChallengeMenu()" type="button" aria-label="Close challenge menu">&times;</button>
+<button class="challengeCloseBtn" data-ui-action="close-challenge-menu" type="button" aria-label="Close challenge menu">&times;</button>
 <div class="challengeHeader">
 <span class="challengeBadge">&#9889;</span>
 <div>
@@ -654,10 +654,10 @@
 </div>
 </div>
 <div class="challengeLevels">
-<button class="challengeLevelBtn easyLevel" onclick="startChallenge(20)"><span class="levelIcon" aria-hidden="true">&#10003;</span><span>Easy</span><strong>20s</strong></button>
-<button class="challengeLevelBtn mediumLevel" onclick="startChallenge(15)"><span class="levelIcon" aria-hidden="true">&#9719;</span><span>Medium</span><strong>15s</strong></button>
-<button class="challengeLevelBtn hardLevel" onclick="startChallenge(10)"><span class="levelIcon" aria-hidden="true">!</span><span>Hard</span><strong>10s</strong></button>
-<button class="challengeLevelBtn masterLevel" onclick="startChallenge(5)"><span class="levelIcon" aria-hidden="true">&#9670;</span><span>Master</span><strong>5s</strong></button>
+<button class="challengeLevelBtn easyLevel" type="button" data-ui-action="start-challenge" data-challenge-seconds="20"><span class="levelIcon" aria-hidden="true">&#10003;</span><span>Easy</span><strong>20s</strong></button>
+<button class="challengeLevelBtn mediumLevel" type="button" data-ui-action="start-challenge" data-challenge-seconds="15"><span class="levelIcon" aria-hidden="true">&#9719;</span><span>Medium</span><strong>15s</strong></button>
+<button class="challengeLevelBtn hardLevel" type="button" data-ui-action="start-challenge" data-challenge-seconds="10"><span class="levelIcon" aria-hidden="true">!</span><span>Hard</span><strong>10s</strong></button>
+<button class="challengeLevelBtn masterLevel" type="button" data-ui-action="start-challenge" data-challenge-seconds="5"><span class="levelIcon" aria-hidden="true">&#9670;</span><span>Master</span><strong>5s</strong></button>
 </div>
 </div>
 </div>
@@ -683,9 +683,9 @@
 
 <br>
 
-<button class="bigBtn backQuestionBtn" onclick="prevQuestion()">Back</button>
-<button class="bigBtn submitBtn" onclick="submitAnswer()">Submit</button>
-<button class="bigBtn nextBtn" onclick="nextQuestion()">Next</button>
+<button class="bigBtn backQuestionBtn" type="button" data-ui-action="prev-question">Back</button>
+<button class="bigBtn submitBtn" type="button" data-ui-action="submit-answer">Submit</button>
+<button class="bigBtn nextBtn" type="button" data-ui-action="next-question">Next</button>
 
 </div>
 
@@ -706,8 +706,8 @@
 <p id="grade"></p>
 <p id="comment"></p>
 
-<button class="bigBtn reviewBtn" onclick="openReviewScreen()">Review Answers</button>
-<button class="bigBtn backBtn" onclick="goHome()">Back</button>
+<button class="bigBtn reviewBtn" type="button" data-ui-action="open-review-screen">Review Answers</button>
+<button class="bigBtn backBtn" type="button" data-ui-action="go-home">Back</button>
 
 </div>
 </div>
@@ -718,15 +718,15 @@
 <p>See what you picked, the correct answer, and the example or note saved with each word.</p>
 </div>
 <div id="reviewList" class="reviewList"></div>
-<button class="bigBtn backBtn" onclick="showResultScreen()">Back To Result</button>
-<button class="bigBtn startBtn" onclick="goHome()">Home</button>
+<button class="bigBtn backBtn" type="button" data-ui-action="show-result-screen">Back To Result</button>
+<button class="bigBtn startBtn" type="button" data-ui-action="go-home">Home</button>
 </div>
 
 <div id="mistakeScreen" class="hidden">
 
 <h2>Mistake Words</h2>
 
-<button onclick="clearMastered()" class="clearBtn">
+<button type="button" data-ui-action="clear-mastered" class="clearBtn">
     Clear Mastered
 </button>
 
@@ -757,8 +757,8 @@
 
 <br><br>
 
-<button class="bigBtn startBtn" onclick="practiceWrong()">Start Practice</button>
-<button class="bigBtn backBtn" onclick="goHome()">Back</button>
+<button class="bigBtn startBtn" type="button" data-ui-action="practice-wrong">Start Practice</button>
+<button class="bigBtn backBtn" type="button" data-ui-action="go-home">Back</button>
 
 </div>
 

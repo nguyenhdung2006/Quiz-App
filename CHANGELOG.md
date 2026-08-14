@@ -4,6 +4,7 @@
 
 - Hardened Learning Studio modal accessibility with initial focus, Tab/Shift+Tab focus trap, Escape close, opener focus restore, ARIA dialog description, ARIA tab/panel state, roving tabindex, and keyboard tab navigation tests.
 - Compacted mobile app-shell navigation by keeping primary routes visible, moving secondary tools into a keyboard-usable disclosure, wrapping sync status text safely, and adding viewport overflow tests for 320, 390, 768, and desktop widths.
+- Removed inline event handlers from the main frontend markup, moved those actions to delegated JavaScript listeners, removed `script-src 'unsafe-inline'` from enforced CSP, and added a stricter CSP report-only header while keeping `style-src 'unsafe-inline'` pending a style cleanup phase.
 
 ## 2026-08-11
 

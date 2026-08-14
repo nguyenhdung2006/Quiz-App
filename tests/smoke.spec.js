@@ -1,4 +1,6 @@
 const { test, expect } = require("@playwright/test");
+const fs = require("fs");
+const path = require("path");
 
 const sampleWords = [
   word("smoke-test-word", "tu kiem thu", "test", 0),
@@ -46,6 +48,26 @@ function word(eng, vie, tag, index) {
     }
   };
 }
+
+test("frontend html has no inline event handlers or javascript urls", async () => {
+  const htmlFiles = ["index.html", "login.html"];
+  const findings = [];
+  for (const file of htmlFiles) {
+    const html = fs.readFileSync(path.join(__dirname, "..", "frontend", file), "utf8");
+    const checks = [
+      { label: "inline event handler", regex: /\son[a-z]+\s*=/gi },
+      { label: "inline style attribute", regex: /\sstyle\s*=/gi },
+      { label: "javascript url", regex: /javascript:/gi },
+      { label: "inline script block", regex: /<script\b(?![^>]*\bsrc=)[^>]*>/gi }
+    ];
+    for (const check of checks) {
+      for (const match of html.matchAll(check.regex)) {
+        findings.push(`${file}: ${check.label}: ${match[0]}`);
+      }
+    }
+  }
+  expect(findings).toEqual([]);
+});
 
 async function preparePage(page, options = {}) {
   const fatalConsole = [];

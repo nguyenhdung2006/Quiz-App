@@ -37,6 +37,13 @@ At `620px` and below, the app shell keeps the six primary workspace routes visib
 
 Sync status may use shorter visible text on small screens, but the full status message must remain available through `aria-label` and `title`. The vocabulary table is intentionally wider than mobile screens and must keep horizontal scrolling inside `.table-container`, not on the document.
 
+## Inline-Free Markup
+
+`frontend/index.html` must not reintroduce inline event handlers, inline `style=`
+attributes, `javascript:` URLs, or inline script blocks. Use stable ids,
+`data-ui-action`, or existing module init functions with `addEventListener`
+instead. The smoke suite has a static guard for `index.html` and `login.html`.
+
 # Sync V2 Local Identity
 
 Frontend words now carry a stable `wordUid`. `normalizeWord()` creates a UUID for legacy/local words and `main.js` persists normalized data on startup so offline-created identity survives rename, refresh, and later login.

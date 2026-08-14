@@ -38,6 +38,7 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
 import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
+import org.springframework.security.web.header.writers.StaticHeadersWriter;
 import org.springframework.util.StringUtils;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -74,8 +75,22 @@ public class SecurityConfig {
             "frame-ancestors 'none'",
             "frame-src 'none'",
             "form-action 'self'",
-            "script-src 'self' 'unsafe-inline'",
+            "script-src 'self'",
             "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: https:",
+            "font-src 'self' data:",
+            "media-src 'self'",
+            "connect-src 'self' http://localhost:8080 http://127.0.0.1:8080 https://quiz-app-xd9m.onrender.com"
+    );
+    private static final String CONTENT_SECURITY_POLICY_REPORT_ONLY = String.join("; ",
+            "default-src 'self'",
+            "base-uri 'self'",
+            "object-src 'none'",
+            "frame-ancestors 'none'",
+            "frame-src 'none'",
+            "form-action 'self'",
+            "script-src 'self'",
+            "style-src 'self'",
             "img-src 'self' data: https:",
             "font-src 'self' data:",
             "media-src 'self'",
@@ -92,6 +107,10 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .headers(headers -> headers
                         .contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY))
+                        .addHeaderWriter(new StaticHeadersWriter(
+                                "Content-Security-Policy-Report-Only",
+                                CONTENT_SECURITY_POLICY_REPORT_ONLY
+                        ))
                         .contentTypeOptions(withDefaults())
                         .frameOptions(frame -> frame.deny())
                         .httpStrictTransportSecurity(hsts -> hsts
