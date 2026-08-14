@@ -30,7 +30,7 @@ The gate runs these controls:
 | Production env validator self-test | safe and unsafe fixtures that test validator logic only |
 | Production environment validation | redacted deployed environment presence, deployment evidence, and configuration safety |
 | Backup/rollback readiness | concrete docs and rehearsal evidence |
-| Staging smoke | real staging health/CSRF/frontend checks when staging variables exist |
+| Staging smoke | real staging health/CSRF/frontend checks plus authenticated OAuth/session, CRUD, sync, delete/tombstone, and logout evidence |
 
 ## Acceptance Record
 
@@ -77,8 +77,20 @@ These names are required for staging smoke. Do not store production user secrets
 - `STAGING_BACKEND_URL`
 - `STAGING_FRONTEND_URL`
 - `STAGING_TEST_USER_HINT`
+- `STAGING_AUTH_SMOKE_EVIDENCE_FILE` (optional path override; defaults to
+  `docs/staging-auth-smoke-evidence.md`)
 
-If they are absent, the staging control is `BLOCKED` and the final conclusion is `NO-GO`.
+If the required URLs/test identity are absent, the staging control is `BLOCKED`
+and the final conclusion is `NO-GO`.
+
+The script checks backend `/api/health`, backend `/api/csrf`, and the frontend
+root directly. That basic unauthenticated smoke is not enough for `PASS` by
+itself. The control also requires a machine-readable Markdown table, following
+`docs/staging-auth-smoke-checklist.md`, that records real authenticated staging
+evidence for OAuth/login or equivalent session auth, CSRF, vocabulary CRUD,
+sync, delete/tombstone behavior, logout/session cleanup, RTO/RPO notes, exact
+commit, environment, operator, and timestamp. Missing, partial, placeholder,
+or `NOT RUN` authenticated evidence keeps the control `BLOCKED`.
 
 ## Required Production Environment Evidence
 
@@ -109,7 +121,11 @@ Backup/rollback readiness is `BLOCKED` until one of these exists:
 - `docs/restore-rehearsal-evidence.md`, containing non-production restore rehearsal evidence; or
 - CI env `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`, used only when the release record links to equivalent external evidence.
 
-The evidence must not include raw data or secret values.
+The evidence must not include raw data or secret values. A complete `PASS`
+requires a real backup/dump reference, backup verification, restore into
+non-production, Flyway/app validation against the restored target, and restored
+`/api/health` smoke. Schema-only Flyway rehearsal without a backup artifact or
+health smoke remains `BLOCKED`.
 
 ## Local Commands
 

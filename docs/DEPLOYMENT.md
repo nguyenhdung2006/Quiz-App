@@ -127,6 +127,29 @@ Minimum restore rehearsal evidence:
 
 The gate records `BLOCKED` when this evidence is missing.
 
+## Authenticated Staging Smoke
+
+Before the release gate can be `GO`, staging or an equivalent disposable
+environment must have authenticated smoke evidence. The direct staging script
+checks only `/api/health`, `/api/csrf`, and the frontend root; it also requires
+`docs/staging-auth-smoke-evidence.md` or the path in
+`STAGING_AUTH_SMOKE_EVIDENCE_FILE`.
+
+Minimum authenticated smoke evidence:
+
+- exact commit SHA, timestamp, environment alias, and operator;
+- staging frontend/backend URL or redacted environment alias;
+- OAuth login or equivalent documented session-auth success;
+- CSRF token bootstrap and unsafe request success;
+- vocabulary CRUD using `audit-smoke-` test data;
+- sync with the expected revision contract;
+- delete/tombstone verification with no resurrection;
+- logout or documented safe session cleanup;
+- RTO/RPO notes or link to the restore rehearsal record.
+
+The gate records `BLOCKED` when this evidence is missing, partial, placeholder,
+or marked `NOT RUN`.
+
 ## App Rollback
 
 Rollback app procedure:
@@ -176,3 +199,6 @@ After deployment:
 4. Confirm `/api/health` returns success.
 5. Confirm frontend can call backend with credentials.
 6. Confirm login flow redirects to production frontend.
+7. Confirm authenticated vocabulary CRUD, sync, delete/tombstone, and logout
+   using non-production test data before promoting the same pattern to
+   production verification.

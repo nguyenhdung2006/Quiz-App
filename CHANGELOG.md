@@ -4,6 +4,9 @@
 
 - Hardened the production release gate so production environment validation is
   separate from validator fixtures and requires redacted deployment evidence.
+- Hardened the staging release gate so health/CSRF/frontend checks cannot pass
+  as full staging evidence without real authenticated OAuth/session,
+  CRUD/sync/delete/logout smoke evidence.
 - Added release-gate tests for production env validation and stale control
   artifact blocking.
 - Updated release-gate docs/status to keep missing real deployment env as

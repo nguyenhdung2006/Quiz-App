@@ -1,6 +1,6 @@
 # Audit Remediation Status
 
-Last updated: 2026-08-11 05:20 +07
+Last updated: 2026-08-14 23:55 +07
 
 This document tracks the re-audit of `docs/full-project-audit.md` dated
 2026-08-09. Source at `HEAD` remains the authority; the audit report is treated
@@ -35,7 +35,7 @@ as a hypothesis list.
 | AUD-003 | FIXED | S4 | P1 | D3 | `/api/sync` now has a servlet filter before controller/Jackson with configurable byte cap | Bean Validation item caps were after deserialization | `POST /api/sync` is capped by `app.sync.max-request-body-bytes` / `SYNC_MAX_REQUEST_BODY_BYTES` before deserialization and returns 413 `ApiError` | Content-Length, malformed oversized, no-length stream, and normal request tests | Done |
 | AUD-004 | PARTIALLY FIXED | S3 | P1 | D3 | Stale push now opens a feature-flagged recovery panel without applying cloud first; export/cancel/offline/failure paths preserve local state; `Use cloud` requires backup and confirmation | Client has last sync metadata and current local data, but no common baseline or reliable change set for already-stale devices | Keep `Merge safely` and `Keep local as new changes` disabled until a compatible baseline/change-set design exists | Playwright stale/recovery coverage for boundary, flag on/off, export, use-cloud success/failure, revision change, tombstones, account isolation | Done for fail-closed entry point |
 | AUD-005 | Confirmed | S3 | P1 | D4 | `SyncService.snapshot()` returns full vocab/tombstones; sync loads full live words and tombstones | Snapshot design favors simplicity; no pagination/delta/retention yet | Measure first, bulk/paginate only on trigger | Query count, 10k-word fixture, payload/heap measurements | Not before metrics |
-| AUD-006 | Confirmed/BLOCKED | S3 | P1 | D3 | Restore evidence is partial; staging smoke is blocked locally; OAuth real flow not run | External staging/backup/OAuth evidence missing | Run non-prod restore from real sanitized dump and OAuth/CRUD/sync/delete smoke | Runbook checklist with artifacts | Blocked by env/credentials |
+| AUD-006 | BLOCKED | S3 | P1 | D3 | Restore evidence is partial; staging smoke is blocked locally; OAuth/authenticated CRUD/sync/delete evidence is absent; gate now requires authenticated staging evidence before `staging-smoke` can PASS | External staging URL/test identity, sanitized backup/restore artifact, and OAuth/authenticated smoke evidence are missing from this workspace | Keep release gate `NO-GO`; collect real non-prod restore plus authenticated staging smoke using the evidence checklists | `npm run test:gate:staging-smoke`; `npm run gate:staging-smoke`; `npm run gate:backup-rollback`; `npm run gate:report` | Blocked by env/credentials/evidence |
 | AUD-007 | Confirmed | S2 | P1 | D2 | `SecurityConfig` permits `/actuator/metrics/**`; docs say alert delivery not verified | Metrics are public for low-friction ops; alert ownership unproven | Decide policy: keep public with reviewed list, or protect after monitoring auth | Security tests and release gate aligned with policy | Yes, small policy task |
 | AUD-008 | Confirmed | S2 | P2 | D4 | `app.js`, `learning-studio.js`, and `modern.css` remain large global files | Static frontend grew through feature accretion | Extract sync/import/session modules incrementally | Existing Playwright plus pure unit tests for merge helpers | Later |
 | AUD-009 | Confirmed | S2 | P2 | D2 | `initPreview()` opens modal without focus trap/restore; tabs are mostly visual spans/buttons | Modal/tab behavior lacks centralized a11y manager | Add focus trap, Escape close, restore focus, ARIA tab semantics | Keyboard-only Playwright test | Yes, quick UI batch |
@@ -61,6 +61,7 @@ as a hypothesis list.
 | AUD-002 | `scripts/production-release-gate/validate-production-env.mjs`, `scripts/production-release-gate/generate-report.mjs`, `scripts/production-release-gate/lib.mjs`, `.github/workflows/production-release-gate.yml`, `package.json`, docs | Production env fixture is now a self-test; real production env validation is BLOCKED without deployment evidence and FAILS unsafe/fixture-like values; report blocks stale control artifacts | `npm run test:gate:validate-env` PASS; `npm run test:gate:report` PASS; `npm run gate:validate-env` BLOCKED in this local workspace |
 | AUD-003 | `backend/src/main/java/com/quizapp/config/SyncRequestBodyLimitFilter.java`, `backend/src/main/resources/application.properties`, `backend/src/test/java/com/quizapp/SyncRequestBodyLimitTests.java`, docs | `/api/sync` request bodies are capped before JSON deserialization; oversized bodies return 413 with the existing `ApiError` envelope | `cd backend; .\mvnw.cmd -Dtest=SyncRequestBodyLimitTests test` PASS |
 | AUD-004 | `frontend/js/app.js`, `frontend/css/modern.css`, `tests/smoke.spec.js`, docs | Stale devices no longer apply cloud snapshots or flush pending deletes before the stale guard. A feature-flagged recovery panel offers export, cancel, and backup-first `Use cloud`; unsafe merge/local-as-new choices are disabled. | `npx playwright test -g "stale\|old sync metadata"` PASS, 14 tests |
+| AUD-006 | `scripts/production-release-gate/staging-smoke.mjs`, `scripts/production-release-gate/staging-smoke.test.mjs`, `docs/staging-auth-smoke-checklist.md`, docs | Staging smoke remains fail-closed unless basic health/CSRF/frontend checks and real authenticated OAuth/session, CRUD, sync, delete/tombstone, logout, RTO/RPO evidence are present. No real restore/OAuth smoke was run in this workspace. | Backend 102 tests PASS; frontend 41 tests PASS; package/build PASS; gate unit tests PASS; `gate:validate-env`, `gate:backup-rollback`, `gate:staging-smoke` BLOCKED; `gate:report` NO-GO |
 
 ## Commits
 
@@ -70,10 +71,12 @@ as a hypothesis list.
 | AUD-002 | `37c16e0 fix(audit): harden production environment gate` |
 | AUD-003 | `72b5d00 fix(audit): cap sync request body before deserialization` |
 | AUD-004 | this commit (`fix(audit): add fail-closed stale recovery entry point`) |
+| AUD-006 | this commit (`fix(audit): harden production verification evidence`) |
 
 ## Blocked
 
 - Staging/OAuth smoke requires real staging URLs and non-secret test identity metadata.
+- Authenticated staging smoke also requires `docs/staging-auth-smoke-evidence.md` or `STAGING_AUTH_SMOKE_EVIDENCE_FILE` with real OAuth/session, CRUD, sync, delete/tombstone, logout, RTO/RPO, commit, environment, operator, and timestamp evidence.
 - Production env validation requires redacted real deployment values plus `RELEASE_ENV_SOURCE`, `RELEASE_DEPLOYMENT_ID`, and `RELEASE_ENV_CAPTURED_AT`; this local workspace should not invent them.
 - Full backup restore requires a real sanitized/non-production backup artifact and restored app health smoke.
 - Source integrity through Node is blocked in this sandbox by `spawnSync git EPERM`; direct Git commands are available.
