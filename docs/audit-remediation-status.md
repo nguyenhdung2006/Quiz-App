@@ -1,6 +1,6 @@
 # Audit Remediation Status
 
-Last updated: 2026-08-15 01:35 +07
+Last updated: 2026-08-15 02:15 +07
 
 This document tracks the re-audit of `docs/full-project-audit.md` dated
 2026-08-09. Source at `HEAD` remains the authority; the audit report is treated
@@ -15,7 +15,7 @@ as a hypothesis list.
 | Working tree before fix | dirty due untracked audit attachments only | `git status --short` showed `docs/full-project-audit.docx`, `docs/full-project-audit.md`, `full-project-audit.docx`, `~$ll-project-audit.docx` |
 | Commits since 2026-08-09 | 4 docs/evidence commits | `git log --since='2026-08-09 00:00:00'` |
 | Backend tests | PASS, 98 tests, 0 failures/errors/skips | `cd backend; .\mvnw.cmd test` |
-| Frontend smoke | PASS, 43 Chromium tests | `npm run test:frontend` |
+| Frontend smoke | PASS, 50 Chromium tests | `npm run test:frontend` |
 | Frontend static build | PASS | `npm run build:frontend` |
 | Backend package | PASS | `cd backend; .\mvnw.cmd clean package -DskipTests` |
 | Secret scan gate | PASS, `findingCount: 0` | `npm run gate:secret-scan` |
@@ -39,7 +39,7 @@ as a hypothesis list.
 | AUD-007 | Confirmed | S2 | P1 | D2 | `SecurityConfig` permits `/actuator/metrics/**`; docs say alert delivery not verified | Metrics are public for low-friction ops; alert ownership unproven | Decide policy: keep public with reviewed list, or protect after monitoring auth | Security tests and release gate aligned with policy | Yes, small policy task |
 | AUD-008 | Confirmed | S2 | P2 | D4 | `app.js`, `learning-studio.js`, and `modern.css` remain large global files | Static frontend grew through feature accretion | Extract sync/import/session modules incrementally | Existing Playwright plus pure unit tests for merge helpers | Later |
 | AUD-009 | FIXED | S2 | P2 | D2 | Learning Studio modal now sets dialog name/description, moves initial focus inside, traps Tab/Shift+Tab, closes on Escape, restores opener focus, and exposes ARIA tab/panel state | Modal/tab behavior lacked centralized keyboard and ARIA state management | Added focused vanilla JS a11y manager for the existing modal and tabs | `npm run test:frontend` PASS, 43 Chromium tests; `npm run build:frontend` PASS | Done |
-| AUD-010 | Confirmed | S2 | P2 | D2 | Mobile CSS wraps sidebar/status at <=620px; audit observed cramped 390px layout | Dense desktop app shell compressed into small viewport | Compact nav/status treatment for 320/390/768 and 200% zoom | Playwright screenshots/overflow checks | Yes, after a11y |
+| AUD-010 | FIXED | S2 | P2 | D2 | Mobile app shell now keeps six primary workspace routes directly visible, moves Tools into a keyboard-usable disclosure, wraps sync status without clipping, keeps full status text in `aria-label`/`title`, and preserves table overflow inside its container | Dense desktop sidebar actions and long sync/status copy were compressed into the mobile first viewport | Compact mobile nav/status treatment at <=620px without changing desktop/768 behavior | Playwright viewport/overflow/menu/status/table checks at 320, 390, 768, and desktop | Done |
 | AUD-011 | Confirmed | S2 | P2 | D3 | `SecurityConfig` CSP has `unsafe-inline`; `index.html` has `oncontextmenu` and `onclick` | Inline handlers remain in static HTML | Move handlers to JS and trial CSP report-only before enforce | CSP header tests plus smoke for buttons | Later security batch |
 | AUD-012 | Confirmed | S2 | P2 | D2 | Report artifacts include stale 91/28 test counts while current baseline is 98/29 | Docs/artifacts can drift from current run | Add report freshness/SHA validation and update docs | Fixture controls with stale generatedAt/SHA | Yes, paired with AUD-002 |
 | AUD-013 | Confirmed | S3 | P2 | D3 | Import uses `confirm` Replace/Merge and no automatic pre-replace backup | Destructive import relies on native confirm and user memory | Add preview modal, Replace/Merge/Cancel, pre-replace backup artifact, quota handling | Import replace/merge/quota tests | Later batch B |
@@ -64,6 +64,7 @@ as a hypothesis list.
 | AUD-005 | `backend/src/main/java/com/quizapp/vocab/VocabularyRepository.java`, `backend/src/main/java/com/quizapp/vocab/WrongBankRepository.java`, `backend/src/main/java/com/quizapp/vocab/VocabularyService.java`, `backend/src/main/java/com/quizapp/vocab/SyncService.java`, `backend/src/main/java/com/quizapp/review/SpacedRepetitionService.java`, `backend/src/main/java/com/quizapp/analytics/LearningAnalyticsService.java`, `backend/src/test/java/com/quizapp/Audit005CapacityTests.java`, `docs/audit-005-capacity-baseline.md`, docs | Added local capacity measurements and query-count guardrails; removed stats lazy-load N+1 from full snapshot/review/analytics paths; bulk-loads quiz answer words/wrong-bank entries; reuses loaded sync maps; prefilters review due/tag/level at DB level. `/api/sync` contract, schema, tombstone semantics, and full snapshot shape remain unchanged. | `cd backend; .\mvnw.cmd -Dtest=Audit005CapacityTests test` PASS; targeted sync/analytics/review/capacity suite PASS; `cd backend; .\mvnw.cmd test` PASS, 106 tests; `cd backend; .\mvnw.cmd clean package -DskipTests` PASS |
 | AUD-006 | `scripts/production-release-gate/staging-smoke.mjs`, `scripts/production-release-gate/staging-smoke.test.mjs`, `docs/staging-auth-smoke-checklist.md`, docs | Staging smoke remains fail-closed unless basic health/CSRF/frontend checks and real authenticated OAuth/session, CRUD, sync, delete/tombstone, logout, RTO/RPO evidence are present. No real restore/OAuth smoke was run in this workspace. | Backend 102 tests PASS; frontend 41 tests PASS; package/build PASS; gate unit tests PASS; `gate:validate-env`, `gate:backup-rollback`, `gate:staging-smoke` BLOCKED; `gate:report` NO-GO |
 | AUD-009 | `frontend/index.html`, `frontend/js/learning-studio.js`, `tests/smoke.spec.js`, docs | Learning Studio modal now has stable dialog description, initial focus inside the modal, Tab/Shift+Tab focus trap, Escape close, opener focus restore, ARIA tablist/tab/tabpanel wiring, roving tabindex, and ArrowLeft/ArrowRight/Home/End/Enter/Space tab activation. | `node --check frontend\js\learning-studio.js` PASS; `npm run test:frontend` PASS, 43 tests; `npm run build:frontend` PASS |
+| AUD-010 | `frontend/index.html`, `frontend/js/app.js`, `frontend/css/modern.css`, `frontend/css/modern-responsive.css`, `tests/smoke.spec.js`, docs | Mobile primary nav is a compact 3-column grid; secondary Tools actions are reachable through a click/keyboard disclosure with Escape close; sync status uses compact visible copy where safe, wraps long warnings, and exposes full text via `aria-label`/`title`; current primary page sets `aria-current="page"`; profile trigger has a distinct account-menu name. | `node --check frontend\js\app.js` PASS; targeted Playwright app-shell/mobile tests PASS, 7 tests; `npm run test:frontend` PASS, 50 tests; `npm run build:frontend` PASS |
 
 ## Commits
 
@@ -76,6 +77,7 @@ as a hypothesis list.
 | AUD-005 | this commit (`perf(audit): reduce sync and analytics query cost`) |
 | AUD-006 | this commit (`fix(audit): harden production verification evidence`) |
 | AUD-009 | this commit (`fix(audit): harden learning studio keyboard access`) |
+| AUD-010 | this commit (`fix(audit): compact mobile navigation and sync status`) |
 
 ## Blocked
 
@@ -86,6 +88,7 @@ as a hypothesis list.
 - Source integrity through Node is blocked in this sandbox by `spawnSync git EPERM`; direct Git commands are available.
 - AUD-005 still has full snapshot payload and tombstone retention risk: local query counts are bounded, but no real release/load evidence proves production behavior.
 - AUD-006 remains BLOCKED: real staging/OAuth/restore/smoke evidence and production release evidence are still missing, so local AUD-009 UI tests do not change release readiness.
+- AUD-010 is local UI remediation only; it does not provide real staging, OAuth, restore, smoke, or release evidence for AUD-006.
 
 ## Do Not Do Now
 

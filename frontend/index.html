@@ -33,7 +33,7 @@
 <span>Home</span>
 </button>
 <div class="authCluster" id="authCluster">
-<button class="profileTrigger" id="profileTrigger" type="button" aria-haspopup="true" aria-expanded="false">
+<button class="profileTrigger" id="profileTrigger" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Open account menu">
 <img id="profileAvatarSmall" src="images/icon.png" alt="" class="profileAvatarSmall">
 <span id="profileNameSmall">Account</span>
 </button>
@@ -66,7 +66,8 @@
 <button class="utilityBtn appNavBtn" id="analyticsBtn" type="button" data-app-page="analytics">Analytics</button>
 <button class="utilityBtn appNavBtn" type="button" data-app-page="studio">Studio</button>
 </div>
-<div class="sidebarGroup sidebarGroup--actions">
+<button class="miniBtn sidebarToolsToggle" id="sidebarToolsToggle" type="button" aria-controls="sidebarToolsPanel" aria-expanded="false">Tools</button>
+<div class="sidebarGroup sidebarGroup--actions" id="sidebarToolsPanel" data-nav-tools-panel>
 <span class="sidebarLabel">Tools</span>
 <button class="miniBtn" id="previewBtn" type="button">How it works</button>
 <button class="miniBtn" id="exportBtn" type="button">Export Backup</button>

@@ -77,16 +77,29 @@ if (!host) return null;
 let status = document.createElement("span");
 status.id = "cloudSyncStatus";
 status.className = "syncStatus syncStatus--local";
-status.textContent = "Offline/local mode";
+status.textContent = "Local mode";
 host.appendChild(status);
 return status;
+}
+
+function compactSyncStatusMessage(message) {
+let value = String(message || "").trim();
+if (value === "Offline/local mode" || value === "Not signed in. Local mode.") return "Local mode";
+if (value === "Checking session...") return "Checking session";
+if (value === "Cloud session is temporarily unavailable. Retrying...") return "Cloud retrying";
+if (value === "Cloud session temporarily unavailable") return "Cloud unavailable";
+if (value === "Session expired. Please sign in again.") return "Sign in again";
+return value || "Local mode";
 }
 
 function setSyncStatus(message, tone = "local") {
   let status = ensureSyncStatus();
   if (!status) return;
-  status.textContent = message;
+  let fullMessage = String(message || "");
+  status.textContent = compactSyncStatusMessage(fullMessage);
   status.className = `syncStatus syncStatus--${tone}`;
+  status.title = fullMessage;
+  status.setAttribute("aria-label", fullMessage);
   let retryBtn = document.getElementById("syncRetryBtn");
   if (retryBtn) {
     retryBtn.hidden = (tone === "syncing" || tone === "ok");
@@ -1523,7 +1536,10 @@ panel.classList.toggle("is-active-page", panel.dataset.appPagePanel === nextPage
 });
 
 document.querySelectorAll("[data-app-page]").forEach(button => {
-button.classList.toggle("is-active", button.dataset.appPage === nextPage);
+let isActive = button.dataset.appPage === nextPage;
+button.classList.toggle("is-active", isActive);
+if (button.classList.contains("appNavBtn") && isActive) button.setAttribute("aria-current", "page");
+else button.removeAttribute("aria-current");
 });
 
 let label = APP_PAGE_LABELS[nextPage];
@@ -1598,12 +1614,54 @@ function initAppShell() {
 document.querySelectorAll("[data-app-page]").forEach(button => {
 button.addEventListener("click", () => showAppPage(button.dataset.appPage));
 });
+initSidebarToolsMenu();
 document.getElementById("weakWordsReviewBtn")?.addEventListener("click", startWeakWordsReview);
 initOnboarding();
 showAppPage(document.body.dataset.appPage || "dashboard");
 }
 
 window.showAppPage = showAppPage;
+
+function initSidebarToolsMenu() {
+let toggle = document.getElementById("sidebarToolsToggle");
+let panel = document.getElementById("sidebarToolsPanel");
+if (!toggle || !panel) return;
+
+let mobileQuery = window.matchMedia("(max-width: 620px)");
+
+function setToolsOpen(open) {
+panel.classList.toggle("is-open", open);
+toggle.setAttribute("aria-expanded", String(open));
+toggle.setAttribute("aria-label", open ? "Close tools menu" : "Open tools menu");
+if (mobileQuery.matches) panel.hidden = !open;
+else panel.hidden = false;
+}
+
+function syncToolsMode() {
+let isMobile = mobileQuery.matches;
+toggle.hidden = !isMobile;
+panel.hidden = isMobile && !panel.classList.contains("is-open");
+if (!isMobile) setToolsOpen(false);
+}
+
+toggle.addEventListener("click", () => setToolsOpen(!panel.classList.contains("is-open")));
+panel.addEventListener("click", event => {
+if (mobileQuery.matches && event.target.closest("button")) setToolsOpen(false);
+});
+document.addEventListener("click", event => {
+if (!mobileQuery.matches || panel.hidden) return;
+if (!panel.contains(event.target) && event.target !== toggle) setToolsOpen(false);
+});
+document.addEventListener("keydown", event => {
+if (event.key === "Escape" && mobileQuery.matches && !panel.hidden) {
+event.preventDefault();
+setToolsOpen(false);
+toggle.focus();
+}
+});
+mobileQuery.addEventListener?.("change", syncToolsMode);
+syncToolsMode();
+}
 
 function setText(id, value) {
 let element = document.getElementById(id);
@@ -1635,6 +1693,7 @@ setText("profileMenuName", safeProfile.name);
 setText("profileMenuEmail", identity);
 setText("profileIdentityLine", identity);
 setText("profileEditorAccount", identity);
+document.getElementById("profileTrigger")?.setAttribute("aria-label", `Open account menu for ${safeProfile.name || "learner"}`);
 setImage("profileAvatarSmall", safeProfile.avatar);
 setImage("profileMenuAvatar", safeProfile.avatar);
 setImage("profileAvatarLarge", safeProfile.avatar);

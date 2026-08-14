@@ -296,6 +296,39 @@ async function activeElementIsInside(page, selector) {
   }, selector);
 }
 
+async function expectNoDocumentHorizontalOverflow(page) {
+  const metrics = await page.evaluate(() => ({
+    htmlClientWidth: document.documentElement.clientWidth,
+    htmlScrollWidth: document.documentElement.scrollWidth,
+    bodyClientWidth: document.body.clientWidth,
+    bodyScrollWidth: document.body.scrollWidth
+  }));
+  expect(metrics.htmlScrollWidth).toBeLessThanOrEqual(metrics.htmlClientWidth + 1);
+  expect(metrics.bodyScrollWidth).toBeLessThanOrEqual(metrics.bodyClientWidth + 1);
+}
+
+async function expectWithinViewport(page, selector) {
+  const box = await page.locator(selector).boundingBox();
+  const viewport = page.viewportSize();
+  expect(box).toBeTruthy();
+  expect(box.x).toBeGreaterThanOrEqual(-1);
+  expect(box.y).toBeGreaterThanOrEqual(-1);
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+}
+
+async function statusDoesNotClipText(page) {
+  return page.locator("#cloudSyncStatus").evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return {
+      clippedInline: element.scrollWidth > element.clientWidth + 1,
+      clippedBlock: element.scrollHeight > element.clientHeight + 1,
+      whiteSpace: style.whiteSpace,
+      ariaLabel: element.getAttribute("aria-label"),
+      title: element.getAttribute("title")
+    };
+  });
+}
+
 async function loadConfigOnly(page) {
   await page.goto("about:blank");
   await page.evaluate(() => {
@@ -519,6 +552,125 @@ test("main navigation opens critical sections", async ({ page }) => {
 
   await page.getByRole("button", { name: "Studio" }).click();
   await expect(page.locator("#studioBtn")).toBeVisible();
+
+  expect(fatalConsole).toEqual([]);
+});
+
+[
+  { width: 320, height: 844 },
+  { width: 390, height: 844 },
+  { width: 768, height: 1024 },
+  { width: 1280, height: 900 }
+].forEach((viewport) => {
+  test(`app shell avoids document overflow at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    const fatalConsole = await preparePage(page);
+
+    await expectNoDocumentHorizontalOverflow(page);
+    await expectWithinViewport(page, ".appSidebar");
+    await expectWithinViewport(page, ".appTopbar");
+    await expect(page.locator("#home")).toBeVisible();
+
+    await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+    await expect(page.locator(".appNavBtn[data-app-page='vocabulary']")).toHaveAttribute("aria-current", "page");
+    await expectNoDocumentHorizontalOverflow(page);
+
+    if (viewport.width <= 620) {
+      await expect(page.locator("#sidebarToolsToggle")).toBeVisible();
+      await expect(page.locator("#sidebarToolsPanel")).toBeHidden();
+    } else {
+      await expect(page.locator("#sidebarToolsToggle")).toBeHidden();
+      await expect(page.locator("#sidebarToolsPanel")).toBeVisible();
+    }
+
+    expect(fatalConsole).toEqual([]);
+  });
+});
+
+test("mobile tools menu is reachable by click and keyboard", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const fatalConsole = await preparePage(page);
+
+  const toggle = page.locator("#sidebarToolsToggle");
+  const panel = page.locator("#sidebarToolsPanel");
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(panel).toBeHidden();
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(panel).toBeVisible();
+  await expect(page.locator("#exportBtn")).toBeVisible();
+  await expect(page.locator("#importBtn")).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(toggle).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(panel).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+  expect(fatalConsole).toEqual([]);
+});
+
+test("mobile sync status stays readable and vocabulary table scrolls inside its container", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  const profile = { name: "Mobile Status", email: "mobile-status@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    vocab: [{
+      ...word("shared-word", "old local meaning", "sync", 61),
+      updatedAt: "2026-01-01T00:00:00.000Z"
+    }],
+    syncMeta: {
+      lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z"
+    },
+    cloudSnapshot: {
+      profile,
+      vocab: [{
+        ...word("shared-word", "new cloud meaning", "sync", 62),
+        id: 9001,
+        updatedAt: "2026-05-01T00:00:00.000Z"
+      }],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Sync paused to protect your data");
+  const statusMetrics = await statusDoesNotClipText(page);
+  expect(statusMetrics.clippedInline).toBe(false);
+  expect(statusMetrics.clippedBlock).toBe(false);
+  expect(statusMetrics.whiteSpace).not.toBe("nowrap");
+  expect(statusMetrics.ariaLabel).toBe("Sync paused to protect your data");
+  expect(statusMetrics.title).toBe("Sync paused to protect your data");
+  await expectNoDocumentHorizontalOverflow(page);
+
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  const tableMetrics = await page.locator(".table-container[data-app-page-panel='vocabulary']").evaluate((container) => ({
+    containerScrolls: container.scrollWidth > container.clientWidth + 1,
+    viewportWidth: document.documentElement.clientWidth,
+    containerRight: container.getBoundingClientRect().right
+  }));
+  expect(tableMetrics.containerScrolls).toBe(true);
+  expect(tableMetrics.containerRight).toBeLessThanOrEqual(tableMetrics.viewportWidth + 1);
+  await expectNoDocumentHorizontalOverflow(page);
+
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("mobile profile trigger has a distinct account menu name", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const fatalConsole = await preparePage(page, {
+    profile: { name: "Mobile Learner", email: "", avatar: "images/icon.png" }
+  });
+
+  await expect(page.locator("#profileTrigger")).toHaveAttribute("aria-label", "Open account menu for Mobile Learner");
+  await expect(page.getByRole("button", { name: "Open account menu for Mobile Learner" })).toBeVisible();
 
   expect(fatalConsole).toEqual([]);
 });

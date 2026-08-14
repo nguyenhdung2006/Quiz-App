@@ -832,6 +832,10 @@ button,
   margin-top: auto;
 }
 
+.sidebarToolsToggle {
+  display: none;
+}
+
 .appSidebar .utilityBtn,
 .appSidebar .miniBtn {
   justify-content: flex-start;

@@ -30,6 +30,13 @@ await window.quizApiFetch(`${apiOrigin}/logout`, { method: "POST" });
 ```
 
 After the request completes or fails locally, the frontend clears local profile state, clears in-memory CSRF state, and redirects to `login.html?loggedOut=true`.
+
+## Mobile App Shell
+
+At `620px` and below, the app shell keeps the six primary workspace routes visible and moves secondary tools into the `#sidebarToolsToggle` / `#sidebarToolsPanel` disclosure. Keep existing tool button ids stable because import/export/theme/preview handlers and smoke tests depend on them.
+
+Sync status may use shorter visible text on small screens, but the full status message must remain available through `aria-label` and `title`. The vocabulary table is intentionally wider than mobile screens and must keep horizontal scrolling inside `.table-container`, not on the document.
+
 # Sync V2 Local Identity
 
 Frontend words now carry a stable `wordUid`. `normalizeWord()` creates a UUID for legacy/local words and `main.js` persists normalized data on startup so offline-created identity survives rename, refresh, and later login.

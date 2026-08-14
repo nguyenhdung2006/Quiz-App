@@ -353,30 +353,67 @@
   }
 
   .appSidebar {
+    position: sticky;
+    display: grid;
+    grid-template-columns: 1fr;
     align-items: stretch;
-    flex-wrap: wrap;
+    gap: 6px;
+    overflow: visible;
     overflow-x: visible;
-    padding: 5px;
+    padding: 6px;
   }
 
   .sidebarGroup {
-    flex: 1 1 100%;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 5px;
+    width: 100%;
+    min-width: 0;
   }
 
   .sidebarGroup--actions {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: 1fr;
+    width: min(220px, calc(100vw - 16px));
     margin-left: 0;
+    padding: 8px;
+    border: 1px solid rgba(158, 241, 255, 0.18);
+    border-radius: var(--radius);
+    background: rgba(7, 12, 26, 0.96);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .sidebarGroup--actions[hidden] {
+    display: none !important;
+  }
+
+  .sidebarToolsToggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 38px;
   }
 
   .appTopbar {
-    align-items: flex-start;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(96px, auto);
+    align-items: center;
     gap: 8px;
+    min-height: 46px;
+    padding: 7px 8px;
   }
 
   .appTopbarStatus {
-    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: flex-end;
+    min-width: 0;
+    max-width: 100%;
   }
 
   .utilityBtn,
@@ -389,9 +426,31 @@
 
   .appSidebar .utilityBtn,
   .appSidebar .miniBtn {
-    flex: 1 1 auto;
+    justify-content: center;
+    width: 100%;
     min-height: 38px;
     padding: 6px 8px;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .appSidebar .appNavBtn {
+    min-width: 0;
+    font-size: 0.74rem;
+    line-height: 1.1;
+  }
+
+  .syncStatus {
+    max-width: 100%;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.15;
+    text-align: right;
+  }
+
+  .syncRetryBtn {
+    margin-left: 0;
   }
 
   .heroPanel {
