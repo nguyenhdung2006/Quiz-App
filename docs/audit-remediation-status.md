@@ -1,6 +1,6 @@
 # Audit Remediation Status
 
-Last updated: 2026-08-14 23:55 +07
+Last updated: 2026-08-15 00:55 +07
 
 This document tracks the re-audit of `docs/full-project-audit.md` dated
 2026-08-09. Source at `HEAD` remains the authority; the audit report is treated
@@ -34,7 +34,7 @@ as a hypothesis list.
 | AUD-002 | FIXED | S4 | P0 | D2 | Workflow previously wrote safe fixture output to `production-env-validation`; local env without deployment evidence now produces `BLOCKED` | Release gate confused validator self-test with deployed environment proof | Safe fixture writes `production-env-validator-self-test`; real `production-env-validation` requires redacted deployment source/id/timestamp and rejects fixture-like values | `npm run test:gate:validate-env`; `npm run test:gate:report`; `npm run gate:validate-env` | Done |
 | AUD-003 | FIXED | S4 | P1 | D3 | `/api/sync` now has a servlet filter before controller/Jackson with configurable byte cap | Bean Validation item caps were after deserialization | `POST /api/sync` is capped by `app.sync.max-request-body-bytes` / `SYNC_MAX_REQUEST_BODY_BYTES` before deserialization and returns 413 `ApiError` | Content-Length, malformed oversized, no-length stream, and normal request tests | Done |
 | AUD-004 | PARTIALLY FIXED | S3 | P1 | D3 | Stale push now opens a feature-flagged recovery panel without applying cloud first; export/cancel/offline/failure paths preserve local state; `Use cloud` requires backup and confirmation | Client has last sync metadata and current local data, but no common baseline or reliable change set for already-stale devices | Keep `Merge safely` and `Keep local as new changes` disabled until a compatible baseline/change-set design exists | Playwright stale/recovery coverage for boundary, flag on/off, export, use-cloud success/failure, revision change, tombstones, account isolation | Done for fail-closed entry point |
-| AUD-005 | Confirmed | S3 | P1 | D4 | `SyncService.snapshot()` returns full vocab/tombstones; sync loads full live words and tombstones | Snapshot design favors simplicity; no pagination/delta/retention yet | Measure first, bulk/paginate only on trigger | Query count, 10k-word fixture, payload/heap measurements | Not before metrics |
+| AUD-005 | PARTIALLY FIXED | S3 | P1 | D4 | `Audit005CapacityTests` now measures 100/1k/5k snapshots, `/api/sync`, quiz submit, review queue, and analytics; query N+1 paths are reduced, but snapshots still return full vocab/tombstones | Snapshot design still favors simplicity; no pagination/delta/retention yet | Keep `/api/sync` compatible; use bulk/fetch-graph/query-level reductions now; defer delta/page/tombstone GC until real capacity trigger and client watermark design exist | Query-count guardrails pass locally; remaining work needs real PostgreSQL/staging/load evidence | Done for measured N+1/query-cost hardening only |
 | AUD-006 | BLOCKED | S3 | P1 | D3 | Restore evidence is partial; staging smoke is blocked locally; OAuth/authenticated CRUD/sync/delete evidence is absent; gate now requires authenticated staging evidence before `staging-smoke` can PASS | External staging URL/test identity, sanitized backup/restore artifact, and OAuth/authenticated smoke evidence are missing from this workspace | Keep release gate `NO-GO`; collect real non-prod restore plus authenticated staging smoke using the evidence checklists | `npm run test:gate:staging-smoke`; `npm run gate:staging-smoke`; `npm run gate:backup-rollback`; `npm run gate:report` | Blocked by env/credentials/evidence |
 | AUD-007 | Confirmed | S2 | P1 | D2 | `SecurityConfig` permits `/actuator/metrics/**`; docs say alert delivery not verified | Metrics are public for low-friction ops; alert ownership unproven | Decide policy: keep public with reviewed list, or protect after monitoring auth | Security tests and release gate aligned with policy | Yes, small policy task |
 | AUD-008 | Confirmed | S2 | P2 | D4 | `app.js`, `learning-studio.js`, and `modern.css` remain large global files | Static frontend grew through feature accretion | Extract sync/import/session modules incrementally | Existing Playwright plus pure unit tests for merge helpers | Later |
@@ -61,6 +61,7 @@ as a hypothesis list.
 | AUD-002 | `scripts/production-release-gate/validate-production-env.mjs`, `scripts/production-release-gate/generate-report.mjs`, `scripts/production-release-gate/lib.mjs`, `.github/workflows/production-release-gate.yml`, `package.json`, docs | Production env fixture is now a self-test; real production env validation is BLOCKED without deployment evidence and FAILS unsafe/fixture-like values; report blocks stale control artifacts | `npm run test:gate:validate-env` PASS; `npm run test:gate:report` PASS; `npm run gate:validate-env` BLOCKED in this local workspace |
 | AUD-003 | `backend/src/main/java/com/quizapp/config/SyncRequestBodyLimitFilter.java`, `backend/src/main/resources/application.properties`, `backend/src/test/java/com/quizapp/SyncRequestBodyLimitTests.java`, docs | `/api/sync` request bodies are capped before JSON deserialization; oversized bodies return 413 with the existing `ApiError` envelope | `cd backend; .\mvnw.cmd -Dtest=SyncRequestBodyLimitTests test` PASS |
 | AUD-004 | `frontend/js/app.js`, `frontend/css/modern.css`, `tests/smoke.spec.js`, docs | Stale devices no longer apply cloud snapshots or flush pending deletes before the stale guard. A feature-flagged recovery panel offers export, cancel, and backup-first `Use cloud`; unsafe merge/local-as-new choices are disabled. | `npx playwright test -g "stale\|old sync metadata"` PASS, 14 tests |
+| AUD-005 | `backend/src/main/java/com/quizapp/vocab/VocabularyRepository.java`, `backend/src/main/java/com/quizapp/vocab/WrongBankRepository.java`, `backend/src/main/java/com/quizapp/vocab/VocabularyService.java`, `backend/src/main/java/com/quizapp/vocab/SyncService.java`, `backend/src/main/java/com/quizapp/review/SpacedRepetitionService.java`, `backend/src/main/java/com/quizapp/analytics/LearningAnalyticsService.java`, `backend/src/test/java/com/quizapp/Audit005CapacityTests.java`, `docs/audit-005-capacity-baseline.md`, docs | Added local capacity measurements and query-count guardrails; removed stats lazy-load N+1 from full snapshot/review/analytics paths; bulk-loads quiz answer words/wrong-bank entries; reuses loaded sync maps; prefilters review due/tag/level at DB level. `/api/sync` contract, schema, tombstone semantics, and full snapshot shape remain unchanged. | `cd backend; .\mvnw.cmd -Dtest=Audit005CapacityTests test` PASS; targeted sync/analytics/review/capacity suite PASS; `cd backend; .\mvnw.cmd test` PASS, 106 tests; `cd backend; .\mvnw.cmd clean package -DskipTests` PASS |
 | AUD-006 | `scripts/production-release-gate/staging-smoke.mjs`, `scripts/production-release-gate/staging-smoke.test.mjs`, `docs/staging-auth-smoke-checklist.md`, docs | Staging smoke remains fail-closed unless basic health/CSRF/frontend checks and real authenticated OAuth/session, CRUD, sync, delete/tombstone, logout, RTO/RPO evidence are present. No real restore/OAuth smoke was run in this workspace. | Backend 102 tests PASS; frontend 41 tests PASS; package/build PASS; gate unit tests PASS; `gate:validate-env`, `gate:backup-rollback`, `gate:staging-smoke` BLOCKED; `gate:report` NO-GO |
 
 ## Commits
@@ -71,6 +72,7 @@ as a hypothesis list.
 | AUD-002 | `37c16e0 fix(audit): harden production environment gate` |
 | AUD-003 | `72b5d00 fix(audit): cap sync request body before deserialization` |
 | AUD-004 | this commit (`fix(audit): add fail-closed stale recovery entry point`) |
+| AUD-005 | this commit (`perf(audit): reduce sync and analytics query cost`) |
 | AUD-006 | this commit (`fix(audit): harden production verification evidence`) |
 
 ## Blocked
@@ -80,11 +82,12 @@ as a hypothesis list.
 - Production env validation requires redacted real deployment values plus `RELEASE_ENV_SOURCE`, `RELEASE_DEPLOYMENT_ID`, and `RELEASE_ENV_CAPTURED_AT`; this local workspace should not invent them.
 - Full backup restore requires a real sanitized/non-production backup artifact and restored app health smoke.
 - Source integrity through Node is blocked in this sandbox by `spawnSync git EPERM`; direct Git commands are available.
+- AUD-005 still has full snapshot payload and tombstone retention risk: local query counts are bounded, but no real release/load evidence proves production behavior.
 
 ## Do Not Do Now
 
 - Do not claim production-ready from local tests or stale release artifacts.
-- Do not implement delta sync/device watermarks before payload/query metrics justify it.
+- Do not implement delta sync/device watermarks before real payload/query/load metrics justify the larger protocol change.
 - Do not delete candidate-unused CSS without visual regression coverage.
 - Do not rewrite the frontend to React/Vue/Angular for these findings.
 - Do not introduce Redis, queues, Kubernetes, or microservices for current scale.

@@ -17,6 +17,10 @@
   push/apply paths, supports local backup export and backup-first `Use cloud`,
   and keeps unsafe merge/local-as-new choices disabled until a reliable baseline
   exists.
+- Added AUD-005 capacity measurements for snapshot/sync/quiz/review/analytics
+  and reduced backend query cost with stats fetch graphs, quiz bulk lookups,
+  sync map reuse, review due prefiltering, and analytics overview list reuse.
+  Full snapshot payloads and tombstone retention remain open design risks.
 
 ## 2026-07-31
 

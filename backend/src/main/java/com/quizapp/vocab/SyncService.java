@@ -86,6 +86,7 @@ public class SyncService {
         List<VocabularyWord> liveWords = words.findByUserOrderByCreatedAtDesc(syncUser);
         Map<UUID, VocabularyWord> liveByUid = liveWords.stream()
                 .collect(Collectors.toMap(VocabularyWord::getWordUid, Function.identity(), (left, right) -> left));
+        Map<String, VocabularyWord> liveByEnglishKey = englishLookupMap(liveWords);
         Set<UUID> existingTombstoneUids = tombstones.findByUserOrderByDeletedRevisionAscDeletedAtAsc(syncUser).stream()
                 .map(WordTombstone::getWordUid)
                 .collect(Collectors.toSet());
@@ -93,7 +94,7 @@ public class SyncService {
         boolean stateChanged = profileChanges(syncUser, request.profile())
                 || liveByUid.keySet().stream().anyMatch(existingTombstoneUids::contains)
                 || deletionsChangeState(incomingDeletions.keySet(), liveByUid, existingTombstoneUids)
-                || wordsChangeState(syncUser, incomingWords.values(), liveByUid, existingTombstoneUids);
+                || wordsChangeState(incomingWords.values(), liveByUid, liveByEnglishKey, existingTombstoneUids);
 
         long resultingRevision = syncUser.getSyncRevision();
         if (stateChanged) {
@@ -101,9 +102,9 @@ public class SyncService {
         }
 
         applyProfile(syncUser, request.profile());
-        deleteLiveWordsCoveredByTombstones(syncUser, liveByUid, existingTombstoneUids);
-        applyDeletions(syncUser, incomingDeletions.keySet(), liveByUid, existingTombstoneUids, resultingRevision);
-        applyWords(syncUser, incomingWords.values(), existingTombstoneUids);
+        deleteLiveWordsCoveredByTombstones(syncUser, liveByUid, liveByEnglishKey, existingTombstoneUids);
+        applyDeletions(syncUser, incomingDeletions.keySet(), liveByUid, liveByEnglishKey, existingTombstoneUids, resultingRevision);
+        applyWords(syncUser, incomingWords.values(), liveByUid, liveByEnglishKey, existingTombstoneUids);
 
         SyncResponse result = buildSnapshot(syncUser);
         log.info("[SYNC] Push success userId={} revision={} changed={}",
@@ -222,9 +223,9 @@ public class SyncService {
     }
 
     private boolean wordsChangeState(
-            AppUser user,
             Collection<WordRequest> incomingWords,
             Map<UUID, VocabularyWord> liveByUid,
+            Map<String, VocabularyWord> liveByEnglishKey,
             Set<UUID> tombstoneUids
     ) {
         for (WordRequest incoming : incomingWords) {
@@ -232,7 +233,7 @@ public class SyncService {
             VocabularyWord current = liveByUid.get(incoming.wordUid());
             if (current == null) return true;
             if (wordDiffers(current, incoming)) return true;
-            ensureNoDuplicateEnglish(user, normalizeEnglishForStorage(incoming.eng()), current.getId());
+            ensureNoDuplicateEnglish(liveByEnglishKey, normalizeEnglishForStorage(incoming.eng()), current.getId());
         }
         return false;
     }
@@ -241,6 +242,7 @@ public class SyncService {
             AppUser user,
             Collection<UUID> deletionUids,
             Map<UUID, VocabularyWord> liveByUid,
+            Map<String, VocabularyWord> liveByEnglishKey,
             Set<UUID> tombstoneUids,
             long deletedRevision
     ) {
@@ -250,6 +252,8 @@ public class SyncService {
             if (live != null) {
                 wrongBank.deleteByUserAndWord(user, live);
                 words.delete(live);
+                liveByUid.remove(wordUid);
+                liveByEnglishKey.remove(englishLookupKey(live.getEng()));
             }
             if (!tombstoneUids.contains(wordUid)) {
                 WordTombstone tombstone = new WordTombstone();
@@ -267,6 +271,7 @@ public class SyncService {
     private void deleteLiveWordsCoveredByTombstones(
             AppUser user,
             Map<UUID, VocabularyWord> liveByUid,
+            Map<String, VocabularyWord> liveByEnglishKey,
             Set<UUID> tombstoneUids
     ) {
         for (UUID wordUid : tombstoneUids) {
@@ -274,22 +279,35 @@ public class SyncService {
             if (live == null) continue;
             wrongBank.deleteByUserAndWord(user, live);
             words.delete(live);
+            liveByUid.remove(wordUid);
+            liveByEnglishKey.remove(englishLookupKey(live.getEng()));
         }
     }
 
-    private void applyWords(AppUser user, Collection<WordRequest> incomingWords, Set<UUID> tombstoneUids) {
+    private void applyWords(
+            AppUser user,
+            Collection<WordRequest> incomingWords,
+            Map<UUID, VocabularyWord> liveByUid,
+            Map<String, VocabularyWord> liveByEnglishKey,
+            Set<UUID> tombstoneUids
+    ) {
         for (WordRequest incoming : incomingWords) {
             if (tombstoneUids.contains(incoming.wordUid())) continue;
-            VocabularyWord word = words.findByUserAndWordUid(user, incoming.wordUid())
-                    .orElseGet(() -> {
-                        VocabularyWord created = new VocabularyWord();
-                        created.setUser(user);
-                        created.setWordUid(incoming.wordUid());
-                        return created;
-                    });
-            ensureNoDuplicateEnglish(user, normalizeEnglishForStorage(incoming.eng()), word.getId());
+            VocabularyWord word = liveByUid.get(incoming.wordUid());
+            if (word == null) {
+                word = new VocabularyWord();
+                word.setUser(user);
+                word.setWordUid(incoming.wordUid());
+            }
+            String previousEnglishKey = word.getId() == null ? null : englishLookupKey(word.getEng());
+            ensureNoDuplicateEnglish(liveByEnglishKey, normalizeEnglishForStorage(incoming.eng()), word.getId());
             applyWordRequest(word, incoming);
-            words.save(word);
+            VocabularyWord saved = words.save(word);
+            if (previousEnglishKey != null && !previousEnglishKey.equals(englishLookupKey(saved.getEng()))) {
+                liveByEnglishKey.remove(previousEnglishKey);
+            }
+            liveByUid.put(saved.getWordUid(), saved);
+            liveByEnglishKey.put(englishLookupKey(saved.getEng()), saved);
         }
     }
 
@@ -415,13 +433,25 @@ public class SyncService {
         return trim(profile.avatar()).isBlank() ? blankToEmpty(null) : trim(profile.avatar());
     }
 
-    private void ensureNoDuplicateEnglish(AppUser user, String normalizedEng, Long currentWordId) {
+    private Map<String, VocabularyWord> englishLookupMap(List<VocabularyWord> liveWords) {
+        return liveWords.stream()
+                .collect(Collectors.toMap(
+                        word -> englishLookupKey(word.getEng()),
+                        Function.identity(),
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
+    }
+
+    private void ensureNoDuplicateEnglish(
+            Map<String, VocabularyWord> liveByEnglishKey,
+            String normalizedEng,
+            Long currentWordId
+    ) {
         if (normalizedEng.isBlank()) return;
         String normalizedKey = englishLookupKey(normalizedEng);
-        words.findByUserOrderByCreatedAtDesc(user).stream()
-                .filter(word -> englishLookupKey(word.getEng()).equals(normalizedKey))
+        java.util.Optional.ofNullable(liveByEnglishKey.get(normalizedKey))
                 .filter(existing -> currentWordId == null || !existing.getId().equals(currentWordId))
-                .findFirst()
                 .ifPresent(existing -> {
                     throw new IllegalArgumentException("Word already exists.");
                 });

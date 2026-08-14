@@ -49,9 +49,9 @@ public class LearningAnalyticsService {
         try {
             List<VocabularyWord> userWords = userWords(user);
             List<QuizHistory> histories = histories(user);
-            ReviewPressureDto pressure = reviewPressure(user);
-            List<AccuracyTrendDto> trend = accuracyTrend(user);
-            TagPerformanceDto performance = tagPerformance(user);
+            ReviewPressureDto pressure = reviewPressure(userWords);
+            List<AccuracyTrendDto> trend = accuracyTrend(histories);
+            TagPerformanceDto performance = tagPerformance(userWords, histories);
 
             int mastered = (int) userWords.stream().filter(this::isMastered).count();
             int struggling = (int) userWords.stream().filter(this::isStruggling).count();
@@ -105,8 +105,12 @@ public class LearningAnalyticsService {
 
     @Transactional(readOnly = true)
     public List<AccuracyTrendDto> accuracyTrend(AppUser user) {
+        return accuracyTrend(histories(user));
+    }
+
+    private List<AccuracyTrendDto> accuracyTrend(List<QuizHistory> histories) {
         Map<LocalDate, QuizDayAccumulator> byDay = new TreeMap<>();
-        for (QuizHistory history : histories(user)) {
+        for (QuizHistory history : histories) {
             if (history.getCreatedAt() == null) continue;
             byDay.computeIfAbsent(toDate(history.getCreatedAt()), ignored -> new QuizDayAccumulator())
                     .add(history);
@@ -141,8 +145,11 @@ public class LearningAnalyticsService {
 
     @Transactional(readOnly = true)
     public ReviewPressureDto reviewPressure(AppUser user) {
+        return reviewPressure(userWords(user));
+    }
+
+    private ReviewPressureDto reviewPressure(List<VocabularyWord> userWords) {
         LocalDate today = LocalDate.now();
-        List<VocabularyWord> userWords = userWords(user);
         long dueToday = userWords.stream().filter(this::isDue).count();
         long overdue = userWords.stream().filter(word -> isOverdue(word, today)).count();
         long mastered = userWords.stream().filter(this::isMastered).count();
@@ -156,8 +163,13 @@ public class LearningAnalyticsService {
 
     @Transactional(readOnly = true)
     public TagPerformanceDto tagPerformance(AppUser user) {
-        List<VocabularyWord> userWords = userWords(user);
-        List<QuizHistory> histories = histories(user);
+        return tagPerformance(userWords(user), histories(user));
+    }
+
+    private TagPerformanceDto tagPerformance(
+            List<VocabularyWord> userWords,
+            List<QuizHistory> histories
+    ) {
         return new TagPerformanceDto(
                 wordPerformance(userWords, word -> label(word.getTag(), "untagged")),
                 wordPerformance(userWords, word -> label(word.getLevel(), "unknown")),

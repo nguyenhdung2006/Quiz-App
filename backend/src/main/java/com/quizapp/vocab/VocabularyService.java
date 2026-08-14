@@ -4,8 +4,13 @@ import com.quizapp.health.HealthCounterService;
 import com.quizapp.user.AppUser;
 import com.quizapp.user.AppUserRepository;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -156,11 +161,13 @@ public class VocabularyService {
             int verifiedCorrect = 0;
             int verifiedMaxCombo = 0;
             int currentCombo = 0;
+            Map<String, VocabularyWord> wordsByEnglish = quizWordsByEnglish(syncUser, request.answers());
+            Map<Long, WrongBankEntry> wrongEntriesByWordId = wrongEntriesByWordId(syncUser, wordsByEnglish.values());
 
             for (QuizAnswerRequest answer : request.answers()) {
                 if (answer.eng() == null || answer.eng().isBlank()) continue;
 
-                VocabularyWord word = words.findByUserAndEngIgnoreCase(syncUser, answer.eng()).orElse(null);
+                VocabularyWord word = wordsByEnglish.get(englishLookupKey(answer.eng()));
                 if (word == null) continue;
 
                 String questionMode = normalizeQuestionMode(answer.questionMode());
@@ -175,7 +182,16 @@ public class VocabularyService {
                     currentCombo = 0;
                 }
 
-                applyVerifiedAnswer(syncUser, history, word, answer, questionMode, serverCorrectAnswer, answerIsCorrect);
+                applyVerifiedAnswer(
+                        syncUser,
+                        history,
+                        word,
+                        answer,
+                        questionMode,
+                        serverCorrectAnswer,
+                        answerIsCorrect,
+                        wrongEntriesByWordId
+                );
             }
 
             int verifiedWrong = verifiedTotal - verifiedCorrect;
@@ -224,7 +240,8 @@ public class VocabularyService {
             QuizAnswerRequest answer,
             String questionMode,
             String serverCorrectAnswer,
-            boolean answerIsCorrect
+            boolean answerIsCorrect,
+            Map<Long, WrongBankEntry> wrongEntriesByWordId
     ) {
         WordStats stats = ensureStats(word);
         stats.setSeen(stats.getSeen() + 1);
@@ -235,13 +252,16 @@ public class VocabularyService {
             stats.setCurrentStreak(stats.getCurrentStreak() + 1);
             stats.setBestStreak(Math.max(stats.getBestStreak(), stats.getCurrentStreak()));
             stats.setMasteryLevel(Math.min(5, stats.getMasteryLevel() + 1));
-            wrongBank.findByUserAndWord(user, word).ifPresent(entry -> entry.setMastered(true));
+            WrongBankEntry entry = wrongEntriesByWordId.get(word.getId());
+            if (entry != null) {
+                entry.setMastered(true);
+            }
         } else {
             stats.setWrong(stats.getWrong() + 1);
             stats.setCurrentStreak(0);
             stats.setMasteryLevel(Math.max(0, stats.getMasteryLevel() - 1));
             word.setMastered(false);
-            WrongBankEntry entry = wrongBank.findByUserAndWord(user, word).orElseGet(() -> {
+            WrongBankEntry entry = wrongEntriesByWordId.computeIfAbsent(word.getId(), ignored -> {
                 WrongBankEntry next = new WrongBankEntry();
                 next.setUser(user);
                 next.setWord(word);
@@ -266,6 +286,44 @@ public class VocabularyService {
         savedAnswer.setCorrectAnswer(serverCorrectAnswer);
         savedAnswer.setCorrect(answerIsCorrect);
         history.addAnswer(savedAnswer);
+    }
+
+    private Map<String, VocabularyWord> quizWordsByEnglish(AppUser user, List<QuizAnswerRequest> answers) {
+        List<String> englishKeys = answers.stream()
+                .filter(answer -> answer != null && answer.eng() != null && !answer.eng().isBlank())
+                .map(answer -> englishLookupKey(answer.eng()))
+                .distinct()
+                .toList();
+        if (englishKeys.isEmpty()) {
+            return Map.of();
+        }
+
+        return words.findByUserAndEnglishLookupKeyIn(user, englishKeys).stream()
+                .collect(Collectors.toMap(
+                        word -> englishLookupKey(word.getEng()),
+                        Function.identity(),
+                        (left, right) -> left
+                ));
+    }
+
+    private Map<Long, WrongBankEntry> wrongEntriesByWordId(
+            AppUser user,
+            Collection<VocabularyWord> answerWords
+    ) {
+        List<VocabularyWord> persistedWords = answerWords.stream()
+                .filter(word -> word.getId() != null)
+                .toList();
+        if (persistedWords.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        return wrongBank.findByUserAndWordIn(user, persistedWords).stream()
+                .collect(Collectors.toMap(
+                        entry -> entry.getWord().getId(),
+                        Function.identity(),
+                        (left, right) -> left,
+                        HashMap::new
+                ));
     }
 
     @Transactional(readOnly = true)

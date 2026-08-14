@@ -45,10 +45,7 @@ public class SpacedRepetitionService {
 
     @Transactional(readOnly = true)
     public List<ReviewQueueItemDto> queue(AppUser user, Integer limit, String tag, String level) {
-        return words.findByUserOrderByCreatedAtDesc(user).stream()
-                .filter(this::isDue)
-                .filter(word -> matches(tag, word.getTag()))
-                .filter(word -> matches(level, word.getLevel()))
+        return words.findDueForReview(user, Instant.now(), normalizeFilter(tag), normalizeFilter(level)).stream()
                 .map(this::toQueueItem)
                 .sorted(Comparator.comparingInt(ReviewQueueItemDto::priority).reversed())
                 .limit(limit == null || limit <= 0 ? Long.MAX_VALUE : limit)
@@ -143,11 +140,6 @@ public class SpacedRepetitionService {
         );
     }
 
-    private boolean isDue(VocabularyWord word) {
-        WordStats stats = word.getStats();
-        return stats != null && stats.getNextReview() != null && !stats.getNextReview().isAfter(Instant.now());
-    }
-
     private int priority(VocabularyWord word) {
         WordStats stats = ensureStats(word);
         long overdueDays = stats.getNextReview() == null
@@ -195,8 +187,8 @@ public class SpacedRepetitionService {
         };
     }
 
-    private boolean matches(String filter, String value) {
-        return filter == null || filter.isBlank() || filter.equalsIgnoreCase(value == null ? "" : value);
+    private String normalizeFilter(String value) {
+        return value == null || value.isBlank() ? null : value.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     private String blankFallback(String value, String fallback) {
