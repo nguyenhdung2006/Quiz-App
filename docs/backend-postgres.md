@@ -72,7 +72,27 @@ For fast development without manual schema validation, leave `DATABASE_URL`,
 `update`.
 
 ## API Endpoints
-All app APIs require an authenticated Google session except the OAuth/login routes.
+Authentication is configured in `SecurityConfig`. Public endpoints are limited
+to OAuth/login, preflight, lightweight health/CSRF/profile bootstrap, and the
+safe actuator endpoints listed below. All other application endpoints require an
+authenticated Google session; unsafe authenticated requests also require CSRF.
+
+Public/bootstrap:
+
+- `OPTIONS /**`
+- `GET /oauth2/authorization/google`
+- `GET /login/oauth2/code/google`
+- `GET /api/health`
+- `GET /api/health/summary`
+- `GET /api/csrf`
+- `GET /api/me` returns `{ "authenticated": false }` without a session
+- `GET /actuator/health`
+- `GET /actuator/info`
+- `GET /actuator/metrics`
+- `GET /actuator/metrics/{name}`
+
+Public route identifiers tracked by the docs drift check: `/api/health`,
+`/api/csrf`, `/api/me`, `/actuator/metrics`.
 
 Profile:
 
@@ -99,6 +119,22 @@ Learning:
 Sample import:
 
 - `POST /api/admin/sample-words`
+
+Review, analytics, and AI:
+
+- `GET /api/review/today`
+- `GET /api/review/queue`
+- `POST /api/review/answer`
+- `GET /api/analytics/overview`
+- `GET /api/analytics/accuracy-trend`
+- `GET /api/analytics/weak-words`
+- `GET /api/analytics/review-pressure`
+- `GET /api/analytics/tag-performance`
+- `POST /api/ai/explain-wrong-answer`
+- `POST /api/ai/generate-deck`
+
+See `docs/API.md` for the method/path inventory, request bodies, status codes,
+auth/public classification, and related test coverage.
 
 ## Stored Backend Features
 The backend stores vocabulary words, word stats, wrong bank entries, quiz history, quiz answers, achievements, and unlocked achievements. `next_review` is used for spaced repetition.

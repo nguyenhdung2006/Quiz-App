@@ -91,6 +91,7 @@ Additional local checks:
 
 ```powershell
 npx playwright test
+npm run test:docs-drift
 npm run gate:secret-scan
 npm run gate:report
 ```

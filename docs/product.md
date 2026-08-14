@@ -25,6 +25,7 @@ The design goal is "learn while playing, without pressure": combo feedback, smal
 - Quiz review screen with selected answer, correct answer, examples, and notes.
 - Wrong bank with mastered cleanup.
 - Local import/export JSON backup.
+- CSV bulk import with validation feedback and CSV template download in Learning Studio.
 - Starter sample word import.
 - Dashboard cards for total words, wrong bank, due reviews, and weekly correct answers.
 - Profile editor with name, avatar, birthday, gender, learning goal, and bio.
@@ -53,6 +54,6 @@ Good next upgrades:
 - Real admin-only deck management.
 - Better spaced repetition tuning by difficulty and lapse count.
 - Achievement gallery UI.
-- CSV import/export.
+- CSV export, if learners need spreadsheet round-trips beyond the current JSON backup and CSV import/template flow.
 - Mobile PWA install support.
 - Tests for service-level quiz history and achievements.

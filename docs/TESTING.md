@@ -76,6 +76,7 @@ This test verifies:
 
 ```powershell
 npm run test:frontend
+npm run test:docs-drift
 node --check frontend\js\config.js
 node --check frontend\js\app.js
 node --check frontend\js\ai-explain.js
@@ -99,7 +100,11 @@ Frontend:
 PostgreSQL:
 
 - CI starts PostgreSQL 16 and runs `SPRING_PROFILES_ACTIVE=prod ./mvnw -B -Dtest=QuizApplicationTests test` with Flyway enabled and Hibernate `ddl-auto=validate`.
-- This verifies ordered V1 -> V3 migrations against PostgreSQL in CI. It does not execute a production or staging migration.
+- This verifies ordered V1 -> V4 migrations against PostgreSQL in CI. The latest migration at this commit is `V4__add_legacy_word_id_to_word_tombstones.sql`. It does not execute a production or staging migration.
+
+Docs drift:
+
+- `npm run test:docs-drift` checks that `docs/API.md` covers current controller routes and public route classifications, that canonical docs mention the latest Flyway migration, that backend env keys are documented, and that known product/backend docs contradictions do not reappear.
 
 ## Production Release Gate
 

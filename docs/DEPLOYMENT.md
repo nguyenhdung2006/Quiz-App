@@ -62,6 +62,42 @@ Operational environment variable names:
 - `SYNC_MAX_REQUEST_BODY_BYTES` (defaults to `1048576`; caps `POST /api/sync`
   before JSON deserialization)
 
+Complete backend env inventory read by the current application config:
+
+| Key | Category | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | database | JDBC URL for PostgreSQL or default H2 fallback. |
+| `DATABASE_USERNAME` | database secret | Datasource username. |
+| `DATABASE_PASSWORD` | database secret | Datasource password. |
+| `JPA_DDL_AUTO` | database safety | Must be `validate` for production. |
+| `FLYWAY_ENABLED` | database safety | Must be `true` for production after baseline/rehearsal. |
+| `FLYWAY_BASELINE_ON_MIGRATE` | database safety | Must remain `false` for production app startup. |
+| `FLYWAY_BASELINE_VERSION` | database safety | Baseline marker version for controlled maintenance only. |
+| `FLYWAY_BASELINE_DESCRIPTION` | database safety | Optional baseline marker description. |
+| `GOOGLE_CLIENT_ID` | OAuth secret/config | Google OAuth client id. |
+| `GOOGLE_CLIENT_SECRET` | OAuth secret | Google OAuth client secret. |
+| `FRONTEND_URL` | browser/OAuth | Frontend base URL and default redirect base. |
+| `CORS_ALLOWED_ORIGINS` | browser/OAuth | Exact comma-separated allowed browser origins. |
+| `OAUTH_SUCCESS_REDIRECT_URI` | browser/OAuth | Optional explicit post-login redirect. |
+| `SESSION_COOKIE_SAME_SITE` | session | Use `none` for cross-site production frontend/backend. |
+| `SESSION_COOKIE_SECURE` | session | Use `true` in production. |
+| `SESSION_COOKIE_PATH` | session | Usually `/`. |
+| `APP_SECURITY_HSTS_ENABLED` | security headers | Enables HSTS on HTTPS responses. |
+| `AI_MODEL` | AI | OpenAI model name. |
+| `OPENAI_API_KEY` | AI secret | Optional; backend falls back when blank. |
+| `RATE_LIMIT_MODE` | AI rate limit | Current supported mode is `in-memory`. |
+| `AI_RATE_LIMIT_MINUTE_WINDOW` | AI rate limit | AI minute-window duration. |
+| `AI_EXPLAIN_RATE_LIMIT_PER_MINUTE` | AI rate limit | Explain endpoint per-minute limit. |
+| `AI_EXPLAIN_RATE_LIMIT_PER_DAY` | AI rate limit | Explain endpoint per-day limit. |
+| `AI_DECK_RATE_LIMIT_PER_MINUTE` | AI rate limit | Deck endpoint per-minute limit. |
+| `AI_DECK_RATE_LIMIT_PER_DAY` | AI rate limit | Deck endpoint per-day limit. |
+| `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` | observability | Default `health,info,metrics`. |
+| `LOGGING_LEVEL_ROOT` | observability | Root logging level. |
+| `LOGGING_LEVEL_SECURITY` | observability | Spring Security logging level. |
+| `APP_VERSION` | actuator info | Non-secret version label. |
+| `APP_ENV` | actuator info | Non-secret environment label. |
+| `SYNC_MAX_REQUEST_BODY_BYTES` | sync safety | Pre-deserialization body cap for `POST /api/sync`. |
+
 Never print or paste secret values into release reports.
 
 ## Observability
