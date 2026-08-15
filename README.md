@@ -92,6 +92,7 @@ Additional local checks:
 ```powershell
 npm run check:frontend
 npm run lint
+npm run test:assets
 npx playwright test
 npm run test:docs-drift
 npm run coverage:backend

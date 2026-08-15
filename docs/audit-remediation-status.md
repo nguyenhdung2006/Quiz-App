@@ -21,6 +21,7 @@ as a hypothesis list.
 | Backend coverage gate | PASS, 111 tests, JaCoCo line threshold 80% | `npm run coverage:backend` |
 | Frontend syntax check | PASS, 17 files | `npm run check:frontend` |
 | Frontend lint | PASS with ESLint suppressions baseline | `npm run lint` |
+| Frontend CSS asset check | PASS, 10 referenced stylesheet files | `npm run test:assets` |
 | Docs drift check | PASS | `npm run test:docs-drift` |
 | Secret scan gate | PASS, `findingCount: 0` | `npm run gate:secret-scan` |
 | Source integrity gate | BLOCKED | Node `spawnSync git EPERM`; direct Git commands work |
@@ -49,7 +50,7 @@ as a hypothesis list.
 | AUD-013 | FIXED | S3 | P2 | D3 | JSON import now validates into a read-only preview; Replace/Merge/Cancel are explicit; Replace downloads backup first; storage failure rolls back and stays visible | Native confirm and `setData()` previously combined mode selection with non-transactional two-key persistence and no quota feedback | Keep the review dialog and local-wins merge rule; use capacity probe plus rollback while retaining legacy JSON formats | Malformed JSON/CSV, large preview, duplicate/cancel, backup failure/order, merge, replace, quota rollback, keyboard, CSP, and 320/390 viewport coverage | Done |
 | AUD-014 | FIXED | S1 | P3 | D2 | Backend trend and overdue grouping used `ZoneId.systemDefault()`/`LocalDate.now()`, while due and weekly checks called `Instant.now()` directly | No explicit backend analytics calendar zone or injectable time source existed | Inject a UTC clock and validated configurable analytics zone; default/fallback to UTC without changing API/schema | UTC/New York midnight boundary, DST overlap, invalid zone fallback, host timezone independence, existing analytics regression | Done |
 | AUD-015 | FIXED | S1 | P3 | D2 | `package.json` had no lint/typecheck/coverage script; CI only used inline `node --check` and backend tests had no coverage report/threshold | Vanilla JS project lacked quality tooling, and Maven had no JaCoCo coverage visibility | Add ESLint with suppressions baseline, reusable frontend syntax check, and JaCoCo report/check threshold without TypeScript rewrite | `npm run lint`; `npm run check:frontend`; `npm run coverage:backend`; CI/release-gate wiring | Done |
-| AUD-016 | Confirmed candidate | S0 | P4 | D1 | `design-system.css` and `login-modern.css` are not linked by current HTML | Historical/unused CSS left in repo | Do not delete until reference and visual regression checks prove unused | Asset reference scan and screenshots | No |
+| AUD-016 | FIXED | S0 | P4 | D1 | `design-system.css` and `login-modern.css` were present in `frontend/css` but had no HTML link, CSS import, JS dynamic load, build, test, CI, or deployment reference outside historical docs | Theme iterations left legacy stylesheet assets in the runtime CSS directory after current `index.html`/`login.html` moved to the active stylesheet set | Remove the unreferenced CSS files; document current stylesheet ownership; add an asset check so future orphan CSS fails locally/CI | Reference scan, CSS asset inventory, frontend smoke/runtime checks, lint/build/docs drift | Done |
 
 ## Additional Findings
 
@@ -74,6 +75,7 @@ as a hypothesis list.
 | AUD-013 | `frontend/index.html`, `frontend/js/app.js`, `frontend/js/learning-studio.js`, `frontend/css/modern.css`, `frontend/css/modern-responsive.css`, `tests/smoke.spec.js`, docs | Replaced native-confirm JSON import with read-only preview and explicit actions; Replace is backup-first; Merge keeps local fields and skips normalized-English duplicates; imported sync metadata is ignored; capacity probe and two-key rollback prevent quota/write failures from changing live state; malformed CSV is rejected safely. | `node --check` for changed JS PASS; targeted import Playwright tests PASS; `npm run test:frontend` PASS, 60 tests; `npm run build:frontend` PASS |
 | AUD-014 | `backend/src/main/java/com/quizapp/analytics/AnalyticsTimeConfiguration.java`, `AnalyticsTimeProvider.java`, `LearningAnalyticsService.java`, `application.properties`, `LearningAnalyticsTimeTests.java`, docs | Analytics uses an injected UTC clock plus `ANALYTICS_DEFAULT_ZONE`; default/blank/invalid configuration resolves to UTC; trend and overdue calendar dates use the configured zone; due and weekly instant boundaries share the injected clock. API and schema are unchanged. | Targeted analytics tests PASS, 6 tests; full backend PASS, 111 tests; backend package PASS; docs drift PASS |
 | AUD-015 | `eslint.config.mjs`, `eslint-suppressions.json`, `scripts/check-frontend-js.mjs`, `scripts/backend-coverage.mjs`, `package.json`, `backend/pom.xml`, `.github/workflows/ci.yml`, `.github/workflows/production-release-gate.yml`, docs | Added deterministic frontend syntax and ESLint gates. Existing vanilla-global lint debt is recorded in an ESLint suppressions baseline so new violations fail without forcing AUD-008/AUD-016 cleanup. Backend `verify` now generates JaCoCo HTML/XML/CSV coverage and enforces an 80% bundle line-coverage threshold; CI and release gate run the new checks without secrets, staging, deploy, or cloud dependencies. | `npm run check:frontend` PASS, 17 files; `npm run lint` PASS; `npm run coverage:backend` PASS, 111 tests, JaCoCo check met; measured line coverage 87.68%; frontend smoke/build/docs drift/backend package rerun in final verification |
+| AUD-016 | `frontend/css/design-system.css`, `frontend/css/login-modern.css`, `scripts/frontend-css-assets-check.mjs`, `.github/workflows/ci.yml`, `.github/workflows/production-release-gate.yml`, `package.json`, docs | Removed the two unreferenced legacy CSS assets after repo/runtime scan and Playwright baseline. The active stylesheet source of truth is now documented: `index.html` loads base/layout/components/typography/quiz/effects/modern/modern-theme-light/modern-responsive; `login.html` loads `login.css`. `npm run test:assets` fails on missing CSS references or orphan `frontend/css/*.css` files. | Baseline Playwright PASS, 60 tests; `npm run test:assets` PASS, 10 referenced CSS files; final lint/check/frontend smoke/build/docs drift PASS |
 
 ## Commits
 
@@ -92,6 +94,7 @@ as a hypothesis list.
 | AUD-013 | this commit (`fix(audit): add safe import preview and rollback`) |
 | AUD-014 | this commit (`fix(audit): make analytics timezone deterministic`) |
 | AUD-015 | this commit (`chore(audit): add lint and coverage quality gates`) |
+| AUD-016 | this commit (`chore(audit): remove unreferenced CSS assets`) |
 
 ## Blocked
 
@@ -108,12 +111,13 @@ as a hypothesis list.
 - AUD-013 still relies on browser `localStorage`; site-data clearing and conservative capacity limits remain platform risks. It does not provide real staging/release evidence for AUD-006.
 - AUD-014 does not store a per-user timezone. Backend cloud analytics uses the configured default zone, while local-only frontend analytics continues to use browser/device date semantics. `CurrentUserService.lastActiveDate` also remains host-local metadata because no current streak/analytics calculation consumes it.
 - AUD-015 intentionally keeps a suppressions baseline for existing vanilla-global frontend lint debt. Full JSDoc/checkJs typechecking is deferred until global modules are extracted; new ESLint violations still fail outside the recorded baseline.
+- AUD-016 only removes CSS files with no repo/runtime references. It does not clean duplicate selectors inside active CSS and does not prove external consumers outside this repo never linked the deleted files directly.
 
 ## Do Not Do Now
 
 - Do not claim production-ready from local tests or stale release artifacts.
 - Do not implement delta sync/device watermarks before real payload/query/load metrics justify the larger protocol change.
-- Do not delete candidate-unused CSS without visual regression coverage.
+- Do not delete active CSS or candidate duplicate selectors without visual regression coverage.
 - Do not rewrite the frontend to React/Vue/Angular for these findings.
 - Do not introduce Redis, queues, Kubernetes, or microservices for current scale.
 
@@ -122,7 +126,7 @@ as a hypothesis list.
 1. Design a backwards-compatible client baseline/change-set for future safe stale merges without pretending it fixes already-stale devices.
 2. Run or prepare the staging restore/OAuth/CRUD/sync/delete evidence checklist without marking missing external work PASS.
 3. Keep the AUD-009 keyboard regression tests in the frontend smoke suite when Learning Studio tabs or modal controls change.
-4. Prune `eslint-suppressions.json` as AUD-008 module extraction and AUD-016 CSS cleanup reduce legacy global/style debt.
+4. Prune `eslint-suppressions.json` as AUD-008 module extraction reduces legacy global debt.
 5. Decide metrics exposure/alert ownership policy and align security tests with it.
 
 Current maturity after this batch: hardened MVP / portfolio-ready / controlled beta candidate. It is not production-ready because production env, real backup restore, and staging OAuth evidence are still incomplete.

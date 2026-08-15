@@ -24,6 +24,7 @@ The gate runs these controls:
 | Security regression tests | focused backend hardening and CSRF tests |
 | Observability/rate-limit controls | request ID, metrics endpoint, 4xx/5xx, sync/quiz/AI/rate-limit counters |
 | Frontend lint | ESLint result with the current suppressions baseline |
+| Frontend CSS asset ownership | CSS files linked/imported by the runtime stylesheet graph |
 | Frontend static build | JavaScript syntax and static asset references |
 | Frontend Playwright smoke | Playwright report and test results |
 | Flyway rehearsal | temporary PostgreSQL migration and repeat validation logs |
@@ -139,6 +140,7 @@ npm run gate:validate-env
 npm run test:gate:validate-env
 npm run test:gate:report
 npm run lint
+npm run test:assets
 npm run coverage:backend
 npm run build:frontend
 npm run test:frontend

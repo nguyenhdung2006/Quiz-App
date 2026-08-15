@@ -160,6 +160,9 @@ jobs:
       - name: Frontend lint
         run: npm run lint
 
+      - name: Frontend CSS asset ownership
+        run: npm run test:assets
+
       - name: Frontend static build
         run: npm run build:frontend
 

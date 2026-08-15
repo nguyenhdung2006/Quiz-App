@@ -9,6 +9,7 @@ Run these checks after frontend JavaScript changes:
 ```powershell
 npm run check:frontend
 npm run lint
+npm run test:assets
 npm run test:frontend
 npm run build:frontend
 ```
@@ -22,6 +23,30 @@ other focused cleanup removes existing violations.
 Full JSDoc/checkJs typechecking is intentionally deferred while the frontend
 remains script-global. The current lint baseline is the ratchet for name/global
 drift until modules can be extracted without a big-bang rewrite.
+
+## Stylesheet Source Of Truth
+
+Runtime stylesheets are owned by HTML links. `frontend/index.html` loads:
+
+- `frontend/css/base.css`
+- `frontend/css/layout.css`
+- `frontend/css/components.css`
+- `frontend/css/typography.css`
+- `frontend/css/quiz.css`
+- `frontend/css/effects.css`
+- `frontend/css/modern.css`
+- `frontend/css/modern-theme-light.css`
+- `frontend/css/modern-responsive.css`
+
+`frontend/login.html` loads:
+
+- `frontend/css/login.css`
+
+`npm run test:assets` verifies that every `frontend/css/*.css` file is linked
+from runtime HTML or imported by another CSS file. It also fails on missing CSS
+references. Add a documented allowlist entry in
+`scripts/frontend-css-assets-check.mjs` only for an intentional non-runtime CSS
+asset.
 
 ## API Helper
 

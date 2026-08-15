@@ -40,6 +40,6 @@ Do not combine these with production blocker fixes:
 - Split `frontend/js/app.js` into auth, sync, profile, dashboard, and import/export modules.
 - Split `frontend/js/learning-studio.js` by studio profile/history, decks, CSV, focus, and AI deck.
 - Continue splitting the remaining `frontend/css/modern.css` core only with visual regression coverage; light-theme and responsive tails are already split into dedicated files.
-- Split or retire `frontend/css/design-system.css` only after confirming active selector usage.
+- Keep `npm run test:assets` green as stylesheet files are added, split, or retired.
 - Leave `frontend/index.html` intact until a template/build step is introduced; manual HTML fragmentation would change static delivery semantics.
 - Split `tests/smoke.spec.js` by feature once current smoke coverage is green.

@@ -70,6 +70,9 @@ jobs:
       - name: Check frontend JavaScript syntax
         run: npm run check:frontend
 
+      - name: Check frontend CSS assets
+        run: npm run test:assets
+
       - name: Run frontend lint
         run: npm run lint
 
