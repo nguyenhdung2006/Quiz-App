@@ -55,8 +55,13 @@ Frontend CSRF behavior is covered in `tests/smoke.spec.js`:
 ```powershell
 cd backend
 .\mvnw.cmd clean test
+.\mvnw.cmd verify
 .\mvnw.cmd clean package -DskipTests
 ```
+
+`.\mvnw.cmd verify` runs the full backend tests, generates the JaCoCo report
+under `backend/target/site/jacoco/`, and enforces the current bundle line
+coverage threshold of 80%.
 
 Production database safety guard:
 
@@ -75,16 +80,18 @@ This test verifies:
 - Migration files are ordered, contiguous, versioned, and do not contain tombstone work.
 
 ```powershell
+npm run check:frontend
+npm run lint
 npm run test:frontend
 npm run test:docs-drift
-node --check frontend\js\config.js
-node --check frontend\js\app.js
-node --check frontend\js\ai-explain.js
-node --check frontend\js\learning-studio.js
-node --check frontend\js\review-today.js
-node --check frontend\js\analytics-dashboard.js
-node --check frontend\js\login.js
+npm run coverage:backend
 ```
+
+`npm run check:frontend` performs recursive `node --check` on all
+`frontend/js/*.js` files. `npm run lint` runs ESLint over `frontend/js`,
+`tests`, `scripts`, and `playwright.config.js` with
+`eslint-suppressions.json` as the current legacy baseline. New lint violations
+outside that baseline fail the command.
 # Sync V2 Verification
 
 Backend:
@@ -112,9 +119,11 @@ The `Production Release Gate` workflow runs from `.github/workflows/production-r
 
 Gate controls include:
 
-- full backend test suite;
+- full backend test suite plus JaCoCo line coverage threshold through
+  `.\mvnw.cmd verify`;
 - focused security regression tests: `BackendHardeningTests` and `CsrfSecurityTests`;
 - observability and rate-limit controls: `ObservabilityAndRateLimitTests` and `AiRateLimitTests`;
+- frontend ESLint validation through `npm run lint`;
 - frontend static build validation through `npm run build:frontend`;
 - Playwright smoke tests with report artifacts;
 - Flyway rehearsal against temporary PostgreSQL with `SPRING_PROFILES_ACTIVE=prod`;

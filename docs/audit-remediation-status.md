@@ -11,13 +11,16 @@ as a hypothesis list.
 | Check | Result | Evidence |
 | --- | --- | --- |
 | Branch | `chore/audit-reconciliation-and-upgrade` | `git branch --show-current` |
-| Commit before fix | `2d74d4560f61b65da98b04c4edf2981820374402` | `git rev-parse HEAD` |
+| Commit before AUD-015 fix | `f476f14aa74eeffbcec291462c3fa812d4a7bbfc` | `git rev-parse HEAD` |
 | Working tree before fix | dirty due untracked audit attachments only | `git status --short` showed `docs/full-project-audit.docx`, `docs/full-project-audit.md`, `full-project-audit.docx`, `~$ll-project-audit.docx` |
-| Commits since 2026-08-09 | 4 docs/evidence commits | `git log --since='2026-08-09 00:00:00'` |
+| Audit remediation commits since 2026-08-09 | present in this local branch | See the commits table below |
 | Backend tests | PASS, 111 tests, 0 failures/errors/skips | `cd backend; .\mvnw.cmd test` |
 | Frontend smoke | PASS, 60 Chromium tests | `npm run test:frontend` |
 | Frontend static build | PASS | `npm run build:frontend` |
 | Backend package | PASS | `cd backend; .\mvnw.cmd clean package -DskipTests` |
+| Backend coverage gate | PASS, 111 tests, JaCoCo line threshold 80% | `npm run coverage:backend` |
+| Frontend syntax check | PASS, 17 files | `npm run check:frontend` |
+| Frontend lint | PASS with ESLint suppressions baseline | `npm run lint` |
 | Docs drift check | PASS | `npm run test:docs-drift` |
 | Secret scan gate | PASS, `findingCount: 0` | `npm run gate:secret-scan` |
 | Source integrity gate | BLOCKED | Node `spawnSync git EPERM`; direct Git commands work |
@@ -25,7 +28,7 @@ as a hypothesis list.
 | Backup rollback gate before fix | PASS incorrectly | Existing evidence file says `PARTIAL PASS` |
 | Backup rollback gate after fix | BLOCKED correctly | `npm run gate:backup-rollback` |
 | Staging smoke gate | BLOCKED | Missing `STAGING_BACKEND_URL`, `STAGING_FRONTEND_URL`, `STAGING_TEST_USER_HINT` |
-| Lint/typecheck | MISSING | No lint/typecheck scripts are defined |
+| Typecheck/checkJs | DEFERRED | Full checkJs remains noisy while the frontend is script-global; ESLint `no-undef` baseline now ratchets name/global drift |
 
 ## AUD Triage
 
@@ -45,7 +48,7 @@ as a hypothesis list.
 | AUD-012 | FIXED | S2 | P2 | D2 | Controller routes for auth/profile/health/vocab/sync/review/analytics/AI exceeded `docs/API.md`; `docs/TESTING.md` stopped at V3 though migrations reached V4; product docs kept CSV in roadmap; backend PostgreSQL docs overstated auth requirements | Manual docs had no deterministic owner/check against route, env, migration, and product-state facts | Reconcile canonical docs and add a lightweight local docs drift check for routes, public endpoints, env keys, latest migration, CSV state, and auth wording | `npm run test:docs-drift`; backend regression suite | Done |
 | AUD-013 | FIXED | S3 | P2 | D3 | JSON import now validates into a read-only preview; Replace/Merge/Cancel are explicit; Replace downloads backup first; storage failure rolls back and stays visible | Native confirm and `setData()` previously combined mode selection with non-transactional two-key persistence and no quota feedback | Keep the review dialog and local-wins merge rule; use capacity probe plus rollback while retaining legacy JSON formats | Malformed JSON/CSV, large preview, duplicate/cancel, backup failure/order, merge, replace, quota rollback, keyboard, CSP, and 320/390 viewport coverage | Done |
 | AUD-014 | FIXED | S1 | P3 | D2 | Backend trend and overdue grouping used `ZoneId.systemDefault()`/`LocalDate.now()`, while due and weekly checks called `Instant.now()` directly | No explicit backend analytics calendar zone or injectable time source existed | Inject a UTC clock and validated configurable analytics zone; default/fallback to UTC without changing API/schema | UTC/New York midnight boundary, DST overlap, invalid zone fallback, host timezone independence, existing analytics regression | Done |
-| AUD-015 | Confirmed | S1 | P3 | D2 | `package.json` has no lint/typecheck/coverage script | Vanilla JS project lacks quality tooling | Add lightweight changed-file syntax/lint visibility first | CI script verifies changed JS | Later |
+| AUD-015 | FIXED | S1 | P3 | D2 | `package.json` had no lint/typecheck/coverage script; CI only used inline `node --check` and backend tests had no coverage report/threshold | Vanilla JS project lacked quality tooling, and Maven had no JaCoCo coverage visibility | Add ESLint with suppressions baseline, reusable frontend syntax check, and JaCoCo report/check threshold without TypeScript rewrite | `npm run lint`; `npm run check:frontend`; `npm run coverage:backend`; CI/release-gate wiring | Done |
 | AUD-016 | Confirmed candidate | S0 | P4 | D1 | `design-system.css` and `login-modern.css` are not linked by current HTML | Historical/unused CSS left in repo | Do not delete until reference and visual regression checks prove unused | Asset reference scan and screenshots | No |
 
 ## Additional Findings
@@ -70,6 +73,7 @@ as a hypothesis list.
 | AUD-012 | `docs/API.md`, `docs/TESTING.md`, `docs/product.md`, `docs/backend-postgres.md`, `docs/DEPLOYMENT.md`, `README.md`, `scripts/audit-docs-drift-check.mjs`, `package.json`, docs | API docs now cover current controller route groups and auth/public status; testing docs point to Flyway V4; product docs reflect CSV import/template as current and CSV export as future; backend PostgreSQL docs list public/bootstrap and actuator endpoints accurately; docs drift check fails on missing controller route docs, stale V3 migration wording, missing env docs, stale CSV roadmap, or old auth overstatement. | `npm run test:docs-drift` PASS; backend tests PASS; backend package PASS |
 | AUD-013 | `frontend/index.html`, `frontend/js/app.js`, `frontend/js/learning-studio.js`, `frontend/css/modern.css`, `frontend/css/modern-responsive.css`, `tests/smoke.spec.js`, docs | Replaced native-confirm JSON import with read-only preview and explicit actions; Replace is backup-first; Merge keeps local fields and skips normalized-English duplicates; imported sync metadata is ignored; capacity probe and two-key rollback prevent quota/write failures from changing live state; malformed CSV is rejected safely. | `node --check` for changed JS PASS; targeted import Playwright tests PASS; `npm run test:frontend` PASS, 60 tests; `npm run build:frontend` PASS |
 | AUD-014 | `backend/src/main/java/com/quizapp/analytics/AnalyticsTimeConfiguration.java`, `AnalyticsTimeProvider.java`, `LearningAnalyticsService.java`, `application.properties`, `LearningAnalyticsTimeTests.java`, docs | Analytics uses an injected UTC clock plus `ANALYTICS_DEFAULT_ZONE`; default/blank/invalid configuration resolves to UTC; trend and overdue calendar dates use the configured zone; due and weekly instant boundaries share the injected clock. API and schema are unchanged. | Targeted analytics tests PASS, 6 tests; full backend PASS, 111 tests; backend package PASS; docs drift PASS |
+| AUD-015 | `eslint.config.mjs`, `eslint-suppressions.json`, `scripts/check-frontend-js.mjs`, `scripts/backend-coverage.mjs`, `package.json`, `backend/pom.xml`, `.github/workflows/ci.yml`, `.github/workflows/production-release-gate.yml`, docs | Added deterministic frontend syntax and ESLint gates. Existing vanilla-global lint debt is recorded in an ESLint suppressions baseline so new violations fail without forcing AUD-008/AUD-016 cleanup. Backend `verify` now generates JaCoCo HTML/XML/CSV coverage and enforces an 80% bundle line-coverage threshold; CI and release gate run the new checks without secrets, staging, deploy, or cloud dependencies. | `npm run check:frontend` PASS, 17 files; `npm run lint` PASS; `npm run coverage:backend` PASS, 111 tests, JaCoCo check met; measured line coverage 87.68%; frontend smoke/build/docs drift/backend package rerun in final verification |
 
 ## Commits
 
@@ -87,6 +91,7 @@ as a hypothesis list.
 | AUD-012 | this commit (`docs(audit): reconcile API docs and drift checks`) |
 | AUD-013 | this commit (`fix(audit): add safe import preview and rollback`) |
 | AUD-014 | this commit (`fix(audit): make analytics timezone deterministic`) |
+| AUD-015 | this commit (`chore(audit): add lint and coverage quality gates`) |
 
 ## Blocked
 
@@ -102,6 +107,7 @@ as a hypothesis list.
 - AUD-012 does not add generated OpenAPI or deployed consumer contract evidence; it adds local route/docs drift checks only.
 - AUD-013 still relies on browser `localStorage`; site-data clearing and conservative capacity limits remain platform risks. It does not provide real staging/release evidence for AUD-006.
 - AUD-014 does not store a per-user timezone. Backend cloud analytics uses the configured default zone, while local-only frontend analytics continues to use browser/device date semantics. `CurrentUserService.lastActiveDate` also remains host-local metadata because no current streak/analytics calculation consumes it.
+- AUD-015 intentionally keeps a suppressions baseline for existing vanilla-global frontend lint debt. Full JSDoc/checkJs typechecking is deferred until global modules are extracted; new ESLint violations still fail outside the recorded baseline.
 
 ## Do Not Do Now
 
@@ -116,6 +122,7 @@ as a hypothesis list.
 1. Design a backwards-compatible client baseline/change-set for future safe stale merges without pretending it fixes already-stale devices.
 2. Run or prepare the staging restore/OAuth/CRUD/sync/delete evidence checklist without marking missing external work PASS.
 3. Keep the AUD-009 keyboard regression tests in the frontend smoke suite when Learning Studio tabs or modal controls change.
-4. Decide metrics exposure/alert ownership policy and align security tests with it.
+4. Prune `eslint-suppressions.json` as AUD-008 module extraction and AUD-016 CSS cleanup reduce legacy global/style debt.
+5. Decide metrics exposure/alert ownership policy and align security tests with it.
 
 Current maturity after this batch: hardened MVP / portfolio-ready / controlled beta candidate. It is not production-ready because production env, real backup restore, and staging OAuth evidence are still incomplete.

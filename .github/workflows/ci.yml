@@ -34,11 +34,11 @@ jobs:
           java-version: "17"
           cache: maven
 
-      - name: Run backend tests
+      - name: Run backend tests and coverage gate
         working-directory: backend
         run: |
           chmod +x mvnw
-          ./mvnw -B test
+          ./mvnw -B verify
 
       - name: Run production database safety guards
         working-directory: backend
@@ -64,32 +64,14 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Check frontend JavaScript syntax
-        run: |
-          node -e "
-          const { readdirSync } = require('node:fs');
-          const { join } = require('node:path');
-          const { spawnSync } = require('node:child_process');
-
-          function collectJsFiles(dir) {
-            return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-              const fullPath = join(dir, entry.name);
-              if (entry.isDirectory()) return collectJsFiles(fullPath);
-              return entry.isFile() && entry.name.endsWith('.js') ? [fullPath] : [];
-            });
-          }
-
-          const files = collectJsFiles('frontend/js');
-          for (const file of files) {
-            const result = spawnSync(process.execPath, ['--check', file], { stdio: 'inherit' });
-            if (result.status !== 0) process.exit(result.status || 1);
-          }
-
-          console.log('Checked ' + files.length + ' frontend JavaScript files.');
-          "
-
-      - name: Install frontend smoke test dependencies
+      - name: Install frontend check dependencies
         run: npm ci
+
+      - name: Check frontend JavaScript syntax
+        run: npm run check:frontend
+
+      - name: Run frontend lint
+        run: npm run lint
 
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium

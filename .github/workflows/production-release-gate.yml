@@ -137,9 +137,9 @@ jobs:
         working-directory: backend
         run: |
           chmod +x mvnw
-          ./mvnw -B test
+          ./mvnw -B verify
           cd ..
-          node scripts/production-release-gate/mark-control.mjs backend-full-test PASS "All backend tests completed."
+          node scripts/production-release-gate/mark-control.mjs backend-full-test PASS "All backend tests and JaCoCo coverage gate completed."
 
       - name: Security regression tests
         working-directory: backend
@@ -156,6 +156,9 @@ jobs:
           ./mvnw -B -Dtest=ObservabilityAndRateLimitTests,AiRateLimitTests test
           cd ..
           node scripts/production-release-gate/mark-control.mjs observability-rate-limit-controls PASS "Request ID, metrics, health, AI rate-limit, and failure counters completed."
+
+      - name: Frontend lint
+        run: npm run lint
 
       - name: Frontend static build
         run: npm run build:frontend

@@ -90,8 +90,11 @@ cd backend
 Additional local checks:
 
 ```powershell
+npm run check:frontend
+npm run lint
 npx playwright test
 npm run test:docs-drift
+npm run coverage:backend
 npm run gate:secret-scan
 npm run gate:report
 ```

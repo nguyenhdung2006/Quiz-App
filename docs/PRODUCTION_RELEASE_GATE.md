@@ -20,9 +20,10 @@ The gate runs these controls:
 | --- | --- |
 | Source integrity | commit SHA, branch, Flyway version uniqueness, production config safety |
 | Secret scan | committed file names and content patterns for secrets |
-| Backend full test | Maven Surefire reports |
+| Backend full test and coverage | Maven Surefire reports plus JaCoCo report/check |
 | Security regression tests | focused backend hardening and CSRF tests |
 | Observability/rate-limit controls | request ID, metrics endpoint, 4xx/5xx, sync/quiz/AI/rate-limit counters |
+| Frontend lint | ESLint result with the current suppressions baseline |
 | Frontend static build | JavaScript syntax and static asset references |
 | Frontend Playwright smoke | Playwright report and test results |
 | Flyway rehearsal | temporary PostgreSQL migration and repeat validation logs |
@@ -137,10 +138,12 @@ npm run gate:secret-scan
 npm run gate:validate-env
 npm run test:gate:validate-env
 npm run test:gate:report
+npm run lint
+npm run coverage:backend
 npm run build:frontend
 npm run test:frontend
 cd backend
-.\mvnw.cmd test
+.\mvnw.cmd verify
 ```
 
 Local `.env` files are intentionally ignored by Git. The secret scan fails if a real `.env`, private key, OAuth secret, token, or password-like value is committed.

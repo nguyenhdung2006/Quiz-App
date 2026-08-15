@@ -2,6 +2,27 @@
 
 The frontend is a static HTML/CSS/JavaScript app. `frontend/js/config.js` owns backend origin detection and the central API helper.
 
+## Quality Gates
+
+Run these checks after frontend JavaScript changes:
+
+```powershell
+npm run check:frontend
+npm run lint
+npm run test:frontend
+npm run build:frontend
+```
+
+`npm run check:frontend` recursively runs `node --check` for every file under
+`frontend/js`. `npm run lint` uses ESLint with browser globals and the current
+`eslint-suppressions.json` baseline for legacy script-global debt. Do not add
+new suppressions casually; prune the baseline when AUD-008 module extraction or
+other focused cleanup removes existing violations.
+
+Full JSDoc/checkJs typechecking is intentionally deferred while the frontend
+remains script-global. The current lint baseline is the ratchet for name/global
+drift until modules can be extracted without a big-bang rewrite.
+
 ## API Helper
 
 Use `window.quizApiFetch(url, options)` for all backend API calls.

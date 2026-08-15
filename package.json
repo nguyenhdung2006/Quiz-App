@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "build:frontend": "node scripts/production-release-gate/frontend-static-build.mjs",
+    "check:frontend": "node scripts/check-frontend-js.mjs",
+    "coverage:backend": "node scripts/backend-coverage.mjs",
     "gate:source-integrity": "node scripts/production-release-gate/source-integrity.mjs",
     "gate:secret-scan": "node scripts/production-release-gate/secret-scan.mjs",
     "gate:validate-env": "node scripts/production-release-gate/validate-production-env.mjs",
@@ -15,10 +17,15 @@
     "test:docs-drift": "node scripts/audit-docs-drift-check.mjs",
     "gate:staging-smoke": "node scripts/production-release-gate/staging-smoke.mjs",
     "gate:report": "node scripts/production-release-gate/generate-report.mjs",
+    "lint": "npm run lint:frontend",
+    "lint:frontend": "eslint frontend/js tests scripts playwright.config.js --suppressions-location eslint-suppressions.json --pass-on-unpruned-suppressions --max-warnings=0",
     "test:frontend": "playwright test",
     "test:frontend:headed": "playwright test --headed"
   },
   "devDependencies": {
-    "@playwright/test": "1.60.0"
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "1.60.0",
+    "eslint": "^10.8.1",
+    "globals": "^17.11.0"
   }
 }

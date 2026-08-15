@@ -8,6 +8,7 @@
 - Reconciled API/testing/product/backend docs against current controllers, public route policy, Flyway V4, and CSV import/template support; added a local docs drift check.
 - Replaced native-confirm JSON import with an accessible review dialog, explicit Merge/Replace/Cancel actions, automatic backup-before-replace, local-wins duplicate handling, capacity probing, rollback on storage failure, and malformed/large/quota/mobile regression tests.
 - Made backend analytics calendar dates deterministic with an injected clock and configurable `ANALYTICS_DEFAULT_ZONE` (UTC by default), including UTC/New York boundary, DST overlap, invalid-config fallback, and host-timezone independence tests.
+- Added frontend syntax and ESLint quality gates with a legacy suppressions baseline, plus backend JaCoCo coverage reports and an 80% line coverage threshold wired into CI/release-gate checks.
 
 ## 2026-08-11
 

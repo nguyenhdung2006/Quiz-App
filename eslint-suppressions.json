@@ -1,0 +1,150 @@
+{
+  "frontend/js/ai-explain.js": {
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "frontend/js/analytics-dashboard.js": {
+    "no-undef": {
+      "count": 3
+    },
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "frontend/js/app.js": {
+    "no-undef": {
+      "count": 110
+    },
+    "no-unused-vars": {
+      "count": 24
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "frontend/js/challenge.js": {
+    "no-undef": {
+      "count": 7
+    }
+  },
+  "frontend/js/config.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "frontend/js/effects.js": {
+    "no-undef": {
+      "count": 11
+    }
+  },
+  "frontend/js/learning-studio.js": {
+    "curly": {
+      "count": 1
+    },
+    "no-undef": {
+      "count": 28
+    },
+    "no-unused-vars": {
+      "count": 8
+    },
+    "no-useless-assignment": {
+      "count": 1
+    },
+    "preserve-caught-error": {
+      "count": 2
+    }
+  },
+  "frontend/js/login.js": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "frontend/js/main.js": {
+    "no-undef": {
+      "count": 16
+    },
+    "no-useless-assignment": {
+      "count": 2
+    }
+  },
+  "frontend/js/quiz.js": {
+    "no-redeclare": {
+      "count": 2
+    },
+    "no-undef": {
+      "count": 197
+    },
+    "no-useless-assignment": {
+      "count": 3
+    }
+  },
+  "frontend/js/review-today.js": {
+    "no-undef": {
+      "count": 6
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "frontend/js/storage.js": {
+    "no-undef": {
+      "count": 8
+    },
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "frontend/js/theme.js": {
+    "no-unused-vars": {
+      "count": 2
+    }
+  },
+  "frontend/js/timer.js": {
+    "no-undef": {
+      "count": 20
+    }
+  },
+  "frontend/js/ui.js": {
+    "no-undef": {
+      "count": 8
+    }
+  },
+  "frontend/js/vocab.js": {
+    "no-redeclare": {
+      "count": 2
+    },
+    "no-undef": {
+      "count": 79
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "scripts/production-release-gate/frontend-static-build.mjs": {
+    "no-new-func": {
+      "count": 1
+    }
+  },
+  "scripts/production-release-gate/secret-scan.mjs": {
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "tests/smoke.spec.js": {
+    "no-global-assign": {
+      "count": 1
+    },
+    "no-script-url": {
+      "count": 1
+    },
+    "no-undef": {
+      "count": 6
+    }
+  },
+  "tests/static-server.mjs": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  }
+}
