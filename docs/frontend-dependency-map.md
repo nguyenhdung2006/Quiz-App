@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-15 +07
 
-This document is the AUD-008 Batch 1 inventory for the current static
+This document is the AUD-008 incremental extraction inventory for the current static
 script-global frontend. It records the load order, known globals, and safe
 extraction boundaries without changing UX, API contracts, storage formats, or
 sync semantics.
@@ -40,11 +40,12 @@ sync semantics.
 | 9 | `js/challenge.js` | Challenge helpers. |
 | 10 | `js/main.js` | Startup normalization and initial UI wiring. |
 | 11 | `js/import-helpers.js` | `window.WordArenaImport` pure import preview/merge helper namespace. |
-| 12 | `js/app.js` | Auth, profile, cloud sync, stale recovery, import/export orchestration, app shell actions. |
-| 13 | `js/curated-decks.js` | Curated deck UI/data helpers. |
-| 14 | `js/learning-studio.js` | Learning Studio tabs, modal, deck generation/import UI. |
-| 15 | `js/analytics-dashboard.js` | Analytics dashboard rendering. |
-| 16 | `js/review-today.js` | Spaced repetition review UI. |
+| 12 | `js/sync-status.js` | `window.WordArenaSyncStatus` copy/render namespace for cloud sync status. |
+| 13 | `js/app.js` | Auth, profile, cloud sync, stale recovery, import/export orchestration, app shell actions. |
+| 14 | `js/curated-decks.js` | Curated deck UI/data helpers. |
+| 15 | `js/learning-studio.js` | Learning Studio tabs, modal, deck generation/import UI. |
+| 16 | `js/analytics-dashboard.js` | Analytics dashboard rendering. |
+| 17 | `js/review-today.js` | Spaced repetition review UI. |
 
 ## Hotspots
 
@@ -61,6 +62,7 @@ sync semantics.
 | --- | --- | --- |
 | `app.js` | `config.js` API/CSRF helpers | Backend calls use `window.quizApiFetch`. |
 | `app.js` | `vocab.js` normalization/state helpers | Import, sync, and stale recovery rely on normalized word shape and local save/load behavior. |
+| `app.js` | `sync-status.js` status facade | Compatibility wrappers delegate sync copy, rendering, ARIA text, and Retry visibility to `window.WordArenaSyncStatus`. |
 | `app.js` | `ui.js`/existing notification facade | Import and sync flows surface status through existing UI helpers. |
 | `quiz.js` and review scripts | vocabulary globals and render helpers | Existing Playwright tests characterize main study flows. |
 | `learning-studio.js` | app/import public facades and DOM ids | Modal and import behavior depends on stable markup ids. |
@@ -76,6 +78,7 @@ Keep these stable until every consumer and regression test is moved:
 - render/update helpers such as `renderTable`, `renderMistakeTable`, and `updateStats`;
 - cloud sync facade fields under `window.quizCloud`;
 - import wrapper functions in `app.js`, now delegated to `window.WordArenaImport`;
+- sync status wrapper functions in `app.js`, now delegated to `window.WordArenaSyncStatus`;
 - current DOM ids used by Playwright, import/export buttons, app navigation, and Learning Studio modal controls.
 
 ## Batch 1 Extraction
@@ -93,11 +96,27 @@ and injects the existing `cleanWord`, `normalizeEnglishKey`, `normalizeWord`, an
 `stampWordUpdatedAt` helpers. This avoids changing storage format, local-first
 behavior, import UI, or sync metadata handling.
 
+## Batch 2 Extraction
+
+`frontend/js/sync-status.js` introduces `window.WordArenaSyncStatus` with one
+focused responsibility:
+
+- compact known session/sync messages for the visible status;
+- preserve the full message in `title` and `aria-label`;
+- create the status element in the existing topbar/utility host;
+- apply the existing tone class and Retry button visibility rules.
+
+`frontend/js/app.js` keeps `ensureSyncStatus` and `setSyncStatus` as thin
+compatibility wrappers. The module loads immediately
+before `app.js`; no CSS, markup, API, storage, session, or sync semantics changed.
+`scripts/frontend-sync-status.test.mjs` characterizes the helper namespace, and
+the existing Playwright suite retains browser-level behavior coverage.
+
 ## Candidate Later Batches
 
 | Candidate | Why later |
 | --- | --- |
-| Sync status formatting/session labels | Good next low-risk extraction with text characterization tests. |
+| Stale recovery summary calculations | Related to sync but carries backup, snapshot revision, and fail-closed state that needs a separate focused batch. |
 | Navigation action registry | Needs careful preservation of `data-ui-action` and mobile nav behavior. |
 | Learning Studio feature modules | Requires focused modal/tabs/deck tests per boundary. |
 | CSS layer map and selector ownership | Needs visual regression and viewport coverage before pruning overrides. |
@@ -106,6 +125,7 @@ behavior, import UI, or sync metadata handling.
 ## Remaining AUD-008 Risk
 
 AUD-008 is only partially fixed. The app still depends on static script load
-order, large mutable global state, and a long CSS override chain. Batch 1 creates
-the dependency source of truth and extracts one small, tested import helper
-boundary; it does not complete frontend modularization or CSS layering.
+order, large mutable global state, and a long CSS override chain. Batches 1 and 2
+create the dependency source of truth and extract two small, tested boundaries
+for import calculations and sync status rendering; they do not complete frontend
+modularization or CSS layering.

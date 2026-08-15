@@ -11,6 +11,7 @@ npm run check:frontend
 npm run lint
 npm run test:assets
 npm run test:frontend-import-helpers
+npm run test:frontend-sync-status
 npm run test:frontend
 npm run build:frontend
 ```
@@ -38,6 +39,15 @@ keeps the old wrapper function names and injects existing normalizers so import
 behavior, storage shape, sync metadata handling, and tests remain compatible.
 `npm run test:frontend-import-helpers` characterizes the helper behavior outside
 the browser.
+
+AUD-008 Batch 2 extracts sync status copy, DOM creation, tone rendering,
+accessible full-text labels, and Retry button visibility into
+`frontend/js/sync-status.js` as `window.WordArenaSyncStatus`. The original
+`ensureSyncStatus` and `setSyncStatus` names remain thin compatibility wrappers
+in `frontend/js/app.js`. Run
+`npm run test:frontend-sync-status` to characterize that boundary without a
+browser; the Playwright suite continues to cover the user-visible mobile,
+offline, retry, stale recovery, and healthy sync states.
 
 ## Stylesheet Source Of Truth
 

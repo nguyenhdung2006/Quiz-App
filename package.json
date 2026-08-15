@@ -17,6 +17,7 @@
     "test:assets": "node scripts/frontend-css-assets-check.mjs",
     "test:docs-drift": "node scripts/audit-docs-drift-check.mjs",
     "test:frontend-import-helpers": "node scripts/frontend-import-helpers.test.mjs",
+    "test:frontend-sync-status": "node scripts/frontend-sync-status.test.mjs",
     "gate:staging-smoke": "node scripts/production-release-gate/staging-smoke.mjs",
     "gate:report": "node scripts/production-release-gate/generate-report.mjs",
     "lint": "npm run lint:frontend",

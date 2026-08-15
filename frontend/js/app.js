@@ -90,42 +90,11 @@ refreshOnboardingPanel();
 }
 
 function ensureSyncStatus() {
-let existing = document.getElementById("cloudSyncStatus");
-if (existing) return existing;
-
-let host = document.querySelector(".appTopbarStatus") || document.querySelector(".utilityBar");
-if (!host) return null;
-
-let status = document.createElement("span");
-status.id = "cloudSyncStatus";
-status.className = "syncStatus syncStatus--local";
-status.textContent = "Local mode";
-host.appendChild(status);
-return status;
-}
-
-function compactSyncStatusMessage(message) {
-let value = String(message || "").trim();
-if (value === "Offline/local mode" || value === "Not signed in. Local mode.") return "Local mode";
-if (value === "Checking session...") return "Checking session";
-if (value === "Cloud session is temporarily unavailable. Retrying...") return "Cloud retrying";
-if (value === "Cloud session temporarily unavailable") return "Cloud unavailable";
-if (value === "Session expired. Please sign in again.") return "Sign in again";
-return value || "Local mode";
+return window.WordArenaSyncStatus.ensureStatus();
 }
 
 function setSyncStatus(message, tone = "local") {
-  let status = ensureSyncStatus();
-  if (!status) return;
-  let fullMessage = String(message || "");
-  status.textContent = compactSyncStatusMessage(fullMessage);
-  status.className = `syncStatus syncStatus--${tone}`;
-  status.title = fullMessage;
-  status.setAttribute("aria-label", fullMessage);
-  let retryBtn = document.getElementById("syncRetryBtn");
-  if (retryBtn) {
-    retryBtn.hidden = (tone === "syncing" || tone === "ok");
-  }
+  return window.WordArenaSyncStatus.render(message, tone);
 }
 
 function initSyncRetry() {

@@ -76,6 +76,9 @@ jobs:
       - name: Test frontend import helpers
         run: npm run test:frontend-import-helpers
 
+      - name: Test frontend sync status helpers
+        run: npm run test:frontend-sync-status
+
       - name: Run frontend lint
         run: npm run lint
 
