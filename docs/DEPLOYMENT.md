@@ -61,6 +61,7 @@ Operational environment variable names:
 - `AI_RATE_LIMIT_MINUTE_WINDOW`
 - `SYNC_MAX_REQUEST_BODY_BYTES` (defaults to `1048576`; caps `POST /api/sync`
   before JSON deserialization)
+- `ANALYTICS_DEFAULT_ZONE` (optional IANA zone; defaults/falls back to `UTC`)
 
 Complete backend env inventory read by the current application config:
 
@@ -97,6 +98,7 @@ Complete backend env inventory read by the current application config:
 | `APP_VERSION` | actuator info | Non-secret version label. |
 | `APP_ENV` | actuator info | Non-secret environment label. |
 | `SYNC_MAX_REQUEST_BODY_BYTES` | sync safety | Pre-deserialization body cap for `POST /api/sync`. |
+| `ANALYTICS_DEFAULT_ZONE` | analytics | Calendar zone for trend/overdue grouping; defaults and invalid values fall back to `UTC`. |
 
 Never print or paste secret values into release reports.
 

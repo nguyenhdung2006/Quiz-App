@@ -7,6 +7,7 @@
 - Removed inline event handlers from the main frontend markup, moved those actions to delegated JavaScript listeners, removed `script-src 'unsafe-inline'` from enforced CSP, and added a stricter CSP report-only header while keeping `style-src 'unsafe-inline'` pending a style cleanup phase.
 - Reconciled API/testing/product/backend docs against current controllers, public route policy, Flyway V4, and CSV import/template support; added a local docs drift check.
 - Replaced native-confirm JSON import with an accessible review dialog, explicit Merge/Replace/Cancel actions, automatic backup-before-replace, local-wins duplicate handling, capacity probing, rollback on storage failure, and malformed/large/quota/mobile regression tests.
+- Made backend analytics calendar dates deterministic with an injected clock and configurable `ANALYTICS_DEFAULT_ZONE` (UTC by default), including UTC/New York boundary, DST overlap, invalid-config fallback, and host-timezone independence tests.
 
 ## 2026-08-11
 

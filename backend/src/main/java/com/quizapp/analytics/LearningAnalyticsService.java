@@ -9,7 +9,6 @@ import com.quizapp.vocab.VocabularyWord;
 import com.quizapp.vocab.WordStats;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,6 +28,7 @@ public class LearningAnalyticsService {
     private final VocabularyRepository words;
     private final QuizHistoryRepository quizHistory;
     private final LearningInsightService insights;
+    private final AnalyticsTimeProvider time;
 
     @Autowired(required = false)
     private HealthCounterService healthCounters;
@@ -36,20 +36,23 @@ public class LearningAnalyticsService {
     public LearningAnalyticsService(
             VocabularyRepository words,
             QuizHistoryRepository quizHistory,
-            LearningInsightService insights
+            LearningInsightService insights,
+            AnalyticsTimeProvider time
     ) {
         this.words = words;
         this.quizHistory = quizHistory;
         this.insights = insights;
+        this.time = time;
     }
 
     @Transactional(readOnly = true)
     public AnalyticsOverviewDto overview(AppUser user) {
         log.info("[ANALYTICS] Generating overview userId={}", user.getId());
         try {
+            Instant now = time.now();
             List<VocabularyWord> userWords = userWords(user);
             List<QuizHistory> histories = histories(user);
-            ReviewPressureDto pressure = reviewPressure(userWords);
+            ReviewPressureDto pressure = reviewPressure(userWords, now);
             List<AccuracyTrendDto> trend = accuracyTrend(histories);
             TagPerformanceDto performance = tagPerformance(userWords, histories);
 
@@ -60,7 +63,7 @@ public class LearningAnalyticsService {
                     .count();
             int weeklyXp = histories.stream()
                     .filter(history -> history.getCreatedAt() != null)
-                    .filter(history -> !history.getCreatedAt().isBefore(Instant.now().minus(java.time.Duration.ofDays(7))))
+                    .filter(history -> !history.getCreatedAt().isBefore(now.minus(java.time.Duration.ofDays(7))))
                     .mapToInt(this::quizXp)
                     .sum();
 
@@ -145,12 +148,12 @@ public class LearningAnalyticsService {
 
     @Transactional(readOnly = true)
     public ReviewPressureDto reviewPressure(AppUser user) {
-        return reviewPressure(userWords(user));
+        return reviewPressure(userWords(user), time.now());
     }
 
-    private ReviewPressureDto reviewPressure(List<VocabularyWord> userWords) {
-        LocalDate today = LocalDate.now();
-        long dueToday = userWords.stream().filter(this::isDue).count();
+    private ReviewPressureDto reviewPressure(List<VocabularyWord> userWords, Instant now) {
+        LocalDate today = time.toDate(now);
+        long dueToday = userWords.stream().filter(word -> isDue(word, now)).count();
         long overdue = userWords.stream().filter(word -> isOverdue(word, today)).count();
         long mastered = userWords.stream().filter(this::isMastered).count();
         long struggling = userWords.stream().filter(this::isStruggling).count();
@@ -270,9 +273,9 @@ public class LearningAnalyticsService {
         return reviewCount(word) >= 3 && wrongCount(word) >= 2 && accuracy(word) < 60;
     }
 
-    private boolean isDue(VocabularyWord word) {
+    private boolean isDue(VocabularyWord word, Instant now) {
         WordStats stats = word.getStats();
-        return stats != null && stats.getNextReview() != null && !stats.getNextReview().isAfter(Instant.now());
+        return stats != null && stats.getNextReview() != null && !stats.getNextReview().isAfter(now);
     }
 
     private boolean isOverdue(VocabularyWord word, LocalDate today) {
@@ -293,7 +296,7 @@ public class LearningAnalyticsService {
     }
 
     private LocalDate toDate(Instant instant) {
-        return instant.atZone(ZoneId.systemDefault()).toLocalDate();
+        return time.toDate(instant);
     }
 
     private String label(String value, String fallback) {

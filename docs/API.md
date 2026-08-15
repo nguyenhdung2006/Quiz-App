@@ -224,6 +224,13 @@ old local words that have numeric `id` but never adopted the server `wordUid`.
 | GET | `/api/analytics/review-pressure` | Auth | `LearningAnalyticsController` | due/overdue/mastered review pressure | `LearningAnalyticsTests` |
 | GET | `/api/analytics/tag-performance` | Auth | `LearningAnalyticsController` | tag, level, and quiz mode performance | `LearningAnalyticsTests`, `Audit005CapacityTests` |
 
+Analytics calendar-day semantics are backend-configured and do not depend on
+the host JVM timezone. `ANALYTICS_DEFAULT_ZONE` accepts an IANA `ZoneId` and
+defaults to `UTC`; blank or invalid values fall back to UTC. Accuracy trend
+buckets and overdue-day boundaries use this zone. Due review checks and weekly
+windows remain instant/duration based. There is currently no timezone request
+header or per-user timezone field, so the API contract is unchanged.
+
 ## AI
 
 AI endpoints require an authenticated user, CSRF, and the in-memory per-user AI
@@ -273,6 +280,7 @@ reads these environment keys directly or through Spring placeholders:
 | `AI_EXPLAIN_RATE_LIMIT_PER_DAY` | Explain endpoint per-day limit. |
 | `AI_DECK_RATE_LIMIT_PER_MINUTE` | Deck endpoint per-minute limit. |
 | `AI_DECK_RATE_LIMIT_PER_DAY` | Deck endpoint per-day limit. |
+| `ANALYTICS_DEFAULT_ZONE` | IANA zone for backend analytics calendar dates; defaults/falls back to `UTC`. |
 | `DATABASE_URL` | JDBC datasource URL. |
 | `DATABASE_USERNAME` | Datasource username. |
 | `DATABASE_PASSWORD` | Datasource password. |
