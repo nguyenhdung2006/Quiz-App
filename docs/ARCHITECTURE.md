@@ -61,6 +61,6 @@ Distributed rate limiting is not part of the current architecture. The AI limite
 ## Current Scale Boundary
 
 The current architecture is acceptable for small/beta accounts, but full
-snapshot sync, all-user-word analytics/review scans, and public Actuator metrics
+snapshot sync, all-user-word analytics/review scans, and protected Actuator metrics
 are not a public-scale design. `/api/sync` especially needs a hard body-size
 limit before Jackson deserialization, followed by chunked or delta sync.

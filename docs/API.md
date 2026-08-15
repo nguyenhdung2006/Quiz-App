@@ -26,12 +26,15 @@ Public routes configured in `SecurityConfig`:
 - `/api/me`
 - `/actuator/health`
 - `/actuator/info`
-- `/actuator/metrics`
-- `/actuator/metrics/**`
 - `/error`
 
-All other application routes require an authenticated Google session. Unsafe
-authenticated requests also require CSRF.
+All other application and actuator routes require an authenticated Google
+session. Unsafe authenticated requests also require CSRF.
+
+Protected actuator metrics routes:
+
+- `/actuator/metrics`
+- `/actuator/metrics/**`
 
 Unauthenticated `/api/me` returns `{ "authenticated": false }`; authenticated
 `/api/me` returns the profile DTO.
@@ -246,15 +249,17 @@ A1-C2, and `maxWords` is clamped to 1-30.
 
 ## Actuator
 
-These endpoints are public only when exposed by
-`management.endpoints.web.exposure.include`:
+These endpoints are available only when exposed by
+`management.endpoints.web.exposure.include`. Health and info are public; metrics
+are protected so anonymous clients cannot inspect operational metric names,
+tags, or values.
 
 | Method | Path | Auth | Owner | Response | Main tests |
 | --- | --- | --- | --- | --- | --- |
 | GET | `/actuator/health` | Public | Spring Boot Actuator | safe health without details | `HealthCheckTests` |
 | GET | `/actuator/info` | Public | Spring Boot Actuator + `WordArenaInfoContributor` | non-secret app, AI enabled, Flyway enabled, and rate-limit metadata | `HealthCheckTests` |
-| GET | `/actuator/metrics` | Public | Spring Boot Actuator/Micrometer | available metric names | `ObservabilityAndRateLimitTests` |
-| GET | `/actuator/metrics/{name}` | Public | Spring Boot Actuator/Micrometer | selected metric details | `ObservabilityAndRateLimitTests` |
+| GET | `/actuator/metrics` | Authenticated session | Spring Boot Actuator/Micrometer | available metric names | `ObservabilityAndRateLimitTests` |
+| GET | `/actuator/metrics/{name}` | Authenticated session | Spring Boot Actuator/Micrometer | selected metric details | `ObservabilityAndRateLimitTests` |
 
 ## Environment Keys Used By Backend
 

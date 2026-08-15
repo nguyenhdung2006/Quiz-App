@@ -155,7 +155,7 @@ jobs:
           chmod +x mvnw
           ./mvnw -B -Dtest=ObservabilityAndRateLimitTests,AiRateLimitTests test
           cd ..
-          node scripts/production-release-gate/mark-control.mjs observability-rate-limit-controls PASS "Request ID, metrics, health, AI rate-limit, and failure counters completed."
+          node scripts/production-release-gate/mark-control.mjs observability-rate-limit-controls PASS "Request ID, protected metrics policy, health, AI rate-limit, and failure counters completed."
 
       - name: Frontend lint
         run: npm run lint

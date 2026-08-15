@@ -22,7 +22,7 @@ The gate runs these controls:
 | Secret scan | committed file names and content patterns for secrets |
 | Backend full test and coverage | Maven Surefire reports plus JaCoCo report/check |
 | Security regression tests | focused backend hardening and CSRF tests |
-| Observability/rate-limit controls | request ID, metrics endpoint, 4xx/5xx, sync/quiz/AI/rate-limit counters |
+| Observability/rate-limit controls | request ID, protected metrics endpoint, 4xx/5xx, sync/quiz/AI/rate-limit counters |
 | Frontend lint | ESLint result with the current suppressions baseline |
 | Frontend CSS asset ownership | CSS files linked/imported by the runtime stylesheet graph |
 | Frontend static build | JavaScript syntax and static asset references |
@@ -64,7 +64,8 @@ Manual approval does not convert `FAIL`, `BLOCKED`, or `NOT_RUN` into `PASS`.
 
 The gate validates that production keeps minimum operational visibility:
 
-- health, info, and metrics endpoints remain exposed;
+- health and info remain public, while actuator metrics remain protected from anonymous access;
+- authenticated metrics access returns application counters for operator or future monitoring use;
 - production root logging is not `DEBUG`, `TRACE`, or `ALL`;
 - request logs include a correlation `requestId`;
 - AI rate limits are configured with positive bounded values;

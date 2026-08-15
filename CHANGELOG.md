@@ -10,6 +10,7 @@
 - Made backend analytics calendar dates deterministic with an injected clock and configurable `ANALYTICS_DEFAULT_ZONE` (UTC by default), including UTC/New York boundary, DST overlap, invalid-config fallback, and host-timezone independence tests.
 - Added frontend syntax and ESLint quality gates with a legacy suppressions baseline, plus backend JaCoCo coverage reports and an 80% line coverage threshold wired into CI/release-gate checks.
 - Removed unreferenced `design-system.css` and `login-modern.css`, documented the runtime stylesheet source of truth, and added a CSS asset ownership check.
+- Protected Actuator metrics from anonymous access, kept health/info public and minimal, and documented alert/SLO ownership while leaving real alert delivery evidence as required external work.
 
 ## 2026-08-11
 

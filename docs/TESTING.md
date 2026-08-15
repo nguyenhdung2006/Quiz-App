@@ -165,7 +165,7 @@ This verifies:
 - generated and client-supplied `X-Request-ID` behavior;
 - unsafe request IDs are replaced;
 - MDC contains `requestId` during a request and is cleared afterward;
-- `/actuator/metrics` is exposed and includes application metrics;
+- anonymous `/actuator/metrics/**` is rejected and authenticated metrics access includes application metrics;
 - 4xx and 5xx request metrics are recorded;
 - sync conflict, quiz failure, AI failure, and rate-limit hit counters increment;
 - AI in-memory rate limit returns `429`, isolates users through existing tests, and resets after the configured test window.

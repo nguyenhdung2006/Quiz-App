@@ -88,11 +88,15 @@ Public/bootstrap:
 - `GET /api/me` returns `{ "authenticated": false }` without a session
 - `GET /actuator/health`
 - `GET /actuator/info`
-- `GET /actuator/metrics`
-- `GET /actuator/metrics/{name}`
 
 Public route identifiers tracked by the docs drift check: `/api/health`,
-`/api/csrf`, `/api/me`, `/actuator/metrics`.
+`/api/csrf`, `/api/me`, `/actuator/info`.
+
+Actuator metrics are exposed only to authenticated sessions. Anonymous requests
+to `GET /actuator/metrics` and `GET /actuator/metrics/{name}` return `401`.
+Production monitoring must use an operator-controlled session, private network,
+or future token/allowlist mechanism; do not make metrics anonymous for
+convenience.
 
 Profile:
 

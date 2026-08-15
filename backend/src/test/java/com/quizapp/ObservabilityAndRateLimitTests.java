@@ -114,10 +114,17 @@ class ObservabilityAndRateLimitTests {
     }
 
     @Test
-    void actuatorMetricsEndpointIsPublicAndIncludesApplicationMetrics() throws Exception {
+    void anonymousActuatorMetricsEndpointIsProtected() throws Exception {
+        mockMvc.perform(get("/actuator/metrics/wordarena.ai.failures"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void authenticatedActuatorMetricsEndpointIncludesApplicationMetrics() throws Exception {
         healthCounters.incrementAiFailures();
 
-        mockMvc.perform(get("/actuator/metrics/wordarena.ai.failures"))
+        mockMvc.perform(get("/actuator/metrics/wordarena.ai.failures")
+                        .with(oauthUser("metrics-reader@example.com")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name", is("wordarena.ai.failures")));
     }

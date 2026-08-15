@@ -98,13 +98,16 @@ const requiredPublicRoutes = [
   "/api/csrf",
   "/api/me",
   "/actuator/health",
-  "/actuator/info",
-  "/actuator/metrics",
-  "/actuator/metrics/**"
+  "/actuator/info"
 ];
 for (const route of requiredPublicRoutes) {
   if (!apiDocs.includes(`\`${route}\``)) {
     failures.push(`docs/API.md is missing public route classification for ${route}.`);
+  }
+}
+for (const route of ["/actuator/metrics", "/actuator/metrics/**"]) {
+  if (!apiDocs.includes(`\`${route}\``) || !apiDocs.includes("Authenticated session")) {
+    failures.push(`docs/API.md is missing protected actuator metrics classification for ${route}.`);
   }
 }
 
@@ -143,10 +146,13 @@ if (!productDocs.includes("CSV bulk import") || !productDocs.includes("CSV templ
 if (backendPostgresDocs.includes("All app APIs require an authenticated Google session except the OAuth/login routes.")) {
   failures.push("docs/backend-postgres.md still overstates that every non-OAuth app API requires auth.");
 }
-for (const publicRoute of ["/api/health", "/api/csrf", "/api/me", "/actuator/metrics"]) {
+for (const publicRoute of ["/api/health", "/api/csrf", "/api/me", "/actuator/info"]) {
   if (!backendPostgresDocs.includes(`\`${publicRoute}\``)) {
     failures.push(`docs/backend-postgres.md is missing public endpoint note for ${publicRoute}.`);
   }
+}
+if (!backendPostgresDocs.includes("Actuator metrics are exposed only to authenticated sessions")) {
+  failures.push("docs/backend-postgres.md must document that actuator metrics are not public anonymous endpoints.");
 }
 
 if (failures.length > 0) {

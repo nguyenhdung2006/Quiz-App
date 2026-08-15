@@ -22,7 +22,7 @@
 - Add explicit security header assertions for CSP/HSTS/referrer policy after deployment target is finalized.
 - Continue incremental backend service split: CRUD, quiz result, snapshot query, and profile use cases.
 - Add measured query improvements for duplicate lookup, due review queue, analytics, and history.
-- Decide whether `/actuator/metrics/**` remains public or should be restricted to a monitoring channel.
+- Connect a real monitoring channel for protected `/actuator/metrics/**` access and verify alert delivery.
 
 ## Later
 

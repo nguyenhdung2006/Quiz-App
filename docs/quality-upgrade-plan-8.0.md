@@ -50,8 +50,8 @@ production-grade. Các khoảng trống lớn nhất là:
   chứng minh. Wave 3 có schema/Flyway/app-start rehearsal trên DB Docker
   disposable, nhưng backup dump restore và restored `/api/health` smoke vẫn
   chưa được chứng minh.
-- Public Actuator metrics hiện được gate/config cho phép có chủ ý, nhưng docs
-  cũng đặt câu hỏi liệu public metrics có nên tiếp tục mở hay không.
+- Actuator metrics are now protected from anonymous access; the remaining
+  observability gap is real external monitoring and delivered alert evidence.
 - Review, analytics, sync, và snapshot flows vẫn load các list lớn theo từng
   user.
 - Frontend vẫn phụ thuộc vào global script order và các file lớn.
@@ -89,7 +89,7 @@ production-grade. Các khoảng trống lớn nhất là:
 | 12 | Medium | High | CI/CD/release gate | Production gate chưa gắn với deployment. | Deploy có thể xảy ra mà không có GO artifact. | Làm deployment workflow phụ thuộc vào GO report cho cùng SHA hoặc document manual approval gate với artifact link. | Release workflow từ chối deploy nếu thiếu GO tương ứng. | 0.20 |
 | 13 | Medium | High | Testing/QA | Playwright smoke không phải visual regression. | CSS refactors có thể pass smoke nhưng phá layout/readability. | Thêm screenshot baselines cho dashboard, quiz, vocabulary, analytics, studio, mobile widths. | `toHaveScreenshot` hoặc artifact comparison tương đương trong CI. | 0.25 |
 | 14 | Medium | High | Security | CSP vẫn cần `unsafe-inline`. | Inline handlers làm XSS blast radius lớn hơn mức cần thiết. | Di chuyển inline handlers trong `index.html` sang JS event listeners từng bước; tighten CSP sau khi có coverage. | Security header tests update; Playwright flows vẫn pass. | 0.20 |
-| 15 | Medium | Medium | Security | Public `/actuator/metrics/**` được `SecurityConfig` cho phép và gate defaults yêu cầu. | Public metrics có thể lộ operational shape; khóa lại có thể phá ops visibility hiện tại. | Quyết định policy: giữ public có chủ ý với reviewed endpoint list, hoặc bảo vệ metrics sau monitoring/auth và update gate. | Security tests và release gate thống nhất với policy đã chọn. | 0.15 |
+| 15 | Medium | Medium | Security | `/actuator/metrics/**` is protected from anonymous access; alert delivery is still unverified. | Metrics without a real monitored alert route still require manual inspection. | Connect Render/Grafana/Prometheus or another operator-approved alert backend and verify a delivered notification. | Alert config/export plus delivered notification evidence. | 0.15 |
 | 16 | Medium | Medium | Backend architecture | `VocabularyService` vẫn sở hữu CRUD, starter import, quiz result, và snapshot delegation. | Service quá rộng làm thay đổi khó reason và test hơn. | Tách quiz result processor và starter import use case trước; giữ controller/API không đổi. | Existing backend tests cộng focused service tests pass. | 0.15 |
 | 17 | Medium | Medium | Backend architecture | `CurrentUserService.requireUser()` update activity trong lúc auth lookup bình thường. | Read endpoints tạo writes và có thể tăng DB pressure. | Tách read-only current user lookup khỏi rate-limited activity touch. | Backend auth/profile tests và test đơn giản cho request-count/write behavior. | 0.15 |
 | 18 | Medium | Medium | Testing/QA | Không có generated OpenAPI hoặc machine-checked API contract. | Docs có thể drift khỏi endpoints và frontend expectations. | Thêm OpenAPI generation hoặc checked contract snapshots cho core API, CSRF, sync V2, errors. | Contract generation/check trong CI. | 0.20 |
@@ -111,9 +111,9 @@ production-grade. Các khoảng trống lớn nhất là:
 
 - OPEN: `/api/sync` cần hard request body-size cap trước JSON
   deserialization.
-- OPEN: Public `/actuator/metrics/**` hiện được permit trong
-  `SecurityConfig`; release gate hiện kỳ vọng metrics được expose. Cần quyết
-  định và align docs, tests, và gate.
+- PARTIAL: `/actuator/metrics/**` is protected from anonymous access and gate
+  docs/tests align with that policy; real alert delivery evidence is still
+  missing.
 - PARTIAL: CSP vẫn cho phép `unsafe-inline` vì `index.html` dùng inline event
   handlers và static global scripts.
 - PASS LOCALLY / NEEDS GITHUB GATE VERIFICATION: Task 2 secret scan đã PASS
@@ -176,8 +176,8 @@ production-grade. Các khoảng trống lớn nhất là:
   verify theo từng commit.
 - Production Release Gate tồn tại nhưng chưa phải deployment workflow.
 - Staging smoke và restore rehearsal có thể `BLOCKED` nếu thiếu external setup.
-- Gate hiện coi `metrics` là required, mâu thuẫn với câu hỏi audit rằng liệu
-  public metrics có nên tiếp tục mở hay không.
+- Gate verifies protected metrics instrumentation and no longer treats
+  anonymous public metrics as a release requirement.
 
 ### Deployment/Production Operations
 
@@ -242,7 +242,7 @@ production-grade. Các khoảng trống lớn nhất là:
 - Upgrade instance hoặc connect observability/alerting, rồi verify alert
   delivery.
 - Thêm `/api/sync` request body cap.
-- Quyết định và align public metrics exposure.
+- Connect protected metrics/health signals to real alert delivery.
 - Thêm screenshot regression cho UI hiện tại trước các refactors CSS/HTML tiếp
   theo.
 
@@ -364,7 +364,7 @@ small public beta.
 
 - Thêm pre-deserialization body-size cap cho `/api/sync`.
 - Thêm request/payload tests và documented sync payload budget.
-- Quyết định public metrics policy và align `SecurityConfig`, env gate, và docs.
+- Connect protected metrics policy to real alert delivery evidence.
 - Thêm JVM/RSS budget và verified memory alerts trong staging.
 - Thêm repository-bounded review query và giảm analytics repeated list loads.
 - Thêm OpenAPI/contract checks cho core API và Sync V2.

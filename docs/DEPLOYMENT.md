@@ -92,7 +92,7 @@ Complete backend env inventory read by the current application config:
 | `AI_EXPLAIN_RATE_LIMIT_PER_DAY` | AI rate limit | Explain endpoint per-day limit. |
 | `AI_DECK_RATE_LIMIT_PER_MINUTE` | AI rate limit | Deck endpoint per-minute limit. |
 | `AI_DECK_RATE_LIMIT_PER_DAY` | AI rate limit | Deck endpoint per-day limit. |
-| `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` | observability | Default `health,info,metrics`. |
+| `MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE` | observability | Default `health,info,metrics`; security still protects metrics from anonymous access. |
 | `LOGGING_LEVEL_ROOT` | observability | Root logging level. |
 | `LOGGING_LEVEL_SECURITY` | observability | Spring Security logging level. |
 | `APP_VERSION` | actuator info | Non-secret version label. |
@@ -109,7 +109,7 @@ The backend uses Spring Boot Actuator and Micrometer for minimum production visi
 - `GET /api/health` is the public lightweight application liveness endpoint.
 - `GET /actuator/health` exposes safe Actuator health without details.
 - `GET /actuator/info` exposes non-secret app metadata, AI enabled state, Flyway enabled state, and rate-limit mode.
-- `GET /actuator/metrics` exposes Micrometer metrics.
+- `GET /actuator/metrics` and `GET /actuator/metrics/{name}` expose Micrometer metrics only to authenticated sessions or an operator-managed monitoring channel. Anonymous requests return `401`.
 
 Every request receives an `X-Request-ID` response header. If a trusted proxy or client sends a short safe value, the backend preserves it; otherwise it generates a UUID. The request ID is added to MDC and appears in logs as `requestId=...`.
 
@@ -127,14 +127,22 @@ Custom application metrics:
 
 Recommended alert rules before public production:
 
-- 5xx count increases above normal baseline over 5 minutes.
-- `/actuator/health` or `/api/health` fails.
-- `wordarena.ai.failures` increases repeatedly.
-- `wordarena.sync.conflicts` spikes above normal device-sync behavior.
-- `wordarena.rate_limit.hits` spikes unexpectedly.
-- p95 latency rises if the hosting or metrics backend records latency histograms.
+| Severity | Signal | Threshold | Owner | Action | Evidence location |
+| --- | --- | --- | --- | --- | --- |
+| Critical | `/api/health` or `/actuator/health` fails | 2 consecutive failed checks or 5 minutes unavailable | Release owner | Check Render events/logs, recent deploy, database availability, and roll back if user traffic is impacted | Release issue or external alert incident |
+| High | 5xx errors | Above normal baseline for 5 minutes | Release owner | Inspect request IDs, recent deploys, database errors, and provider status | Metrics dashboard screenshot/export plus incident note |
+| High | app restart/OOM | Any unexpected restart, memory-limit event, or OOM | Release owner | Capture Render event, JVM memory trend if available, recent request volume, and heap budget notes | Render event plus metrics evidence |
+| High | DB pool exhaustion | Active connections near pool max or acquisition timeouts for 5 minutes | Database owner | Check Supabase availability, long queries, connection leaks, and pool sizing | DB/provider alert or dashboard evidence |
+| Medium | `wordarena.sync.conflicts` or sync failures | Spike above normal device-sync behavior for 10 minutes | Release owner | Check deploy diff, client sync logs by request ID, and rollback if caused by protocol regression | Metrics snapshot and linked request IDs |
+| Medium | `POST /api/sync` 413 spike | Repeated spikes above normal import/sync behavior | Release owner | Check payload size pattern and client import behavior; do not raise caps without capacity evidence | Metrics snapshot and sample request IDs |
+| Medium | `wordarena.ai.failures` or `wordarena.rate_limit.hits` spike | Repeated failures or unexpected rate-limit hits for 10 minutes | Release owner | Check provider status, API key presence, fallback behavior, and cost/abuse pattern | Metrics snapshot and provider status |
+| Medium | release gate, backup, or staging smoke failure | Any release-candidate `NO-GO` | Release owner | Stop deployment and resolve the blocked/failed control without overriding evidence | Gate artifact for the exact commit |
 
-This repository does not configure PagerDuty, Slack, email, Grafana, or Prometheus alerts directly. Treat the alert rules as `DOCUMENTED_ONLY` until connected to the operator's platform.
+Review cadence: before each release candidate and after any incident. This
+repository does not configure PagerDuty, Slack, email, Grafana, Prometheus, or
+Render alerts directly. Treat the alert rules as `DOCUMENTED_ONLY` until the
+operator connects a real alert backend and stores delivered notification
+evidence.
 
 Deployment assumption for this hardening pass: repository documentation describes one Render backend web service and does not show multi-instance autoscaling, material AI cost abuse, or a shared Redis dependency. Therefore distributed rate limiting is intentionally not a production requirement yet.
 

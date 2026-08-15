@@ -102,6 +102,26 @@ because the current static frontend still uses JavaScript-driven inline style
 updates for progress bars, timers, effects, and small transitions. The policy
 does not allow `unsafe-eval`.
 
+## Actuator And Metrics Access
+
+Public anonymous actuator access is limited to:
+
+- `GET /actuator/health`, with `management.endpoint.health.show-details=never`;
+- `GET /actuator/info`, with non-secret application metadata.
+
+`GET /actuator/metrics` and `GET /actuator/metrics/{name}` are intentionally
+not public anonymous endpoints. They remain exposed by Actuator for local
+operator checks and future monitoring integration, but Spring Security requires
+an authenticated session before returning metric names, labels, or values.
+Anonymous metrics requests return `401` instead of redirecting through the
+browser OAuth flow.
+
+Do not expose `env`, `beans`, `mappings`, `heapdump`, `configprops`,
+`threaddump`, or Prometheus scraping endpoints publicly. If production needs
+machine scraping later, add an operator-approved token, network allowlist, or
+private monitoring path first, keep secrets outside the repository, and add
+tests for the new policy.
+
 ## Profile And Avatar Safety
 
 Profile updates are scoped to the authenticated `AppUser`; the client cannot choose a user id for `/api/profile`.

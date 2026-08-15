@@ -340,11 +340,10 @@ Audit scope:
 
 Corrections made:
 
-- `docs/deploy.md` no longer says only `/actuator/health` and
-  `/actuator/info` are exposed. It now matches source/config:
-  `/actuator/metrics` and `/actuator/metrics/**` are currently public and must
-  remain an intentional deployment policy or be protected with matching gate
-  updates.
+- `docs/deploy.md` distinguishes Actuator exposure from anonymous access:
+  `/actuator/health` and `/actuator/info` remain public, while
+  `/actuator/metrics` and `/actuator/metrics/**` require authenticated
+  operator access or a future private monitoring channel.
 - `docs/PRODUCTION_RELEASE_GATE.md`, `docs/DEPLOYMENT.md`, and
   `docs/technical-audit-report.md` now reflect Task 2 accurately: local
   `gate:secret-scan` PASS came from fixing fallback walking over ignored local

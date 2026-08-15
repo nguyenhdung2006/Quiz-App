@@ -43,7 +43,7 @@ This does not mean the app is production-ready. Current assessment:
 | CORS wildcard headers/origins | RESOLVED in code | `SecurityConfig` uses configured origins and explicit headers. Deployment env still must be exact. |
 | Observability too thin | PARTIALLY RESOLVED | Request ID, MDC, health counters, Actuator metrics, and gate tests exist. Render screenshots confirm the OOM/recovery events, but quantitative memory/CPU metrics are unavailable on Free and alert delivery is not verified. |
 | In-memory AI rate limiter | PARTIALLY RESOLVED | Configurable per-user limiter exists and is acceptable for one backend instance. It is not distributed and should not be used as a multi-instance guarantee. |
-| Public `/actuator/metrics/**` | OPEN | Public metrics are currently permitted. Keep only if intentional for the deployment model; otherwise protect or restrict to monitoring. |
+| Public `/actuator/metrics/**` | PARTIALLY RESOLVED | Anonymous metrics access is now blocked by Spring Security while health/info remain public. Alert delivery and external monitoring evidence are still not verified. |
 | Frontend monolith/global state | OPEN | `frontend/js/app.js` and `learning-studio.js` remain large global-script modules. |
 | Backend god service | PARTIALLY RESOLVED | `SyncService` was extracted; `VocabularyService` still owns CRUD, quiz result, starter import, and snapshot delegation. |
 | Full-list sync/review/analytics scans | OPEN | Several paths still load all user words/history and filter in memory. |

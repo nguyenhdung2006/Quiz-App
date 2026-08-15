@@ -305,16 +305,21 @@ Actuator endpoints exposed publicly:
 ```text
 GET /actuator/health
 GET /actuator/info
+```
+
+Actuator metrics remain exposed by Actuator config for operator visibility, but
+they are not public anonymous endpoints:
+
+```text
 GET /actuator/metrics
 GET /actuator/metrics/**
 ```
 
-Current source/config also permits public metrics for operational visibility:
-`SecurityConfig` allows `/actuator/metrics` and `/actuator/metrics/**`, and the
-default exposure includes `health,info,metrics`. Keep this only if it is an
-intentional deployment policy; otherwise protect metrics behind a monitoring
-channel and update the release gate. Do not expose `env`, `beans`, `mappings`,
-`heapdump`, `configprops`, or `threaddump` in production.
+`SecurityConfig` requires an authenticated session for metrics and returns
+`401` to anonymous callers. Production scraping must use an operator-controlled
+session, private network, or future token/allowlist mechanism. Do not expose
+`env`, `beans`, `mappings`, `heapdump`, `configprops`, or `threaddump` in
+production.
 
 Expected healthy response:
 
@@ -523,8 +528,8 @@ After each deploy:
 4. `GET /actuator/info` — confirm app name, environment, AI/Flyway flags safe.
 5. Open the frontend URL and confirm the app shell loads.
 6. `GET /api/me` — confirm `{"authenticated":false}` when unauthenticated.
-7. If metrics remain intentionally public, `GET /actuator/metrics` — confirm it
-   exposes only operational metric names, not secrets or private data.
+7. Anonymous `GET /actuator/metrics` — confirm HTTP `401`; authenticated
+   operator access may inspect operational metric names, labels, and values.
 
 ### After Deploy — Authenticated Browser
 
@@ -552,7 +557,7 @@ Before inviting a small beta group:
 5. Confirm the frontend source does not contain API keys, database URLs, OAuth secrets, or private tokens.
 6. Open `https://YOUR_BACKEND_DOMAIN/actuator/health` and confirm `status: UP`.
 7. Open `https://YOUR_BACKEND_DOMAIN/actuator/info` and confirm it exposes only safe app, AI, and Flyway metadata.
-8. If metrics remain intentionally public, open `https://YOUR_BACKEND_DOMAIN/actuator/metrics` and confirm the endpoint exposes only operational metric names.
+8. Open `https://YOUR_BACKEND_DOMAIN/actuator/metrics` without a session and confirm it returns `401`; use authenticated operator access only for metric inspection.
 9. Sign in with Google, add one temporary word, refresh, and confirm sync status looks healthy.
 10. Run one quiz and confirm result/review state updates without console errors.
 11. Open Review Today and confirm due/empty states are clear.
