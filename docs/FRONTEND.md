@@ -10,6 +10,7 @@ Run these checks after frontend JavaScript changes:
 npm run check:frontend
 npm run lint
 npm run test:assets
+npm run test:frontend-import-helpers
 npm run test:frontend
 npm run build:frontend
 ```
@@ -23,6 +24,20 @@ other focused cleanup removes existing violations.
 Full JSDoc/checkJs typechecking is intentionally deferred while the frontend
 remains script-global. The current lint baseline is the ratchet for name/global
 drift until modules can be extracted without a big-bang rewrite.
+
+## Frontend Dependency Map
+
+`docs/frontend-dependency-map.md` is the source of truth for the current
+script-global load order, stylesheet order, known public facades, and AUD-008
+candidate extraction batches. Update it when a frontend boundary moves or a
+script/CSS file is added to the runtime graph.
+
+AUD-008 Batch 1 extracts the JSON import preview/merge calculations into
+`frontend/js/import-helpers.js` as `window.WordArenaImport`. `frontend/js/app.js`
+keeps the old wrapper function names and injects existing normalizers so import
+behavior, storage shape, sync metadata handling, and tests remain compatible.
+`npm run test:frontend-import-helpers` characterizes the helper behavior outside
+the browser.
 
 ## Stylesheet Source Of Truth
 

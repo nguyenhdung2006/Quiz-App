@@ -2076,73 +2076,31 @@ return cleaned;
 }
 
 function normalizeImported(payload) {
-if (!payload) return null;
-
-let importedVocab = [];
-let importedWrong = [];
-let includesSyncMetadata = false;
-
-if (Array.isArray(payload)) {
-importedVocab = payload;
-} else if (typeof payload === "object") {
-importedVocab = Array.isArray(payload.vocab) ? payload.vocab : [];
-importedWrong = Array.isArray(payload.wrongWords) ? payload.wrongWords : [];
-includesSyncMetadata = Boolean(payload.cloudSync);
-} else {
-return null;
-}
-
-let vocab = importedVocab.map(cleanWord).filter(Boolean);
-let wrongWords = importedWrong.map(cleanWord).filter(Boolean);
-
-return {
-vocab,
-wrongWords,
-invalidCount: (importedVocab.length - vocab.length) + (importedWrong.length - wrongWords.length),
-includesSyncMetadata
-};
+return window.WordArenaImport.normalizeImported(payload, { cleanWord });
 }
 
 function mergeByEnglish(base, incoming) {
-return mergeByEnglishWithStats(base, incoming).merged;
+return window.WordArenaImport.mergeByEnglish(base, incoming, importHelperOptions());
 }
 
 function mergeByEnglishWithStats(base, incoming) {
-let merged = [...base];
-let existing = new Set(base.map(w => normalizeEnglishKey(w.eng)).filter(Boolean));
-let added = 0;
-let skipped = 0;
-let importedAt = new Date().toISOString();
-
-incoming.forEach(w => {
-let key = normalizeEnglishKey(w.eng);
-if (!key || existing.has(key)) {
-skipped++;
-return;
+return window.WordArenaImport.mergeByEnglishWithStats(base, incoming, importHelperOptions());
 }
-existing.add(key);
-merged.push(stampWordUpdatedAt(normalizeWord(w), importedAt));
-added++;
-});
 
-return { merged, added, skipped };
+function importHelperOptions() {
+return {
+normalizeEnglishKey,
+normalizeWord,
+stampWordUpdatedAt
+};
 }
 
 function importReviewSummary(normalized) {
-let vocabResult = mergeByEnglishWithStats(getVocab(), normalized.vocab);
-let wrongResult = mergeByEnglishWithStats(getWrongWords(), normalized.wrongWords);
-return {
-currentVocab: getVocab().length,
-currentWrong: getWrongWords().length,
-incomingVocab: normalized.vocab.length,
-incomingWrong: normalized.wrongWords.length,
-invalid: normalized.invalidCount,
-duplicates: vocabResult.skipped + wrongResult.skipped,
-mergeFinal: vocabResult.merged.length,
-replaceFinal: normalized.vocab.length,
-pendingDeletes: peekPendingCloudDeletes().length,
-includesSyncMetadata: normalized.includesSyncMetadata
-};
+return window.WordArenaImport.importReviewSummary(normalized, {
+currentVocab: getVocab(),
+currentWrongWords: getWrongWords(),
+pendingDeletes: peekPendingCloudDeletes()
+}, importHelperOptions());
 }
 
 function setImportReviewText(id, value) {
@@ -2268,24 +2226,10 @@ return { ok: true };
 }
 
 function buildImportState(mode, normalized) {
-let importedAt = new Date().toISOString();
-if (mode === "replace") {
-return {
-vocab: normalized.vocab.map(word => stampWordUpdatedAt(normalizeWord(word), importedAt)),
-wrongWords: normalized.wrongWords.map(word => stampWordUpdatedAt(normalizeWord(word), importedAt)),
-added: normalized.vocab.length,
-skipped: 0
-};
-}
-
-let vocabResult = mergeByEnglishWithStats(getVocab(), normalized.vocab);
-let wrongResult = mergeByEnglishWithStats(getWrongWords(), normalized.wrongWords);
-return {
-vocab: vocabResult.merged,
-wrongWords: wrongResult.merged,
-added: vocabResult.added,
-skipped: vocabResult.skipped + wrongResult.skipped
-};
+return window.WordArenaImport.buildImportState(mode, normalized, {
+currentVocab: getVocab(),
+currentWrongWords: getWrongWords()
+}, importHelperOptions());
 }
 
 function isValidImportState(state) {

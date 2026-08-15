@@ -83,6 +83,7 @@ This test verifies:
 npm run check:frontend
 npm run lint
 npm run test:assets
+npm run test:frontend-import-helpers
 npm run test:frontend
 npm run test:docs-drift
 npm run coverage:backend
@@ -95,6 +96,12 @@ npm run coverage:backend
 outside that baseline fail the command. `npm run test:assets` verifies that
 each `frontend/css/*.css` file is linked or imported by the runtime frontend
 stylesheet graph.
+
+`npm run test:frontend-import-helpers` runs a Node characterization test for
+`window.WordArenaImport`, covering import normalization, invalid counts,
+duplicate-aware merge stats, summary counts, and Merge/Replace candidate state.
+Run it whenever `frontend/js/import-helpers.js` or the `app.js` import wrappers
+change.
 # Sync V2 Verification
 
 Backend:

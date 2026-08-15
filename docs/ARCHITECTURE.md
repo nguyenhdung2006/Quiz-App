@@ -21,6 +21,22 @@ The backend packages are organized by feature:
 | `com.quizapp.observability` | Request correlation and request metric filters. |
 | `com.quizapp.shared` | API error DTO and global exception handling. |
 
+## Frontend Runtime Architecture
+
+The frontend is still a static HTML/CSS/JavaScript app, not a bundled ES module
+application. `frontend/index.html` owns runtime script and stylesheet ordering.
+Most feature scripts expose or consume browser globals, so load order is part of
+the architecture until AUD-008 is completed.
+
+`docs/frontend-dependency-map.md` records the current load order and the public
+facades that must remain compatible during incremental extraction. AUD-008 Batch
+1 adds `frontend/js/import-helpers.js` as a small namespaced helper boundary:
+`window.WordArenaImport` owns import normalization, duplicate-aware merge counts,
+review summary counts, and Merge/Replace state construction. `frontend/js/app.js`
+continues to expose the previous wrapper functions and injects existing
+normalizers, preserving the localStorage/export/import contract and sync
+semantics.
+
 Production database lifecycle is separated from business logic. Flyway migrations are the schema source of truth, `application-prod.yml` pins safe production values, and `ProductionDatabaseSafetyGuard` fails startup if the effective production configuration is unsafe.
 
 ## Sync V2 Architecture

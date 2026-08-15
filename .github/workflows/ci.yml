@@ -73,6 +73,9 @@ jobs:
       - name: Check frontend CSS assets
         run: npm run test:assets
 
+      - name: Test frontend import helpers
+        run: npm run test:frontend-import-helpers
+
       - name: Run frontend lint
         run: npm run lint
 
