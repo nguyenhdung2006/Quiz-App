@@ -14,6 +14,7 @@
 - Added the AUD-008 frontend dependency map, extracted import preview/merge calculations into `window.WordArenaImport`, and added a characterization test while keeping the existing `app.js` compatibility wrappers.
 - Continued AUD-008 with a focused `window.WordArenaSyncStatus` extraction for sync copy/rendering, accessible full-text labels, tone classes, and Retry visibility, backed by characterization tests and thin `app.js` wrappers.
 - Continued AUD-008 with `window.WordArenaSessionUi` for profile display modeling and safe DOM rendering while keeping auth, profile sanitization, account persistence, and leaderboard orchestration in `app.js`.
+- Routed the Vercel public root to `login.html` while preserving `index.html` as the explicit post-OAuth app entry, with Playwright coverage for both public login URLs.
 
 ## 2026-08-11
 

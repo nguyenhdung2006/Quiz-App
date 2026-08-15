@@ -2,6 +2,19 @@
 
 The frontend is a static HTML/CSS/JavaScript app. `frontend/js/config.js` owns backend origin detection and the central API helper.
 
+## Public Entry Routing
+
+Repository routing assumes the current Vercel project keeps `frontend/` as its
+Root Directory. `frontend/vercel.json` defines a temporary redirect from `/` to
+`/login.html`. Both public URLs therefore show the login/landing page and Google
+login entry after that commit is deployed.
+
+`/index.html` remains the explicit authenticated app/dashboard entry. The
+backend OAuth success default already targets `${FRONTEND_URL}/index.html`, so
+the root redirect does not intercept the callback flow. Do not change the root
+back to the app shell or point `OAUTH_SUCCESS_REDIRECT_URI` at `/`; an explicit
+override should continue to end in `/index.html`.
+
 ## Quality Gates
 
 Run these checks after frontend JavaScript changes:

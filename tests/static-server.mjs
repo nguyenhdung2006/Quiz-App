@@ -19,7 +19,11 @@ const contentTypes = {
 
 createServer((request, response) => {
   let pathname = decodeURIComponent(new URL(request.url || "/", `http://127.0.0.1:${port}`).pathname);
-  if (pathname === "/") pathname = "/frontend/index.html";
+  if (pathname === "/") {
+    response.writeHead(307, { Location: "/frontend/login.html" });
+    response.end();
+    return;
+  }
 
   const filePath = normalize(join(root, pathname));
   if (!filePath.startsWith(root)) {
@@ -40,5 +44,5 @@ createServer((request, response) => {
     response.end("Not found");
   }
 }).listen(port, "127.0.0.1", () => {
-  console.log(`Static server running at http://127.0.0.1:${port}/frontend/index.html`);
+  console.log(`Static server running at http://127.0.0.1:${port}/ (public login entry)`);
 });

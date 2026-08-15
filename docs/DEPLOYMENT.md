@@ -2,6 +2,22 @@
 
 This document complements `docs/deploy.md` with the release-gate-specific production handoff checklist.
 
+## Frontend Entry Routing
+
+Repository routing assumes the Vercel Root Directory is `frontend/`. Confirm
+that setting before deployment and keep `frontend/vercel.json` in that directory
+so `/` returns a temporary redirect to `/login.html`; `/login.html` remains the
+public landing page and `/index.html` remains the explicit app entry used after
+successful OAuth. If the project uses a different Root Directory, stop and move
+or adapt the repository config through a reviewed deployment change rather than
+creating an untracked dashboard-only rewrite.
+
+After deploying a routing change, verify all three paths in a fresh browser
+context. `/` and `/login.html` must show the Google login entry without rendering
+the dashboard shell. A completed Google OAuth flow must still return to
+`/index.html`. This repository change does not itself deploy or prove those
+production results.
+
 ## Required Pre-Deployment Gate
 
 Run the GitHub Actions workflow **Production Release Gate** for the exact commit SHA intended for production. Do not deploy production unless the `production-release-gate-report` conclusion is `GO`.

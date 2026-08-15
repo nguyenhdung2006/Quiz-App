@@ -1,6 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const fs = require("fs");
 const path = require("path");
+const frontendDir = path.join(__dirname, "..", "frontend");
 
 const sampleWords = [
   word("smoke-test-word", "tu kiem thu", "test", 0),
@@ -53,7 +54,7 @@ test("frontend html has no inline event handlers or javascript urls", async () =
   const htmlFiles = ["index.html", "login.html"];
   const findings = [];
   for (const file of htmlFiles) {
-    const html = fs.readFileSync(path.join(__dirname, "..", "frontend", file), "utf8");
+    const html = fs.readFileSync(path.join(frontendDir, file), "utf8");
     const checks = [
       { label: "inline event handler", regex: /\son[a-z]+\s*=/gi },
       { label: "inline style attribute", regex: /\sstyle\s*=/gi },
@@ -67,6 +68,46 @@ test("frontend html has no inline event handlers or javascript urls", async () =
     }
   }
   expect(findings).toEqual([]);
+});
+
+test("Vercel public root redirects only to the login entry", async () => {
+  const config = JSON.parse(fs.readFileSync(
+    path.join(frontendDir, "vercel.json"),
+    "utf8"
+  ));
+  expect(config.redirects).toContainEqual({
+    source: "/",
+    destination: "/login.html",
+    permanent: false
+  });
+});
+
+test("fresh public root opens the login landing page instead of the app shell", async ({ page }) => {
+  await page.route("http://localhost:8080/api/me", route => route.fulfill({
+    json: { authenticated: false }
+  }));
+
+  await page.goto("http://127.0.0.1:4173/");
+
+  await expect(page).toHaveURL("http://127.0.0.1:4173/frontend/login.html");
+  await expect(page.getByRole("heading", { name: "WordArena", exact: true })).toBeVisible();
+  await expect(page.locator("#googleLoginBtn")).toHaveAttribute("href", /\/oauth2\/authorization\/google$/);
+  await expect(page.locator("#home")).toHaveCount(0);
+  await expect(page.locator(".appSidebar")).toHaveCount(0);
+});
+
+test("explicit login page keeps the public landing and Google login entry", async ({ page }) => {
+  await page.route("http://localhost:8080/api/me", route => route.fulfill({
+    json: { authenticated: false }
+  }));
+
+  await page.goto("login.html");
+
+  await expect(page).toHaveURL(/\/frontend\/login\.html$/);
+  await expect(page.getByRole("heading", { name: "WordArena", exact: true })).toBeVisible();
+  await expect(page.locator("#googleLoginBtn")).toHaveAttribute("href", /\/oauth2\/authorization\/google$/);
+  await expect(page.locator("#home")).toHaveCount(0);
+  await expect(page.locator(".appSidebar")).toHaveCount(0);
 });
 
 async function preparePage(page, options = {}) {
