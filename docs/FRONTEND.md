@@ -11,6 +11,7 @@ npm run check:frontend
 npm run lint
 npm run test:assets
 npm run test:frontend-import-helpers
+npm run test:frontend-session-ui
 npm run test:frontend-sync-status
 npm run test:frontend
 npm run build:frontend
@@ -48,6 +49,15 @@ in `frontend/js/app.js`. Run
 `npm run test:frontend-sync-status` to characterize that boundary without a
 browser; the Playwright suite continues to cover the user-visible mobile,
 offline, retry, stale recovery, and healthy sync states.
+
+AUD-008 Batch 3 extracts the profile/session display model and DOM rendering
+into `frontend/js/session-ui.js` as `window.WordArenaSessionUi`. It owns display
+name and short-name derivation, signed-in/local identity copy, the accessible
+profile-trigger label, and sanitized avatar assignment. `frontend/js/app.js`
+still owns profile sanitization, account persistence, auth orchestration, and
+leaderboard refresh. Run `npm run test:frontend-session-ui` for the helper
+characterization suite; browser profile save and mobile trigger tests remain in
+the Playwright suite.
 
 ## Stylesheet Source Of Truth
 

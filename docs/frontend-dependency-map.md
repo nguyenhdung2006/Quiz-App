@@ -41,11 +41,12 @@ sync semantics.
 | 10 | `js/main.js` | Startup normalization and initial UI wiring. |
 | 11 | `js/import-helpers.js` | `window.WordArenaImport` pure import preview/merge helper namespace. |
 | 12 | `js/sync-status.js` | `window.WordArenaSyncStatus` copy/render namespace for cloud sync status. |
-| 13 | `js/app.js` | Auth, profile, cloud sync, stale recovery, import/export orchestration, app shell actions. |
-| 14 | `js/curated-decks.js` | Curated deck UI/data helpers. |
-| 15 | `js/learning-studio.js` | Learning Studio tabs, modal, deck generation/import UI. |
-| 16 | `js/analytics-dashboard.js` | Analytics dashboard rendering. |
-| 17 | `js/review-today.js` | Spaced repetition review UI. |
+| 13 | `js/session-ui.js` | `window.WordArenaSessionUi` profile display model and DOM rendering namespace. |
+| 14 | `js/app.js` | Auth, profile persistence, cloud sync, stale recovery, import/export orchestration, app shell actions. |
+| 15 | `js/curated-decks.js` | Curated deck UI/data helpers. |
+| 16 | `js/learning-studio.js` | Learning Studio tabs, modal, deck generation/import UI. |
+| 17 | `js/analytics-dashboard.js` | Analytics dashboard rendering. |
+| 18 | `js/review-today.js` | Spaced repetition review UI. |
 
 ## Hotspots
 
@@ -63,6 +64,7 @@ sync semantics.
 | `app.js` | `config.js` API/CSRF helpers | Backend calls use `window.quizApiFetch`. |
 | `app.js` | `vocab.js` normalization/state helpers | Import, sync, and stale recovery rely on normalized word shape and local save/load behavior. |
 | `app.js` | `sync-status.js` status facade | Compatibility wrappers delegate sync copy, rendering, ARIA text, and Retry visibility to `window.WordArenaSyncStatus`. |
+| `app.js` | `session-ui.js` profile display facade | `applyProfile` keeps sanitize/cache orchestration and delegates display modeling and DOM writes to `window.WordArenaSessionUi`. |
 | `app.js` | `ui.js`/existing notification facade | Import and sync flows surface status through existing UI helpers. |
 | `quiz.js` and review scripts | vocabulary globals and render helpers | Existing Playwright tests characterize main study flows. |
 | `learning-studio.js` | app/import public facades and DOM ids | Modal and import behavior depends on stable markup ids. |
@@ -79,6 +81,7 @@ Keep these stable until every consumer and regression test is moved:
 - cloud sync facade fields under `window.quizCloud`;
 - import wrapper functions in `app.js`, now delegated to `window.WordArenaImport`;
 - sync status wrapper functions in `app.js`, now delegated to `window.WordArenaSyncStatus`;
+- profile application orchestration in `app.js`, with display rendering delegated to `window.WordArenaSessionUi`;
 - current DOM ids used by Playwright, import/export buttons, app navigation, and Learning Studio modal controls.
 
 ## Batch 1 Extraction
@@ -112,6 +115,25 @@ before `app.js`; no CSS, markup, API, storage, session, or sync semantics change
 `scripts/frontend-sync-status.test.mjs` characterizes the helper namespace, and
 the existing Playwright suite retains browser-level behavior coverage.
 
+## Batch 3 Extraction
+
+`frontend/js/session-ui.js` introduces `window.WordArenaSessionUi` with a small
+profile display responsibility:
+
+- normalize the display name and derive the existing short account name;
+- build signed-in or local-guest identity copy;
+- build the accessible profile-trigger label;
+- render profile summary text and avatar targets through `textContent`,
+  `setAttribute`, and an injected avatar sanitizer.
+
+`frontend/js/app.js` retains `applyProfile` as the compatibility orchestration
+point. It still sanitizes incoming profile data, switches/caches account-local
+storage, delegates the display render, and refreshes the leaderboard. Auth fetch,
+OAuth, API contracts, storage formats, markup, and CSS are unchanged.
+`scripts/frontend-session-ui.test.mjs` characterizes the pure model and partial
+DOM rendering behavior; existing Playwright tests cover profile save safety and
+the mobile accessible account trigger.
+
 ## Candidate Later Batches
 
 | Candidate | Why later |
@@ -120,12 +142,12 @@ the existing Playwright suite retains browser-level behavior coverage.
 | Navigation action registry | Needs careful preservation of `data-ui-action` and mobile nav behavior. |
 | Learning Studio feature modules | Requires focused modal/tabs/deck tests per boundary. |
 | CSS layer map and selector ownership | Needs visual regression and viewport coverage before pruning overrides. |
-| Full ES module conversion | Too broad for AUD-008 Batch 1 and would risk load-order regressions. |
+| Full ES module conversion | Too broad for incremental AUD-008 batches and would risk load-order regressions. |
 
 ## Remaining AUD-008 Risk
 
 AUD-008 is only partially fixed. The app still depends on static script load
-order, large mutable global state, and a long CSS override chain. Batches 1 and 2
-create the dependency source of truth and extract two small, tested boundaries
-for import calculations and sync status rendering; they do not complete frontend
-modularization or CSS layering.
+order, large mutable global state, and a long CSS override chain. Batches 1-3
+create the dependency source of truth and extract three small, tested boundaries
+for import calculations, sync status rendering, and profile display rendering;
+they do not complete frontend modularization or CSS layering.

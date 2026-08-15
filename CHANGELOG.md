@@ -13,6 +13,7 @@
 - Protected Actuator metrics from anonymous access, kept health/info public and minimal, and documented alert/SLO ownership while leaving real alert delivery evidence as required external work.
 - Added the AUD-008 frontend dependency map, extracted import preview/merge calculations into `window.WordArenaImport`, and added a characterization test while keeping the existing `app.js` compatibility wrappers.
 - Continued AUD-008 with a focused `window.WordArenaSyncStatus` extraction for sync copy/rendering, accessible full-text labels, tone classes, and Retry visibility, backed by characterization tests and thin `app.js` wrappers.
+- Continued AUD-008 with `window.WordArenaSessionUi` for profile display modeling and safe DOM rendering while keeping auth, profile sanitization, account persistence, and leaderboard orchestration in `app.js`.
 
 ## 2026-08-11
 

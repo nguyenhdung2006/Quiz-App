@@ -1703,19 +1703,9 @@ bio: profile?.bio || ""
 };
 
 safeProfile = cacheCurrentPlayer(safeProfile) || safeProfile;
-let identity = safeProfile.email ? `Signed in as ${safeProfile.email}` : "Local guest profile";
-
-setText("profileName", safeProfile.name);
-setText("profileNameSmall", safeProfile.name.split(" ")[0] || "Account");
-setText("profileMenuName", safeProfile.name);
-setText("profileMenuEmail", identity);
-setText("profileIdentityLine", identity);
-setText("profileEditorAccount", identity);
-document.getElementById("profileTrigger")?.setAttribute("aria-label", `Open account menu for ${safeProfile.name || "learner"}`);
-setImage("profileAvatarSmall", safeProfile.avatar);
-setImage("profileMenuAvatar", safeProfile.avatar);
-setImage("profileAvatarLarge", safeProfile.avatar);
-setImage("profileEditorAvatarPreview", safeProfile.avatar);
+window.WordArenaSessionUi.renderProfileSummary(safeProfile, {
+sanitizeAvatar: typeof safeProfileAvatar === "function" ? safeProfileAvatar : undefined
+});
 renderLeaderboard();
 }
 

@@ -169,6 +169,9 @@ jobs:
       - name: Frontend sync status helper characterization
         run: npm run test:frontend-sync-status
 
+      - name: Frontend session UI helper characterization
+        run: npm run test:frontend-session-ui
+
       - name: Frontend static build
         run: npm run build:frontend
 
