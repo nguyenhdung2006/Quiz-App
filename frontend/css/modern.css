@@ -3980,6 +3980,10 @@ thead th:last-child {
   transition: width 350ms ease;
 }
 
+#progress.progress--resetting {
+  transition: none;
+}
+
 #question {
   width: min(980px, 92%);
   margin: 0 auto 4px;
@@ -4128,6 +4132,11 @@ thead th:last-child {
   min-height: 52px;
 }
 
+#timer[hidden],
+#quizScreen .bigBtn[hidden] {
+  display: none !important;
+}
+
 .timerDanger {
   color: #ffffff !important;
   background: rgba(255, 45, 85, 0.42) !important;
@@ -4174,12 +4183,49 @@ thead th:last-child {
   margin: 18px 0 8px;
   font-size: 3.6rem;
   line-height: 1;
+  color: #e67e22;
   text-shadow: 0 0 26px rgba(255, 227, 110, 0.34);
 }
 
 #grade,
 #comment {
   font-weight: 850;
+}
+
+#comment[data-grade="A+"] {
+  color: #1f9d55;
+}
+
+#comment[data-grade="A"] {
+  color: #38c172;
+}
+
+#comment[data-grade="B+"] {
+  color: #3490dc;
+}
+
+#comment[data-grade="B"] {
+  color: #6cb2eb;
+}
+
+#comment[data-grade="C+"] {
+  color: #f6c343;
+}
+
+#comment[data-grade="C"] {
+  color: #ff922b;
+}
+
+#comment[data-grade="D+"] {
+  color: #ff6b4a;
+}
+
+#comment[data-grade="D"] {
+  color: #cc5c5c;
+}
+
+#comment[data-grade="F"] {
+  color: #e3342f;
 }
 
 #reviewScreen,

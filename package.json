@@ -15,6 +15,7 @@
     "test:gate:staging-smoke": "node scripts/production-release-gate/staging-smoke.test.mjs",
     "test:gate:report": "node scripts/production-release-gate/generate-report.test.mjs",
     "test:assets": "node scripts/frontend-css-assets-check.mjs",
+    "test:frontend-inline-styles": "node scripts/frontend-inline-style-guard.mjs",
     "test:docs-drift": "node scripts/audit-docs-drift-check.mjs",
     "test:frontend-import-helpers": "node scripts/frontend-import-helpers.test.mjs",
     "test:frontend-session-ui": "node scripts/frontend-session-ui.test.mjs",

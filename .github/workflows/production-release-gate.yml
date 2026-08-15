@@ -163,6 +163,9 @@ jobs:
       - name: Frontend CSS asset ownership
         run: npm run test:assets
 
+      - name: Frontend inline style ratchet
+        run: npm run test:frontend-inline-styles
+
       - name: Frontend import helper characterization
         run: npm run test:frontend-import-helpers
 

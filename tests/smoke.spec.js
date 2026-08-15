@@ -1952,6 +1952,40 @@ test("quiz locks answers and keyboard Enter continues after feedback", async ({ 
   expect(fatalConsole).toEqual([]);
 });
 
+test("quiz controls and result tones avoid inline style state", async ({ page }) => {
+  const fatalConsole = await preparePage(page, { vocab: sampleWords });
+
+  await page.getByRole("button", { name: "Dashboard" }).click();
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+
+  const timer = page.locator("#timer");
+  const back = page.locator(".backQuestionBtn");
+  const submit = page.locator(".submitBtn");
+  const next = page.locator(".nextBtn");
+
+  await expect(timer).toHaveAttribute("hidden", "");
+  await expect(back).toHaveAttribute("hidden", "");
+  await expect(submit).toHaveAttribute("hidden", "");
+  await expect(next).not.toHaveAttribute("hidden", "");
+
+  for (let question = 0; question < sampleWords.length; question++) {
+    await page.locator("#answers .answer").first().click();
+    if (question < sampleWords.length - 1) {
+      await next.click();
+    }
+  }
+
+  await expect(submit).not.toHaveAttribute("hidden", "");
+  await expect(next).toHaveAttribute("hidden", "");
+  await submit.click();
+
+  await expect(page.locator("#resultScreen")).toBeVisible();
+  await expect(page.locator("#score")).not.toHaveAttribute("style", /color/i);
+  await expect(page.locator("#comment")).toHaveAttribute("data-grade", /^(A\+?|B\+?|C\+?|D\+?|F)$/);
+  await expect(page.locator("#comment")).not.toHaveAttribute("style", /color/i);
+  expect(fatalConsole).toEqual([]);
+});
+
 test("review queue renders ratings and accepts one local review", async ({ page }) => {
   const fatalConsole = await preparePage(page, {
     vocab: reviewWords,

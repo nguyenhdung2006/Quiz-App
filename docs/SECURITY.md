@@ -98,9 +98,28 @@ work can be observed before enforcement.
 Current limitation: `frontend/index.html` no longer uses inline event handlers
 or `javascript:` URLs, so `script-src 'unsafe-inline'` is no longer required in
 the enforced policy. `style-src 'unsafe-inline'` remains in the enforced policy
-because the current static frontend still uses JavaScript-driven inline style
-updates for progress bars, timers, effects, and small transitions. The policy
-does not allow `unsafe-eval`.
+because the current static frontend still has 32 allowlisted JavaScript-driven
+inline style updates for arbitrary progress values, animated login/effect
+coordinates, theme hints, and legacy helper/reveal transitions. The policy does
+not allow `unsafe-eval`.
+
+### Inline Style Ratchet
+
+`npm run test:frontend-inline-styles` inventories HTML `style=` attributes and
+JavaScript style APIs, including `.style.*`, bracket style access,
+`setAttribute("style", ...)`, and `cssText`. The allowlist is exact by file,
+API kind, normalized source line, count, and reason; a new use or a stale count
+fails the check.
+
+AUD-011 Batch 2 reduced the inventory from 45 to 32 JavaScript usages. Quiz
+timer and navigation visibility now use `hidden`, progress reset timing uses a
+CSS class, and score/comment tones use stylesheet rules plus `data-grade`.
+HTML inline style attributes remain at zero. Remaining arbitrary-value writes
+are intentionally visible in `scripts/frontend-inline-style-guard.mjs` and must
+be removed in focused batches before enforced `style-src 'unsafe-inline'` can
+be dropped. Report-only `style-src 'self'` remains the stricter observation
+policy; real staging/report-only evidence is still required before enforcement
+changes.
 
 ## Actuator And Metrics Access
 

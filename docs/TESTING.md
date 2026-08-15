@@ -83,6 +83,7 @@ This test verifies:
 npm run check:frontend
 npm run lint
 npm run test:assets
+npm run test:frontend-inline-styles
 npm run test:frontend-import-helpers
 npm run test:frontend
 npm run test:docs-drift
@@ -96,6 +97,12 @@ npm run coverage:backend
 outside that baseline fail the command. `npm run test:assets` verifies that
 each `frontend/css/*.css` file is linked or imported by the runtime frontend
 stylesheet graph.
+
+`npm run test:frontend-inline-styles` scans runtime HTML and JavaScript for
+inline style attributes and DOM style APIs. It compares the inventory against
+an exact file/API/source/count/reason allowlist, currently 32 usages across 10
+files. New usages and stale allowlist entries fail locally, in CI, and in the
+production release gate.
 
 `npm run test:frontend-import-helpers` runs a Node characterization test for
 `window.WordArenaImport`, covering import normalization, invalid counts,
@@ -135,6 +142,7 @@ Gate controls include:
 - observability and rate-limit controls: `ObservabilityAndRateLimitTests` and `AiRateLimitTests`;
 - frontend ESLint validation through `npm run lint`;
 - frontend CSS asset ownership through `npm run test:assets`;
+- frontend inline-style inventory ratchet through `npm run test:frontend-inline-styles`;
 - frontend static build validation through `npm run build:frontend`;
 - Playwright smoke tests with report artifacts;
 - Flyway rehearsal against temporary PostgreSQL with `SPRING_PROFILES_ACTIVE=prod`;

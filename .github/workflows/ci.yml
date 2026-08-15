@@ -73,6 +73,9 @@ jobs:
       - name: Check frontend CSS assets
         run: npm run test:assets
 
+      - name: Guard frontend inline style usage
+        run: npm run test:frontend-inline-styles
+
       - name: Test frontend import helpers
         run: npm run test:frontend-import-helpers
 

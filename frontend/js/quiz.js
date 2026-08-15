@@ -150,9 +150,9 @@ window.currentQuizKind = options.kind || (options.challenge ? "challenge" : "qui
 
 if (options.challenge) {
 questionTime = options.time || 15;
-document.getElementById("timer").style.display = "block";
+document.getElementById("timer").hidden = false;
 } else {
-document.getElementById("timer").style.display = "none";
+document.getElementById("timer").hidden = true;
 }
 
 document.getElementById("comboDisplay").innerText = "Combo x0";
@@ -171,7 +171,7 @@ combo = 0;
 maxCombo = 0;
 
 document.getElementById("comboDisplay").innerText = "Combo x0";
-document.getElementById("timer").style.display = "none";
+document.getElementById("timer").hidden = true;
 challengeDifficulty.classList.add("hidden");
 quizDifficulty.classList.remove("hidden");
 
@@ -192,10 +192,10 @@ alert("You need at least 4 unique answers for this quiz mode.");
 return;
 }
 
-progress.style.transition = "none";
+progress.classList.add("progress--resetting");
 progress.style.width = "0%";
 setTimeout(() => {
-progress.style.transition = "width .4s ease";
+progress.classList.remove("progress--resetting");
 }, 50);
 
 if (num === "all") {
@@ -228,7 +228,7 @@ loadQuestion();
 function practiceWrong() {
 clearInterval(questionTimer);
 
-document.getElementById("timer").style.display = "none";
+document.getElementById("timer").hidden = true;
 
 isPracticeMode = true;
 isChallengeMode = false;
@@ -411,14 +411,14 @@ renderQuestionFeedback(feedbackEl, picked, correctAnswer);
 }
 
 if (index === quizData.length - 1) {
-submitBtn.style.display = "inline-block";
-nextBtn.style.display = "none";
+submitBtn.hidden = false;
+nextBtn.hidden = true;
 } else {
-submitBtn.style.display = "none";
-nextBtn.style.display = "inline-block";
+submitBtn.hidden = true;
+nextBtn.hidden = false;
 }
 
-backBtn.style.display = index === 0 || isChallengeMode ? "none" : "inline-block";
+backBtn.hidden = index === 0 || isChallengeMode;
 
 if (autoSpeak) {
 speak(q.eng);
@@ -514,53 +514,42 @@ let gradeEl = document.getElementById("grade");
 let commentEl = document.getElementById("comment");
 
 scoreEl.innerText = score10 + " / 10";
-scoreEl.style.color = "#e67e22";
 
 let gradeText = "";
 let commentText = "";
-let commentColor = "";
 
 if (score10 >= 9) {
 gradeText = "A+";
 commentText = "Outstanding work!";
-commentColor = "#1f9d55";
 } else if (score10 >= 8.5) {
 gradeText = "A";
 commentText = "Excellent performance!";
-commentColor = "#38c172";
 } else if (score10 >= 8) {
 gradeText = "B+";
 commentText = "Great job, keep going!";
-commentColor = "#3490dc";
 } else if (score10 >= 7) {
 gradeText = "B";
 commentText = "Solid work!";
-commentColor = "#6cb2eb";
 } else if (score10 >= 6.5) {
 gradeText = "C+";
 commentText = "You're improving!";
-commentColor = "#f6c343";
 } else if (score10 >= 5.5) {
 gradeText = "C";
 commentText = "Good effort!";
-commentColor = "#ff922b";
 } else if (score10 >= 5) {
 gradeText = "D+";
 commentText = "Keep practicing!";
-commentColor = "#ff6b4a";
 } else if (score10 >= 4) {
 gradeText = "D";
 commentText = "Don't give up!";
-commentColor = "#cc5c5c";
 } else {
 gradeText = "F";
 commentText = "Try again, you can do it!";
-commentColor = "#e3342f";
 }
 
 gradeEl.innerText = "Grade: " + gradeText;
 commentEl.innerText = commentText;
-commentEl.style.color = commentColor;
+commentEl.dataset.grade = gradeText;
 commentEl.classList.add("resultComment");
 }
 
