@@ -142,10 +142,11 @@ instead. The smoke suite has a static guard for `index.html` and `login.html`.
 JavaScript inline style writes are separately ratcheted by
 `npm run test:frontend-inline-styles`. AUD-011 Batch 2 moves quiz timer/button
 visibility to `hidden`, progress reset transition state to
-`.progress--resetting`, and result colors to CSS selected by `data-grade`. The
-remaining 32 allowlisted writes require arbitrary percentages/coordinates or
-belong to later focused migration batches; do not broaden the allowlist or use
-inline CSS custom properties to bypass it.
+`.progress--resetting`, and result colors to CSS selected by `data-grade`.
+AUD-011 Batch 3 moves app/studio toast dismissal state to `.toast.is-hiding`.
+The remaining 27 allowlisted writes require arbitrary percentages/coordinates
+or belong to later focused migration batches; do not broaden the allowlist or
+use inline CSS custom properties to bypass it.
 
 ## Local Import Safety
 

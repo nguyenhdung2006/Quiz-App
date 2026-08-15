@@ -137,24 +137,6 @@ const allowlist = [
     reason: "Profile XP bar represents an arbitrary calculated percentage."
   },
   {
-    file: "frontend/js/app.js",
-    source: "el.style.opacity = \"0\";",
-    count: 1,
-    reason: "Legacy app reveal transition remains for a later effects batch."
-  },
-  {
-    file: "frontend/js/app.js",
-    source: "el.style.transform = \"translateY(6px)\";",
-    count: 1,
-    reason: "Legacy app reveal transition remains for a later effects batch."
-  },
-  {
-    file: "frontend/js/app.js",
-    source: "el.style.transition = \"all 180ms ease\";",
-    count: 1,
-    reason: "Legacy app reveal transition remains for a later effects batch."
-  },
-  {
     file: "frontend/js/review-today.js",
     source: "fill.style.width = percent + \"%\";",
     count: 1,
@@ -177,18 +159,6 @@ const allowlist = [
     source: "progress.style.width = \"100%\";",
     count: 1,
     reason: "Quiz completion uses the semantic upper boundary."
-  },
-  {
-    file: "frontend/js/learning-studio.js",
-    source: "el.style.opacity = \"0\";",
-    count: 1,
-    reason: "Legacy studio reveal transition remains for a later effects batch."
-  },
-  {
-    file: "frontend/js/learning-studio.js",
-    source: "el.style.transform = \"translateY(6px)\";",
-    count: 1,
-    reason: "Legacy studio reveal transition remains for a later effects batch."
   }
 ];
 

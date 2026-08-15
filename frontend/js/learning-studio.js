@@ -199,8 +199,7 @@ el.className = `toast toast--${kind}`;
 el.textContent = message;
 host.appendChild(el);
 setTimeout(() => {
-el.style.opacity = "0";
-el.style.transform = "translateY(6px)";
+el.classList.add("is-hiding");
 setTimeout(() => el.remove(), 220);
 }, 2400);
 }

@@ -1973,9 +1973,7 @@ el.textContent = message;
 host.appendChild(el);
 
 setTimeout(() => {
-el.style.opacity = "0";
-el.style.transform = "translateY(6px)";
-el.style.transition = "all 180ms ease";
+el.classList.add("is-hiding");
 setTimeout(() => el.remove(), 220);
 }, ms);
 }

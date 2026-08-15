@@ -4734,6 +4734,12 @@ thead th:last-child {
   color: white;
   backdrop-filter: blur(10px);
   box-shadow: var(--shadow-soft);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.toast.is-hiding {
+  opacity: 0;
+  transform: translateY(6px);
 }
 
 .toast--ok {

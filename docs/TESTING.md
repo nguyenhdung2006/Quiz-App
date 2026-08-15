@@ -100,7 +100,7 @@ stylesheet graph.
 
 `npm run test:frontend-inline-styles` scans runtime HTML and JavaScript for
 inline style attributes and DOM style APIs. It compares the inventory against
-an exact file/API/source/count/reason allowlist, currently 32 usages across 10
+an exact file/API/source/count/reason allowlist, currently 27 usages across 9
 files. New usages and stale allowlist entries fail locally, in CI, and in the
 production release gate.
 

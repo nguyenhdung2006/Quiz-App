@@ -777,6 +777,26 @@ test("local vocabulary can add and delete a word", async ({ page }) => {
   expect(fatalConsole).toEqual([]);
 });
 
+test("toast dismissal uses CSS class state without inline styles", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+  await page.clock.install();
+
+  await page.locator("#exportBtn").click();
+
+  const toast = page.locator(".toast").filter({ hasText: "Exported backup JSON." });
+  await expect(toast).toBeVisible();
+  await expect(toast).not.toHaveAttribute("style", /.*/);
+
+  await page.clock.fastForward(2200);
+  await expect(toast).toHaveClass(/is-hiding/);
+  await expect(toast).not.toHaveAttribute("style", /.*/);
+
+  await page.clock.fastForward(220);
+  await expect(toast).toHaveCount(0);
+
+  expect(fatalConsole).toEqual([]);
+});
+
 test("malformed JSON and CSV imports do not mutate local vocabulary", async ({ page }) => {
   const fatalConsole = await preparePage(page, {
     vocab: [word("keep-local", "giu local", "audit", 101)]
