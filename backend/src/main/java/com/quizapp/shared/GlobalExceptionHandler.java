@@ -29,7 +29,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException exception) {
-        log.warn("[AUTH] Validation failed: {}",
+        log.warn("[VALIDATION] Validation failed: {}",
                 exception.getBindingResult().getFieldErrors().stream()
                         .map(e -> e.getField() + ": " + e.getDefaultMessage())
                         .toList());
@@ -48,7 +48,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException exception) {
-        log.warn("[AUTH] Bad request: {}", exception.getMessage());
+        log.warn("[REQUEST] Bad request: {}", exception.getMessage());
         if (healthCounters != null) healthCounters.incrementValidationErrors();
         return ResponseEntity
                 .badRequest()
@@ -57,7 +57,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ApiError> handleUnreadableMessage(HttpMessageNotReadableException exception) {
-        log.warn("[AUTH] Malformed request body: type={}", exception.getClass().getSimpleName());
+        log.warn("[REQUEST] Malformed request body: type={}", exception.getClass().getSimpleName());
         if (healthCounters != null) healthCounters.incrementValidationErrors();
         return ResponseEntity
                 .badRequest()

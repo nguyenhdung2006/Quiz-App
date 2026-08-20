@@ -55,6 +55,9 @@ public class SecurityConfig {
     @Value("${app.oauth2.success-redirect-uri}")
     private String successRedirectUri;
 
+    @Value("${app.oauth2.failure-redirect-uri}")
+    private String failureRedirectUri;
+
     @Value("${app.frontend.origin}")
     private String frontendOrigin;
 
@@ -182,7 +185,7 @@ public class SecurityConfig {
                                 )
                         )
                         .defaultSuccessUrl(successRedirectUri, true)
-                        .failureUrl(GOOGLE_AUTHORIZATION_PATH)
+                        .failureUrl(failureRedirectUri)
                 )
                 .logout(logout -> logout
                         .logoutUrl("/logout")

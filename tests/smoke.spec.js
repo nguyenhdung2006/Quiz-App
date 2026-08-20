@@ -603,6 +603,23 @@ test("static app loads without fatal console errors", async ({ page }) => {
   expect(fatalConsole).toEqual([]);
 });
 
+test("application does not cancel normal contextmenu events", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+
+  const contextMenuResult = await page.locator(".appMain").evaluate((element) => {
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      button: 2
+    });
+    const dispatched = element.dispatchEvent(event);
+    return { defaultPrevented: event.defaultPrevented, dispatched };
+  });
+
+  expect(contextMenuResult).toEqual({ defaultPrevented: false, dispatched: true });
+  expect(fatalConsole).toEqual([]);
+});
+
 test("empty user sees start-here onboarding and opens starter decks", async ({ page }) => {
   const fatalConsole = await preparePage(page);
 

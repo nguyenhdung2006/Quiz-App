@@ -37,6 +37,12 @@ Successful login redirects to:
 http://localhost:5500/frontend/index.html
 ```
 
+Failed or cancelled login redirects to the configured frontend login page:
+
+```text
+http://localhost:5500/frontend/login.html?error=oauth
+```
+
 Logout redirects to:
 
 ```text

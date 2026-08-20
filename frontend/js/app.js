@@ -1625,7 +1625,6 @@ showAppPage(document.body.dataset.appPage || "dashboard");
 window.showAppPage = showAppPage;
 
 function initInlineFreeActions() {
-document.addEventListener("contextmenu", event => event.preventDefault());
 document.addEventListener("click", event => {
 let button = event.target.closest("[data-ui-action]");
 if (!button) return;

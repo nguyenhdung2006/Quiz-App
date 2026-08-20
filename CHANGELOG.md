@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-20
+
+- Corrected validation and bad-request log classifications so they no longer appear as authentication failures.
+- Restored normal browser context menus by removing the application-wide right-click cancellation.
+- Redirected failed Google OAuth attempts to the configured frontend login page with `?error=oauth` instead of restarting authorization.
+- Hardened the backend runtime image with a dedicated non-root user and a focused Docker build context.
+
 ## 2026-08-15
 
 - Hardened Learning Studio modal accessibility with initial focus, Tab/Shift+Tab focus trap, Escape close, opener focus restore, ARIA dialog description, ARIA tab/panel state, roving tabindex, and keyboard tab navigation tests.
