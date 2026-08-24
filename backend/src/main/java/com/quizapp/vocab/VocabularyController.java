@@ -1,12 +1,13 @@
 package com.quizapp.vocab;
 
-import com.quizapp.user.AppUser;
 import com.quizapp.user.CurrentUserService;
+import com.quizapp.shared.RevisionedResult;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api")
 public class VocabularyController {
+    private static final String SYNC_REVISION_HEADER = "X-Sync-Revision";
     private final CurrentUserService currentUsers;
     private final VocabularyService vocabulary;
 
@@ -33,27 +35,27 @@ public class VocabularyController {
     }
 
     @PostMapping("/vocab")
-    WordDto create(@AuthenticationPrincipal OAuth2User principal, @Valid @RequestBody WordRequest request) {
-        return vocabulary.createWord(currentUsers.requireUser(principal), request);
+    ResponseEntity<WordDto> create(@AuthenticationPrincipal OAuth2User principal, @Valid @RequestBody WordRequest request) {
+        return revisionResponse(vocabulary.createWord(currentUsers.requireUser(principal), request));
     }
 
     @PutMapping("/vocab/{id}")
-    WordDto update(
+    ResponseEntity<WordDto> update(
             @AuthenticationPrincipal OAuth2User principal,
             @PathVariable Long id,
             @Valid @RequestBody WordRequest request
     ) {
-        return vocabulary.updateWord(currentUsers.requireUser(principal), id, request);
+        return revisionResponse(vocabulary.updateWord(currentUsers.requireUser(principal), id, request));
     }
 
     @DeleteMapping("/vocab/{id}")
-    void delete(@AuthenticationPrincipal OAuth2User principal, @PathVariable Long id) {
-        vocabulary.deleteWord(currentUsers.requireUser(principal), id);
+    ResponseEntity<Void> delete(@AuthenticationPrincipal OAuth2User principal, @PathVariable Long id) {
+        return revisionOnlyResponse(vocabulary.deleteWord(currentUsers.requireUser(principal), id));
     }
 
     @DeleteMapping("/vocab/uid/{wordUid}")
-    void deleteByUid(@AuthenticationPrincipal OAuth2User principal, @PathVariable UUID wordUid) {
-        vocabulary.deleteWordByUid(currentUsers.requireUser(principal), wordUid);
+    ResponseEntity<Void> deleteByUid(@AuthenticationPrincipal OAuth2User principal, @PathVariable UUID wordUid) {
+        return revisionOnlyResponse(vocabulary.deleteWordByUid(currentUsers.requireUser(principal), wordUid));
     }
 
     @GetMapping("/wrong-words")
@@ -67,8 +69,9 @@ public class VocabularyController {
     }
 
     @PostMapping("/sync")
-    SyncResponse sync(@AuthenticationPrincipal OAuth2User principal, @Valid @RequestBody SyncRequest request) {
-        return vocabulary.sync(currentUsers.requireUser(principal), request);
+    ResponseEntity<SyncResponse> sync(@AuthenticationPrincipal OAuth2User principal, @Valid @RequestBody SyncRequest request) {
+        SyncResponse response = vocabulary.sync(currentUsers.requireUser(principal), request);
+        return syncResponse(response);
     }
 
     @GetMapping("/progress")
@@ -87,15 +90,33 @@ public class VocabularyController {
     }
 
     @PostMapping("/admin/sample-words")
-    SyncResponse importSampleWords(@AuthenticationPrincipal OAuth2User principal) {
-        return vocabulary.importStarterWords(currentUsers.requireAdmin(principal));
+    ResponseEntity<SyncResponse> importSampleWords(@AuthenticationPrincipal OAuth2User principal) {
+        return syncResponse(vocabulary.importStarterWords(currentUsers.requireAdmin(principal)));
     }
 
     @PostMapping("/quiz-results")
-    SyncResponse quizResult(
+    ResponseEntity<SyncResponse> quizResult(
             @AuthenticationPrincipal OAuth2User principal,
             @Valid @RequestBody QuizResultRequest request
     ) {
-        return vocabulary.recordQuizResult(currentUsers.requireUser(principal), request);
+        return syncResponse(vocabulary.recordQuizResult(currentUsers.requireUser(principal), request));
+    }
+
+    private <T> ResponseEntity<T> revisionResponse(RevisionedResult<T> result) {
+        return ResponseEntity.ok()
+                .header(SYNC_REVISION_HEADER, String.valueOf(result.revision()))
+                .body(result.body());
+    }
+
+    private ResponseEntity<Void> revisionOnlyResponse(long revision) {
+        return ResponseEntity.ok()
+                .header(SYNC_REVISION_HEADER, String.valueOf(revision))
+                .build();
+    }
+
+    private ResponseEntity<SyncResponse> syncResponse(SyncResponse response) {
+        return ResponseEntity.ok()
+                .header(SYNC_REVISION_HEADER, String.valueOf(response.revision()))
+                .body(response);
     }
 }

@@ -99,6 +99,7 @@ Unsafe documented routes:
 - `POST /api/sync`
 - `POST /api/quiz-results`
 - `POST /api/review/answer`
+- `POST /api/review/known`
 - `POST /api/admin/sample-words`
 - `POST /api/ai/explain-wrong-answer`
 - `POST /api/ai/generate-deck`
@@ -129,10 +130,10 @@ goal 160, bio 2000, and birthday must not be in the future.
 | Method | Path | Auth | Controller | Request | Response | Main tests |
 | --- | --- | --- | --- | --- | --- | --- |
 | GET | `/api/vocab` | Auth | `VocabularyController` | none | list of `WordDto` | `SpacedRepetitionTests`, `BackendHardeningTests` |
-| POST | `/api/vocab` | Auth + CSRF | `VocabularyController` | `WordRequest` | created `WordDto` | `SyncContractV2Tests`, `LearningAnalyticsTests` |
-| PUT | `/api/vocab/{id}` | Auth + CSRF | `VocabularyController` | path `id`; `WordRequest` | updated `WordDto`; changing existing `wordUid` is rejected | `SyncContractV2Tests` |
-| DELETE | `/api/vocab/{id}` | Auth + CSRF | `VocabularyController` | path `id` | empty `200`; creates tombstone and hard-deletes live row | `SyncContractV2Tests` |
-| DELETE | `/api/vocab/uid/{wordUid}` | Auth + CSRF | `VocabularyController` | path UUID `wordUid` | empty `200`; delete by stable identity | `SyncContractV2Tests` |
+| POST | `/api/vocab` | Auth + CSRF | `VocabularyController` | `WordRequest` | created `WordDto`; `X-Sync-Revision` header | `SyncContractV2Tests`, `LearningAnalyticsTests` |
+| PUT | `/api/vocab/{id}` | Auth + CSRF | `VocabularyController` | path `id`; `WordRequest` | updated `WordDto`; `X-Sync-Revision` header; changing existing `wordUid` is rejected | `SyncContractV2Tests` |
+| DELETE | `/api/vocab/{id}` | Auth + CSRF | `VocabularyController` | path `id` | empty `200` plus `X-Sync-Revision`; creates tombstone and hard-deletes live row | `SyncContractV2Tests` |
+| DELETE | `/api/vocab/uid/{wordUid}` | Auth + CSRF | `VocabularyController` | path UUID `wordUid` | empty `200` plus `X-Sync-Revision`; delete by stable identity | `SyncContractV2Tests` |
 | GET | `/api/wrong-words` | Auth | `VocabularyController` | none | list of wrong-bank `WordDto` | sync/backend hardening tests |
 | GET | `/api/snapshot` | Auth | `VocabularyController` | none | full `SyncResponse` snapshot | `SyncContractV2Tests`, `Audit005CapacityTests` |
 | POST | `/api/sync` | Auth + CSRF | `VocabularyController` | `SyncRequest` | `SyncResponse` with revision, vocab, tombstones, progress, achievements, history | `SyncContractV2Tests`, `SyncRequestBodyLimitTests`, `Audit005CapacityTests` |
@@ -187,9 +188,20 @@ Request shape:
       "wordUid": "2a13ee3f-30f3-40e2-a47a-502688fd0f3a"
     }
   ],
-  "wrongWords": []
+  "wrongWords": [],
+  "wrongWordDeletions": [
+    {
+      "wordUid": "7b8f0d4a-0c87-4e44-9f53-1455f67c4a30"
+    }
+  ]
 }
 ```
+
+`wrongWordDeletions` is an optional intent list. The server deletes only the
+authenticated user's matching wrong-bank entries whose canonical vocabulary
+word has already reached mastered state (`streak >= 5`). The operation is part
+of the same revision-protected sync transaction; stale revisions still return
+`409` without partial deletion.
 
 Response includes `syncContractVersion`, `revision`, `profile`, live `vocab`,
 `tombstones`, `wrongWords`, `progress`, `achievements`, and `quizHistory`.
@@ -215,7 +227,14 @@ old local words that have numeric `id` but never adopted the server `wordUid`.
 | --- | --- | --- | --- | --- | --- | --- |
 | GET | `/api/review/today` | Auth | `ReviewController` | none | due review items | `SpacedRepetitionTests` |
 | GET | `/api/review/queue` | Auth | `ReviewController` | optional query `limit`, `tag`, `level` | filtered review queue | `SpacedRepetitionTests`, `Audit005CapacityTests` |
-| POST | `/api/review/answer` | Auth + CSRF | `ReviewController` | `ReviewAnswerRequest`: `wordId`, `correct`, optional `mode` | updated streak/mastery/nextReview summary | `SpacedRepetitionTests` |
+| POST | `/api/review/answer` | Auth + CSRF | `ReviewController` | `ReviewAnswerRequest`: `wordId`, `correct`, optional `mode` | summary plus authoritative updated `word`; `X-Sync-Revision` header | `SpacedRepetitionTests`, `AuditFindingsFiveToNineTests` |
+| POST | `/api/review/known` | Auth + CSRF | `ReviewController` | `MarkKnownRequest`: `wordId` | server-authoritative minimum streak/mastery state plus updated `word`; `X-Sync-Revision` header | `AuditFindingsFiveToNineTests` |
+
+Successful authenticated mutations that advance cloud state return the new
+revision in `X-Sync-Revision`. Browser CORS exposes this header so the frontend
+can use the revision on its next sync instead of manufacturing an avoidable
+conflict. The header is additive; existing JSON response bodies remain
+compatible.
 
 ## Analytics
 

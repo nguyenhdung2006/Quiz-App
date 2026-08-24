@@ -55,6 +55,8 @@ Missing or invalid CSRF tokens return JSON, not HTML redirects:
 CORS is configured once in Spring Security before authorization. It allows credentials and never uses wildcard origins with credentials. Allowed origins are read from `app.frontend.origin`. Allowed methods are `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, and `OPTIONS`. Allowed request headers are `Accept`, `Content-Type`, and `X-XSRF-TOKEN`.
 
 The request header `X-Request-ID` is also allowed and exposed for correlation.
+`X-Sync-Revision` is exposed so the browser can adopt a mutation's
+server-issued revision before its next revision-protected sync.
 
 Production cross-site deployment must keep:
 
@@ -102,6 +104,13 @@ because the current static frontend still has 27 allowlisted JavaScript-driven
 inline style updates for arbitrary progress values, animated login/effect
 coordinates, theme hints, and legacy helper visibility. The policy does not
 allow `unsafe-eval`.
+
+The static Vercel frontend mirrors the relevant browser protections in
+`frontend/vercel.json`: CSP, `X-Content-Type-Options`, `Referrer-Policy`,
+`Permissions-Policy`, and frame denial. Its CSP likewise excludes
+`unsafe-eval` and script `unsafe-inline`; style `unsafe-inline` remains the
+documented compatibility exception for the current JavaScript-driven style
+inventory.
 
 ### Inline Style Ratchet
 
@@ -163,6 +172,12 @@ Sync V2 keeps OAuth2 session authentication and CSRF requirements unchanged. All
 Authorization remains per authenticated `AppUser`: `wordUid` is unique only within a user boundary, and tombstone lookups are scoped by `(user_id, word_uid)`. A user can reuse the same UUID value as another user without reading, deleting, or blocking that user's data.
 
 The server ignores client-supplied `wrongWords` for vocabulary creation/update and ignores client-managed progress stats/mastery in sync payloads. This prevents stale or forged client payloads from creating vocabulary through the wrong-bank channel or overwriting server-managed learning progress.
+
+Mark-hard and mark-known actions send only the authenticated user's word ID and
+intent. The backend computes official stats and canonical mastery. Wrong-bank
+clear requests send stable word UIDs through `wrongWordDeletions`; the backend
+deletes only entries whose owned canonical word is already mastered and applies
+the normal revision conflict check atomically.
 
 `POST /api/sync` is capped before JSON deserialization by
 `app.sync.max-request-body-bytes` / `SYNC_MAX_REQUEST_BODY_BYTES` (default

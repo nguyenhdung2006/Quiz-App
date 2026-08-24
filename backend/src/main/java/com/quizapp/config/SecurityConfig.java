@@ -213,7 +213,10 @@ public class SecurityConfig {
                 "X-XSRF-TOKEN",
                 RequestCorrelationFilter.REQUEST_ID_HEADER
         ));
-        configuration.setExposedHeaders(List.of(RequestCorrelationFilter.REQUEST_ID_HEADER));
+        configuration.setExposedHeaders(List.of(
+                RequestCorrelationFilter.REQUEST_ID_HEADER,
+                "X-Sync-Revision"
+        ));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

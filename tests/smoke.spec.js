@@ -1,3 +1,4 @@
+/* global markWordHard, markWordKnown, save, vocab:writable */
 const { test, expect } = require("@playwright/test");
 const fs = require("fs");
 const path = require("path");
@@ -82,6 +83,25 @@ test("Vercel public root redirects only to the login entry", async () => {
   });
 });
 
+test("Vercel frontend defines compatible production security headers", async () => {
+  const config = JSON.parse(fs.readFileSync(
+    path.join(frontendDir, "vercel.json"),
+    "utf8"
+  ));
+  const globalHeaders = config.headers?.find(entry => entry.source === "/(.*)")?.headers || [];
+  const values = Object.fromEntries(globalHeaders.map(header => [header.key, header.value]));
+
+  expect(values["X-Content-Type-Options"]).toBe("nosniff");
+  expect(values["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
+  expect(values["Permissions-Policy"]).toBeTruthy();
+  expect(values["Content-Security-Policy"]).toContain("default-src 'self'");
+  expect(values["Content-Security-Policy"]).toContain("script-src 'self'");
+  expect(values["Content-Security-Policy"]).toContain("style-src 'self' 'unsafe-inline'");
+  expect(values["Content-Security-Policy"]).toContain("https://quiz-app-xd9m.onrender.com");
+  expect(values["Content-Security-Policy"]).not.toContain("'unsafe-eval'");
+  expect(values["Content-Security-Policy"]).not.toContain("script-src 'self' 'unsafe-inline'");
+});
+
 test("fresh public root opens the login landing page instead of the app shell", async ({ page }) => {
   await page.route("http://localhost:8080/api/me", route => route.fulfill({
     json: { authenticated: false }
@@ -114,6 +134,8 @@ async function preparePage(page, options = {}) {
   const fatalConsole = [];
   const syncBodies = [];
   const deleteRequests = [];
+  const reviewBodies = [];
+  const knownBodies = [];
   let meRequestCount = 0;
   let snapshotRequestCount = 0;
   const profile = options.profile || {
@@ -233,6 +255,12 @@ async function preparePage(page, options = {}) {
       deleteRequests.push(url);
       await route.fulfill({
         status: options.deleteFails ? 500 : 204,
+        headers: options.deleteRevision == null
+          ? {}
+          : {
+              "X-Sync-Revision": String(options.deleteRevision),
+              "Access-Control-Expose-Headers": "X-Sync-Revision"
+            },
         body: ""
       });
       return;
@@ -247,9 +275,35 @@ async function preparePage(page, options = {}) {
       }
       return;
     }
-    if (url.endsWith("/api/review/answer")) {
+    if (url.endsWith("/api/review/known")) {
+      knownBodies.push(route.request().postDataJSON());
       await route.fulfill({
-        json: {
+        headers: options.knownRevision == null
+          ? {}
+          : {
+              "X-Sync-Revision": String(options.knownRevision),
+              "Access-Control-Expose-Headers": "X-Sync-Revision"
+            },
+        json: options.knownResponse || {
+          wordId: 1,
+          mastery: 60,
+          streak: 2,
+          nextReview: new Date(Date.now() + 3 * 86400000).toISOString(),
+          message: "Known state saved."
+        }
+      });
+      return;
+    }
+    if (url.endsWith("/api/review/answer")) {
+      reviewBodies.push(route.request().postDataJSON());
+      await route.fulfill({
+        headers: options.reviewRevision == null
+          ? {}
+          : {
+              "X-Sync-Revision": String(options.reviewRevision),
+              "Access-Control-Expose-Headers": "X-Sync-Revision"
+            },
+        json: options.reviewResponse || {
           wordId: 1,
           mastery: 40,
           streak: 2,
@@ -346,6 +400,8 @@ async function preparePage(page, options = {}) {
   await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
   Object.defineProperty(fatalConsole, "syncBodies", { value: syncBodies });
   Object.defineProperty(fatalConsole, "deleteRequests", { value: deleteRequests });
+  Object.defineProperty(fatalConsole, "reviewBodies", { value: reviewBodies });
+  Object.defineProperty(fatalConsole, "knownBodies", { value: knownBodies });
   Object.defineProperty(fatalConsole, "accountId", { value: accountId });
   Object.defineProperty(fatalConsole, "meRequestCount", { get: () => meRequestCount });
   Object.defineProperty(fatalConsole, "snapshotRequestCount", { get: () => snapshotRequestCount });
@@ -588,6 +644,57 @@ test("profile save renders text safely and falls back from unsafe avatar data", 
   const cachedProfile = await page.evaluate(() => JSON.parse(localStorage.getItem("quizUserProfile")));
   expect(cachedProfile.avatar).toBe("images/icon.png");
   expect(cachedProfile.name).toBe("<b>Profile Saver</b>");
+  expect(fatalConsole).toEqual([]);
+});
+
+test("profile editor traps keyboard focus, closes with Escape, and restores the profile trigger", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+  const profileTrigger = page.locator("#profileTrigger");
+
+  await profileTrigger.click();
+  await page.locator("#profileSettingsBtn").click();
+  await expect(page.locator("#profileEditor")).toBeVisible();
+  await expect(page.locator("#profileEditorCloseBtn")).toBeFocused();
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.getByRole("button", { name: "Save Profile" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#profileEditorCloseBtn")).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#profileEditor")).toBeHidden();
+  await expect(profileTrigger).toBeFocused();
+
+  await profileTrigger.click();
+  await page.locator("#profileSettingsBtn").click();
+  await expect(page.locator("#profileEditorCloseBtn")).toBeFocused();
+  await page.locator("#profileEditorCloseBtn").click();
+  await expect(page.locator("#profileEditor")).toBeHidden();
+  await expect(profileTrigger).toBeFocused();
+  expect(fatalConsole).toEqual([]);
+});
+
+test("How it works modal moves focus inside, traps Tab, and restores its opener", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+  const opener = page.locator("#previewBtn");
+
+  await opener.click();
+  await expect(page.locator("#appPreview")).toBeVisible();
+  await expect(page.locator("#previewCloseBtn")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#previewCloseBtn")).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.locator("#previewCloseBtn")).toBeFocused();
+
+  await page.locator("#previewCloseBtn").click();
+  await expect(page.locator("#appPreview")).toBeHidden();
+  await expect(opener).toBeFocused();
+
+  await opener.click();
+  await expect(page.locator("#previewCloseBtn")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#appPreview")).toBeHidden();
+  await expect(opener).toBeFocused();
   expect(fatalConsole).toEqual([]);
 });
 
@@ -1171,6 +1278,180 @@ test("sync revision conflict pulls cloud snapshot and retries rebuilt push once"
   expect(fatalConsole.syncBodies[1].expectedRevision).toBe(7);
   await expect.poll(() => fatalConsole.snapshotRequestCount).toBeGreaterThan(1);
   await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("successful direct delete advances the next sync revision without hiding real conflicts", async ({ page }) => {
+  const profile = { name: "Revision Client", email: "revision-client@example.com", avatar: "images/icon.png" };
+  const localWord = {
+    ...word("delete revision", "xoa revision", "sync", 120),
+    id: 1,
+    wordUid: "00000000-0000-4000-8000-000000001201"
+  };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    revision: 5,
+    deleteRevision: 7,
+    vocab: [localWord],
+    cloudSnapshot: {
+      revision: 5,
+      profile,
+      vocab: [localWord],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.quizCloud.state().lastKnownRevision)).toBe(6);
+  fatalConsole.syncBodies.length = 0;
+
+  await page.evaluate(async () => {
+    const target = vocab[0];
+    vocab = [];
+    save();
+    await window.quizCloud.deleteWord(target);
+    await window.quizCloud.syncNow();
+  });
+
+  expect(fatalConsole.deleteRequests).toHaveLength(1);
+  expect(fatalConsole.syncBodies.at(-1).expectedRevision).toBe(7);
+
+  await page.evaluate(() => {
+    window.quizCloud.rememberResponseRevision({
+      ok: true,
+      headers: { get: () => "6" }
+    });
+    window.quizCloud.rememberResponseRevision({
+      ok: false,
+      headers: { get: () => "99" }
+    });
+  });
+  expect(await page.evaluate(() => window.quizCloud.state().lastKnownRevision)).toBe(7);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("Mark known and Mark hard send intent only and apply server-authoritative learning state", async ({ page }) => {
+  const profile = { name: "Learning Intent", email: "learning-intent@example.com", avatar: "images/icon.png" };
+  const baseWord = {
+    ...word("intent word", "tu y dinh", "review", 121),
+    id: 1,
+    wordUid: "00000000-0000-4000-8000-000000001202"
+  };
+  const knownWord = {
+    ...baseWord,
+    stats: { ...baseWord.stats, seen: 1, correct: 1, streak: 2, bestStreak: 2, masteryLevel: 3 },
+    mastered: false
+  };
+  const hardWord = {
+    ...knownWord,
+    stats: { ...knownWord.stats, seen: 2, wrong: 1, streak: 0, masteryLevel: 2 },
+    mastered: false
+  };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    revision: 5,
+    knownRevision: 8,
+    reviewRevision: 9,
+    knownResponse: {
+      wordId: 1,
+      mastery: 60,
+      streak: 2,
+      nextReview: new Date(Date.now() + 3 * 86400000).toISOString(),
+      message: "Known state saved.",
+      word: knownWord
+    },
+    reviewResponse: {
+      wordId: 1,
+      mastery: 40,
+      streak: 0,
+      nextReview: new Date(Date.now() + 86400000).toISOString(),
+      message: "Review this word again tomorrow.",
+      word: hardWord
+    },
+    vocab: [baseWord],
+    cloudSnapshot: {
+      revision: 5,
+      profile,
+      vocab: [baseWord],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  fatalConsole.syncBodies.length = 0;
+
+  await page.evaluate(() => markWordKnown(0));
+  await expect.poll(() => fatalConsole.knownBodies.length).toBe(1);
+  expect(fatalConsole.knownBodies[0]).toEqual({ wordId: 1 });
+  let state = await readImportStorage(page, fatalConsole.accountId);
+  expect(state.vocab[0].stats.streak).toBe(2);
+  expect(state.vocab[0].stats.masteryLevel).toBe(3);
+
+  await page.evaluate(() => markWordHard(0));
+  await expect.poll(() => fatalConsole.reviewBodies.length).toBe(1);
+  expect(fatalConsole.reviewBodies[0]).toEqual({ wordId: 1, correct: false, mode: "mark-hard" });
+  state = await readImportStorage(page, fatalConsole.accountId);
+  expect(state.vocab[0].stats.wrong).toBe(1);
+  expect(state.wrongWords).toHaveLength(1);
+
+  await page.evaluate(() => window.quizCloud.syncNow());
+  expect(fatalConsole.syncBodies.at(-1).expectedRevision).toBe(9);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("Clear Mastered syncs only mastered wrong-bank identities and keeps unrelated mistakes", async ({ page }) => {
+  const profile = { name: "Wrong Bank", email: "wrong-bank-clear@example.com", avatar: "images/icon.png" };
+  const mastered = {
+    ...word("mastered mistake", "loi da thuoc", "review", 122),
+    id: 1,
+    wordUid: "00000000-0000-4000-8000-000000001203",
+    mastered: true,
+    stats: { ...word("x", "x", "review", 122).stats, streak: 5, bestStreak: 5, masteryLevel: 5 }
+  };
+  const active = {
+    ...word("active mistake", "loi con lai", "review", 123),
+    id: 2,
+    wordUid: "00000000-0000-4000-8000-000000001204"
+  };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    revision: 10,
+    vocab: [mastered, active],
+    wrongWords: [mastered, active],
+    cloudSnapshot: {
+      revision: 10,
+      profile,
+      vocab: [mastered, active],
+      wrongWords: [mastered, active],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  fatalConsole.syncBodies.length = 0;
+  page.once("dialog", dialog => dialog.accept());
+
+  await page.locator("[data-ui-action='open-mistake-screen']").click();
+  await page.locator("[data-ui-action='clear-mastered']").click();
+  await expect.poll(() => fatalConsole.syncBodies.length).toBe(1);
+
+  const body = fatalConsole.syncBodies[0];
+  expect(body.expectedRevision).toBe(11);
+  expect(body.wrongWordDeletions).toEqual([{ wordUid: mastered.wordUid }]);
+  expect(body.wrongWordDeletions).not.toContainEqual({ wordUid: active.wordUid });
+  const state = await readImportStorage(page, fatalConsole.accountId);
+  expect(state.wrongWords.map(item => item.eng)).toEqual(["active mistake"]);
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 

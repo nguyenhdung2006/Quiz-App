@@ -9,6 +9,11 @@ Root Directory. `frontend/vercel.json` defines a temporary redirect from `/` to
 `/login.html`. Both public URLs therefore show the login/landing page and Google
 login entry after that commit is deployed.
 
+`frontend/vercel.json` also applies the static frontend's browser security
+headers. Keep the CSP external-script-only: do not add `unsafe-eval` or script
+`unsafe-inline`. Style `unsafe-inline` remains temporarily required by the
+ratcheted dynamic-style inventory.
+
 `/index.html` remains the explicit authenticated app/dashboard entry. The
 backend OAuth success default already targets `${FRONTEND_URL}/index.html`, so
 the root redirect does not intercept the callback flow. Do not change the root
@@ -116,6 +121,18 @@ Behavior:
 
 After `/api/me` confirms an authenticated session, `frontend/js/app.js` refreshes CSRF before starting cloud sync. This prevents the first post-login unsafe request from failing due to a missing token.
 
+Successful cloud mutations expose `X-Sync-Revision`. `app.js` adopts that
+server-issued value immediately, including empty-body direct deletes, so the
+next sync uses the real baseline while genuine stale-device conflicts still
+follow the existing snapshot-and-retry path.
+
+## Modal Keyboard Focus
+
+The Profile Editor and How It Works dialogs use the shared focus manager in
+`frontend/js/app.js`: focus moves into the dialog on open, Tab and Shift+Tab
+stay inside, Escape closes, and focus returns to the logical opener. New app
+dialogs should reuse that boundary rather than adding one-off key handlers.
+
 ## Logout Flow
 
 The profile logout button calls:
@@ -187,3 +204,13 @@ Offline delete behavior:
 - Direct fast-path delete uses `DELETE /api/vocab/uid/{wordUid}` when possible.
 - Full sync also sends pending `{ wordUid }` deletion intents in `deletions`, so failed direct deletes do not block normal sync.
 - On `409 SYNC_REVISION_CONFLICT`, the frontend pulls a snapshot, applies tombstones, rebuilds the payload, and retries once.
+
+Wrong-bank mastered clearing uses a separate account-local intent queue. The
+client removes only the selected mastered entries locally and sends their
+stable UIDs as `wrongWordDeletions`; successful snapshots reconcile the queue.
+The backend remains authoritative about whether each entry is eligible.
+
+Mark Known and Mark Hard also use dedicated server actions while online. The
+client sends only `wordId`/intent and applies the returned authoritative word.
+Offline local updates remain a fallback, but canonical mastered state is always
+`streak >= 5`; a single correct review does not clear a wrong-bank entry.

@@ -1,5 +1,6 @@
 package com.quizapp.review;
 
+import com.quizapp.vocab.WordDto;
 import java.time.Instant;
 
 public record ReviewAnswerResponse(
@@ -7,6 +8,7 @@ public record ReviewAnswerResponse(
         int mastery,
         int streak,
         Instant nextReview,
-        String message
+        String message,
+        WordDto word
 ) {
 }

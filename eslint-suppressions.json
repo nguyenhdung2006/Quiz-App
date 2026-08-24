@@ -80,9 +80,6 @@
     }
   },
   "frontend/js/review-today.js": {
-    "no-undef": {
-      "count": 6
-    },
     "no-unused-vars": {
       "count": 2
     }
@@ -115,7 +112,7 @@
       "count": 2
     },
     "no-undef": {
-      "count": 79
+      "count": 23
     },
     "no-unused-vars": {
       "count": 1

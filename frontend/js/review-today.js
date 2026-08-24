@@ -1,3 +1,4 @@
+/* global accountStorageKey, normalizeWord, renderMistakeTable, renderTable, sameWordIdentity, save, showAppPage, stampWordUpdatedAt, vocab:writable, wrongWords:writable */
 (function () {
 const REVIEW_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 const API_FETCH = window.quizApiFetch || fetch.bind(window);
@@ -159,6 +160,7 @@ if (!response.ok) {
 reviewApiError = `Cloud review update failed (${response.status}). Saved locally for now.`;
 return null;
 }
+window.quizCloud?.rememberResponseRevision?.(response);
 return response.json();
 } catch (error) {
 reviewApiError = "Cloud review update is unavailable. Saved locally for now.";
@@ -193,6 +195,33 @@ candidate.id === item.wordId || candidate.eng === item.eng
 );
 if (!word) return;
 
+if (serverResponse?.word) {
+let authoritative = normalizeWord(serverResponse.word);
+let index = getWords().findIndex(candidate =>
+(typeof sameWordIdentity === "function" && sameWordIdentity(candidate, word))
+|| candidate.id === word.id
+);
+if (index >= 0) vocab[index] = authoritative;
+let foundWrong = false;
+if (typeof wrongWords !== "undefined" && Array.isArray(wrongWords)) {
+wrongWords = wrongWords.map(candidate => {
+let matches = typeof sameWordIdentity === "function"
+? sameWordIdentity(candidate, word)
+: candidate.id === word.id;
+if (!matches) return candidate;
+foundWrong = true;
+return normalizeWord({ ...candidate, ...authoritative, mastered: authoritative.mastered });
+});
+if (!correct && !foundWrong) wrongWords.push(normalizeWord({ ...authoritative, mastered: false }));
+}
+if (typeof save === "function") save();
+else persistLocalWords();
+renderTable?.();
+renderMistakeTable?.();
+window.analyticsDashboard?.refresh?.();
+return;
+}
+
 let reviewedAt = new Date().toISOString();
 let data = stats(word);
 data.seen = Number(data.seen || 0) + 1;
@@ -214,11 +243,26 @@ word.mastered = true;
 data.masteryLevel = 5;
 }
 
+if (typeof wrongWords !== "undefined" && Array.isArray(wrongWords)) {
+let foundWrong = false;
+wrongWords = wrongWords.map(candidate => {
+let matches = typeof sameWordIdentity === "function"
+? sameWordIdentity(candidate, word)
+: candidate.id === word.id;
+if (!matches) return candidate;
+foundWrong = true;
+return normalizeWord({ ...candidate, ...word, mastered: word.mastered });
+});
+if (!correct && !foundWrong) wrongWords.push(normalizeWord({ ...word, mastered: false }));
+}
+
 data.nextReview = serverResponse?.nextReview || nextReviewDate(Number(data.streak || 0), correct);
 if (typeof stampWordUpdatedAt === "function") stampWordUpdatedAt(word, reviewedAt);
 else word.updatedAt = reviewedAt;
-persistLocalWords();
+if (typeof save === "function") save();
+else persistLocalWords();
 renderTable?.();
+renderMistakeTable?.();
 window.analyticsDashboard?.refresh?.();
 }
 

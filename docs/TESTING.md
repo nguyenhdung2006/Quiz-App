@@ -1,5 +1,26 @@
 # Testing
 
+## Audit Findings 5-9 Verification (2026-08-24)
+
+Verified against the uncommitted bounded findings 5-9 working tree:
+
+- `cd backend; .\mvnw.cmd test`: PASS, 118/118 tests.
+- `cd backend; .\mvnw.cmd verify`: PASS, 118/118 tests; JaCoCo line
+  coverage 88.76% (2329/2624), above the 80% gate.
+- Focused backend findings/review/sync regression: PASS, 20/20 tests.
+- `npx playwright test --project=chromium`: PASS, 72/72 tests.
+- Focused Playwright findings 5-9 regression: PASS, 6/6 tests.
+- Frontend syntax, ESLint, static build, CSS assets, inline-style ratchet,
+  import/session/sync-status helpers, docs drift, and secret scan: PASS.
+- `git diff --check`: PASS.
+- `gate:source-integrity`: expected `BLOCKED` because the implementation is
+  intentionally uncommitted for review and the three supplied audit artifacts
+  remain intentionally untracked.
+
+An initial full Chromium run had one pre-existing login-navigation timeout
+while Maven ran concurrently; that test passed immediately in isolation and
+the subsequent non-concurrent full run passed 72/72.
+
 ## Historical Verified Baselines
 
 Run on 2026-07-31 from this workspace. Task 6 did not rerun full backend or

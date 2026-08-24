@@ -16,21 +16,21 @@ Next action: provide the required env/evidence and re-run `npm run gate:report` 
 
 Severity: Medium
 
-Impact: `source-integrity` gate fails while this task's changes are uncommitted.
+Impact: `source-integrity` is blocked while findings 5-9 remain uncommitted for review and the three supplied audit artifacts remain intentionally untracked.
 
-Workaround: expected during local SEC-01 implementation work until the approved batch is committed.
+Workaround: expected for this review handoff. Do not delete, modify, ignore, hide, or accidentally stage the audit artifacts merely to clean the tree.
 
-Next action: review changes, then run the gate from a clean release candidate.
+Next action: review the bounded diff, then commit only through a separately approved workflow and rerun the gate from that release candidate.
 
-## CSP Inline Handler Limitation
+## CSP Inline Style Limitation
 
 Severity: Medium
 
-Impact: the backend now emits a CSP without `unsafe-eval`, but `script-src` and `style-src` still allow `unsafe-inline` for compatibility with the current static frontend.
+Impact: backend and Vercel CSPs exclude `unsafe-eval` and script `unsafe-inline`, but `style-src` still allows `unsafe-inline` for compatibility with the current dynamic-style inventory.
 
-Workaround: keep the compatible CSP while the app still uses inline event handlers and direct static script loading.
+Workaround: keep the exact inline-style ratchet and compatible style policy while the remaining arbitrary-value writes are migrated in focused batches.
 
-Next action: remove inline handlers in a dedicated frontend cleanup batch, then tighten CSP with nonces/hashes or external-only scripts.
+Next action: migrate the remaining allowlisted style writes, validate report-only evidence, then remove style `unsafe-inline`.
 
 ## In-Memory Rate Limiting
 

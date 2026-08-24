@@ -1,6 +1,7 @@
 package com.quizapp.vocab;
 
 import com.quizapp.health.HealthCounterService;
+import com.quizapp.shared.RevisionedResult;
 import com.quizapp.user.AppUser;
 import com.quizapp.user.AppUserRepository;
 import java.time.Instant;
@@ -78,7 +79,7 @@ public class VocabularyService {
     }
 
     @Transactional
-    public WordDto createWord(AppUser user, WordRequest request) {
+    public RevisionedResult<WordDto> createWord(AppUser user, WordRequest request) {
         AppUser syncUser = lockUserForRevision(user);
         String normalizedEng = normalizeEnglishForStorage(request.eng());
         ensureNoDuplicateEnglish(syncUser, normalizedEng, null);
@@ -94,17 +95,18 @@ public class VocabularyService {
         VocabularyWord word = new VocabularyWord();
         word.setUser(syncUser);
         applyWordRequest(word, request);
-        WordDto created = WordDto.from(words.save(word));
+        VocabularyWord createdWord = words.save(word);
         if (words.findByUserOrderByCreatedAtDesc(syncUser).size() == 1) {
             achievements.unlock(syncUser, "FIRST_WORD");
         }
-        markCloudChanged(syncUser);
+        long revision = markCloudChanged(syncUser);
+        WordDto created = WordDto.from(createdWord);
         log.info("[SYNC] Word created userId={} wordId={}", syncUser.getId(), created.id());
-        return created;
+        return new RevisionedResult<>(created, revision);
     }
 
     @Transactional
-    public WordDto updateWord(AppUser user, Long id, WordRequest request) {
+    public RevisionedResult<WordDto> updateWord(AppUser user, Long id, WordRequest request) {
         AppUser syncUser = lockUserForRevision(user);
         VocabularyWord word = words.findByIdAndUser(id, syncUser)
                 .orElseThrow(() -> new IllegalArgumentException("Word not found."));
@@ -112,20 +114,21 @@ public class VocabularyService {
         ensureNoDuplicateEnglish(syncUser, normalizedEng, id);
 
         applyWordRequest(word, request);
-        WordDto updated = WordDto.from(words.save(word));
-        markCloudChanged(syncUser);
+        VocabularyWord updatedWord = words.save(word);
+        long revision = markCloudChanged(syncUser);
+        WordDto updated = WordDto.from(updatedWord);
         log.info("[SYNC] Word updated userId={} wordId={}", syncUser.getId(), id);
-        return updated;
+        return new RevisionedResult<>(updated, revision);
     }
 
     @Transactional
-    public void deleteWord(AppUser user, Long id) {
-        syncService.deleteWord(user, id);
+    public long deleteWord(AppUser user, Long id) {
+        return syncService.deleteWord(user, id);
     }
 
     @Transactional
-    public void deleteWordByUid(AppUser user, java.util.UUID wordUid) {
-        syncService.deleteWordByUid(user, wordUid);
+    public long deleteWordByUid(AppUser user, java.util.UUID wordUid) {
+        return syncService.deleteWordByUid(user, wordUid);
     }
 
     @Transactional
@@ -252,10 +255,6 @@ public class VocabularyService {
             stats.setCurrentStreak(stats.getCurrentStreak() + 1);
             stats.setBestStreak(Math.max(stats.getBestStreak(), stats.getCurrentStreak()));
             stats.setMasteryLevel(Math.min(5, stats.getMasteryLevel() + 1));
-            WrongBankEntry entry = wrongEntriesByWordId.get(word.getId());
-            if (entry != null) {
-                entry.setMastered(true);
-            }
         } else {
             stats.setWrong(stats.getWrong() + 1);
             stats.setCurrentStreak(0);
@@ -271,9 +270,15 @@ public class VocabularyService {
             wrongBank.save(entry);
         }
 
-        if (stats.getCurrentStreak() >= 5) {
-            word.setMastered(true);
+        word.setMastered(stats.getCurrentStreak() >= 5);
+        if (word.isMastered()) {
             stats.setMasteryLevel(5);
+        }
+
+        WrongBankEntry existingWrongEntry = wrongEntriesByWordId.get(word.getId());
+        if (existingWrongEntry != null) {
+            existingWrongEntry.setMastered(word.isMastered());
+            wrongBank.save(existingWrongEntry);
         }
 
         stats.setNextReview(progress.nextReview(stats, answerIsCorrect));
@@ -339,8 +344,8 @@ public class VocabularyService {
                 .orElseThrow(() -> new IllegalStateException("User not found."));
     }
 
-    private void markCloudChanged(AppUser user) {
-        user.incrementSyncRevision();
+    private long markCloudChanged(AppUser user) {
+        return user.incrementSyncRevision();
     }
 
     private VocabularyWord upsertByEnglish(AppUser user, WordRequest request) {

@@ -20,6 +20,10 @@ public record SyncRequest(
         @Size(max = 5_000, message = "Sync payload cannot include more than 5000 deletions.")
         List<WordDeletionRequest> deletions,
 
+        @Valid
+        @Size(max = 5_000, message = "Sync payload cannot include more than 5000 wrong-bank deletions.")
+        List<WordDeletionRequest> wrongWordDeletions,
+
         @Size(max = 5_000, message = "Sync payload cannot include more than 5000 wrong words.")
         List<WordRequest> wrongWords
 ) {

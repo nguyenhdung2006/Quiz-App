@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.ResponseEntity;
 
 @RestController
 public class AuthController {
+    private static final String SYNC_REVISION_HEADER = "X-Sync-Revision";
     private final CurrentUserService currentUsers;
 
     public AuthController(CurrentUserService currentUsers) {
@@ -34,7 +36,7 @@ public class AuthController {
 
     @PutMapping("/api/profile")
     @Transactional
-    ProfileDto updateProfile(
+    ResponseEntity<ProfileDto> updateProfile(
             @AuthenticationPrincipal OAuth2User principal,
             @Valid @RequestBody ProfileRequest request
     ) {
@@ -51,7 +53,9 @@ public class AuthController {
         user.setGender(ProfileSanitizer.singleLine(request.gender(), 40));
         user.setLearningGoal(ProfileSanitizer.singleLine(request.goal(), 160));
         user.setBio(ProfileSanitizer.multiLine(request.bio(), 2_000));
-        user.incrementSyncRevision();
-        return ProfileDto.from(user);
+        long revision = user.incrementSyncRevision();
+        return ResponseEntity.ok()
+                .header(SYNC_REVISION_HEADER, String.valueOf(revision))
+                .body(ProfileDto.from(user));
     }
 }

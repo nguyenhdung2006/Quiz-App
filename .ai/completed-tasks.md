@@ -1,5 +1,18 @@
 # Completed Tasks
 
+## 2026-08-24 Audit Findings 5-9
+
+- Finding 5: added keyboard focus management to the Profile Editor and How It Works dialogs.
+- Finding 6: added Vercel static CSP and browser security headers while preserving the documented inline-style compatibility boundary.
+- Finding 7: exposed and adopted `X-Sync-Revision` across successful cloud mutations.
+- Finding 8: made Mark Hard and Mark Known dedicated server-authoritative review actions.
+- Finding 9: standardized canonical mastery at streak 5 and added revision-protected `wrongWordDeletions` so Clear Mastered persists without deleting unrelated entries.
+- Added backend integration and Playwright regression coverage for the five findings.
+
+Limitation:
+
+- No commit, push, deploy, cloud action, production database action, or findings 10-13 work was performed.
+
 ## 2026-07-31 Audit Reconciliation And Hardening Evidence
 
 - Verified input hashes for the supplied master command and `docs/technical-audit-report.md`.

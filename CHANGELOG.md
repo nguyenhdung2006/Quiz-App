@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-24
+
+- Finding 5: added keyboard focus containment, Escape close, and opener focus restoration to the Profile Editor and How It Works dialogs.
+- Finding 6: added static Vercel CSP and browser security headers without `unsafe-eval` or script `unsafe-inline`.
+- Finding 7: propagated `X-Sync-Revision` on successful backend mutations so subsequent syncs use the server-issued baseline without weakening real conflict detection.
+- Finding 8: made Mark Hard and Mark Known server-authoritative, with intent-only frontend requests.
+- Finding 9: kept wrong-bank entries active until canonical mastery at streak 5 and added revision-protected persistence for clearing only mastered entries.
+
 ## 2026-08-20
 
 - Corrected validation and bad-request log classifications so they no longer appear as authentication failures.

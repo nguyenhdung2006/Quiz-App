@@ -4,6 +4,7 @@ const AUTH_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 const API_FETCH = window.quizApiFetch || fetch.bind(window);
 const REQUIRE_AUTH = window.quizIsProductionFrontend ? window.quizIsProductionFrontend() : false;
 const CLOUD_DELETE_QUEUE_KEY = "cloudDeleteQueue";
+const WRONG_BANK_CLEAR_QUEUE_KEY = "wrongBankClearQueue";
 const AUTH_PROFILE_RETRY_DELAYS = [500, 1000];
 const CLOUD_SYNC_META_KEY = "cloudSyncMeta";
 const STALE_SYNC_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
@@ -57,6 +58,84 @@ normalized: null,
 lastFocused: null,
 busy: false
 };
+
+const MODAL_FOCUSABLE_SELECTOR = [
+"button:not([disabled])",
+"[href]",
+"input:not([disabled]):not([type='hidden'])",
+"select:not([disabled])",
+"textarea:not([disabled])",
+"[tabindex]:not([tabindex='-1'])"
+].join(", ");
+
+function isVisibleFocusable(element) {
+return Boolean(element
+&& !element.disabled
+&& element.tabIndex >= 0
+&& (element.offsetWidth || element.offsetHeight || element.getClientRects().length));
+}
+
+function createModalFocusManager(overlay, options = {}) {
+let lastFocused = null;
+overlay.tabIndex = -1;
+
+function focusableElements() {
+return Array.from(overlay.querySelectorAll(MODAL_FOCUSABLE_SELECTOR)).filter(isVisibleFocusable);
+}
+
+function focusInitial() {
+let preferred = typeof options.initialFocus === "function" ? options.initialFocus() : options.initialFocus;
+let target = isVisibleFocusable(preferred) ? preferred : focusableElements()[0];
+if (target) target.focus();
+else overlay.focus();
+}
+
+function activate(opener = document.activeElement) {
+lastFocused = opener instanceof HTMLElement ? opener : null;
+requestAnimationFrame(focusInitial);
+}
+
+function restore() {
+let fallback = typeof options.restoreFallback === "function" ? options.restoreFallback() : options.restoreFallback;
+let target = lastFocused?.isConnected ? lastFocused : fallback;
+lastFocused = null;
+if (target?.isConnected && typeof target.focus === "function") target.focus();
+}
+
+function trapTab(event) {
+let focusable = focusableElements();
+if (!focusable.length) {
+event.preventDefault();
+overlay.focus();
+return;
+}
+let first = focusable[0];
+let last = focusable[focusable.length - 1];
+let active = document.activeElement;
+if (!overlay.contains(active)) {
+event.preventDefault();
+first.focus();
+} else if (event.shiftKey && active === first) {
+event.preventDefault();
+last.focus();
+} else if (!event.shiftKey && active === last) {
+event.preventDefault();
+first.focus();
+}
+}
+
+document.addEventListener("keydown", event => {
+if (overlay.classList.contains("hidden")) return;
+if (event.key === "Escape") {
+event.preventDefault();
+options.close?.();
+} else if (event.key === "Tab") {
+trapTab(event);
+}
+});
+
+return { activate, restore };
+}
 
 const STARTER_WORDS = [
 { eng: "resilient", vie: "kiên cường", pos: "adj", tag: "mindset", ipa: "/ri-ZIL-yuhnt/", level: "B1", context: "learning after difficulty", example: "She stayed resilient after the hard exam.", exampleMeaning: "Cô ấy vẫn kiên cường sau bài kiểm tra khó.", collocation: "resilient learner, remain resilient", synonyms: "strong, tough", antonyms: "fragile", commonMistake: "Do not use resilient for every kind of strong object.", note: "Useful for school and life." },
@@ -192,6 +271,58 @@ localStorage.removeItem(cloudDeleteQueueKey());
 return clean;
 }
 
+function wrongBankClearQueueKey() {
+return typeof accountStorageKey === "function"
+? accountStorageKey(WRONG_BANK_CLEAR_QUEUE_KEY)
+: WRONG_BANK_CLEAR_QUEUE_KEY;
+}
+
+function readPendingWrongBankClears() {
+try {
+let raw = localStorage.getItem(wrongBankClearQueueKey());
+let items = raw ? JSON.parse(raw) : [];
+return Array.from(new Set((Array.isArray(items) ? items : [])
+.map(value => String(value || "").trim())
+.filter(Boolean)));
+} catch (_error) {
+return [];
+}
+}
+
+function writePendingWrongBankClears(items) {
+let clean = Array.from(new Set((Array.isArray(items) ? items : [])
+.map(value => String(value || "").trim())
+.filter(Boolean)));
+try {
+if (clean.length) localStorage.setItem(wrongBankClearQueueKey(), JSON.stringify(clean));
+else localStorage.removeItem(wrongBankClearQueueKey());
+} catch (_error) {
+// The visible local clear remains usable if storage is temporarily unavailable.
+}
+return clean;
+}
+
+function queueWrongBankClears(words) {
+let next = [...readPendingWrongBankClears()];
+for (let word of Array.isArray(words) ? words : []) {
+let wordUid = String(word?.wordUid || word?.word_uid || "").trim();
+if (wordUid) next.push(wordUid);
+}
+return writePendingWrongBankClears(next);
+}
+
+function pendingWrongBankDeletionPayload() {
+return readPendingWrongBankClears().map(wordUid => ({ wordUid }));
+}
+
+function reconcilePendingWrongBankClears(snapshot) {
+if (!Array.isArray(snapshot?.wrongWords)) return;
+let remainingCloudUids = new Set(snapshot.wrongWords
+.map(word => String(word?.wordUid || word?.word_uid || "").trim())
+.filter(Boolean));
+writePendingWrongBankClears(readPendingWrongBankClears().filter(wordUid => remainingCloudUids.has(wordUid)));
+}
+
 function deleteRetryDelayMs(attempts) {
 if (attempts <= 1) return 0;
 if (attempts === 2) return DELETE_RETRY_30_SECONDS;
@@ -243,8 +374,10 @@ return Number.isSafeInteger(revision) && revision >= 0 ? revision : null;
 function rememberCloudRevision(value) {
 let revision = normalizeRevision(value);
 if (revision === null) return false;
-cloudSyncState.lastKnownRevision = revision;
-writeCloudSyncMeta({ lastKnownRevision: revision });
+let currentRevision = normalizeRevision(cloudSyncState.lastKnownRevision);
+let nextRevision = currentRevision === null ? revision : Math.max(currentRevision, revision);
+cloudSyncState.lastKnownRevision = nextRevision;
+writeCloudSyncMeta({ lastKnownRevision: nextRevision });
 return true;
 }
 
@@ -357,6 +490,11 @@ restoreCloudSyncMeta();
 save();
 refreshAccountData();
 return true;
+}
+
+function rememberResponseRevision(response) {
+if (!response?.ok) return false;
+return rememberCloudRevision(response.headers?.get?.("X-Sync-Revision"));
 }
 
 function backupPayload(reason = "manual") {
@@ -689,6 +827,8 @@ lastAttemptAt: attemptedAt,
 lastStatus: "failed",
 lastError: `HTTP ${response.status}`
 });
+} else {
+rememberResponseRevision(response);
 }
 } catch (error) {
 remaining.push({
@@ -930,6 +1070,7 @@ writeCloudSyncMeta({ lastKnownRevision: null });
 applyingCloudSnapshot = true;
 try {
 let deleted = applyTombstonesToLocal(snapshot);
+reconcilePendingWrongBankClears(snapshot);
 if (snapshot.profile) applyProfile(snapshot.profile);
 if (Array.isArray(snapshot.vocab)) {
 let cloudVocab = snapshot.vocab.filter(word =>
@@ -1040,6 +1181,7 @@ expectedRevision: cloudSyncState.lastKnownRevision,
 profile: profilePayload(),
 vocab: getVocab().map(toServerWord),
 deletions: pendingDeletionPayload(),
+wrongWordDeletions: pendingWrongBankDeletionPayload(),
 wrongWords: getWrongWords().map(toServerWord)
 })
 });
@@ -1099,6 +1241,7 @@ headers: { "Content-Type": "application/json", ...(options.headers || {}) }
 });
 
 if (!response.ok) return null;
+rememberResponseRevision(response);
 if (response.status === 204) return {};
 return await response.json();
 } catch (error) {
@@ -1123,6 +1266,34 @@ method: "PUT",
 body: JSON.stringify(clean)
 });
 return updated ? fromServerWord(updated) : null;
+}
+
+async function submitReviewAction(word, action) {
+let clean = normalizeWord(word || {});
+if (!clean.id || !cloudSyncReady) return null;
+let path = action === "known" ? "/api/review/known" : "/api/review/answer";
+let body = action === "known"
+? { wordId: clean.id }
+: { wordId: clean.id, correct: false, mode: "mark-hard" };
+try {
+let response = await API_FETCH(`${AUTH_API_ORIGIN}${path}`, {
+method: "POST",
+headers: { "Content-Type": "application/json" },
+body: JSON.stringify(body)
+});
+if (!response.ok) return null;
+rememberResponseRevision(response);
+return await response.json();
+} catch (_error) {
+return null;
+}
+}
+
+async function clearMasteredWrongWords(words) {
+queueWrongBankClears(words);
+if (!cloudSyncReady) return false;
+await syncCloudNow();
+return readPendingWrongBankClears().length === 0;
 }
 
 async function deleteCloudWord(word) {
@@ -1151,6 +1322,10 @@ window.quizCloud = {
 createWord: createCloudWord,
 updateWord: updateCloudWord,
 deleteWord: deleteCloudWord,
+markKnown: word => submitReviewAction(word, "known"),
+markHard: word => submitReviewAction(word, "hard"),
+clearMasteredWrongWords,
+rememberResponseRevision,
 importSamples: importCloudSamples,
 syncNow: syncCloudNow,
 pullNow: pullCloudSnapshot,
@@ -1727,6 +1902,7 @@ refreshOnboardingPanel();
 }
 
 let profileEditorPendingAvatar = "";
+let profileEditorFocusManager = null;
 
 async function loadAuthenticatedProfile() {
 let cached = getCurrentPlayer();
@@ -1802,7 +1978,7 @@ if (bio) bio.value = profile.bio || "";
 setImage("profileEditorAvatarPreview", profile.avatar || "images/icon.png");
 }
 
-function openProfileEditor() {
+function openProfileEditor(opener = document.activeElement) {
 let overlay = document.getElementById("profileEditor");
 if (!overlay) return;
 
@@ -1810,14 +1986,17 @@ populateProfileForm();
 profileEditorPendingAvatar = "";
 overlay.classList.remove("hidden");
 document.body.classList.add("modalOpen");
+profileEditorFocusManager?.activate(opener);
 }
 
 function closeProfileEditor() {
 let overlay = document.getElementById("profileEditor");
 if (!overlay) return;
 
+let wasOpen = !overlay.classList.contains("hidden");
 overlay.classList.add("hidden");
 document.body.classList.remove("modalOpen");
+if (wasOpen) profileEditorFocusManager?.restore();
 }
 
 function initProfileEditor() {
@@ -1830,6 +2009,12 @@ let resetBtn = document.getElementById("profileResetBtn");
 let avatarPreview = document.getElementById("profileEditorAvatarPreview");
 
 if (!overlay || !form) return;
+
+profileEditorFocusManager = createModalFocusManager(overlay, {
+close: closeProfileEditor,
+initialFocus: closeBtn,
+restoreFallback: () => document.getElementById("profileTrigger")
+});
 
 closeBtn?.addEventListener("click", closeProfileEditor);
 overlay.addEventListener("click", event => {
@@ -1893,9 +2078,6 @@ closeProfileEditor();
 toast("Profile saved for this account.", "ok");
 });
 
-document.addEventListener("keydown", event => {
-if (event.key === "Escape" && !overlay.classList.contains("hidden")) closeProfileEditor();
-});
 }
 
 function initProfileMenu() {
@@ -1950,7 +2132,7 @@ window.location.href = new URL("login.html?loggedOut=true", window.location.href
 
 settingsBtn?.addEventListener("click", () => {
 closeMenu();
-openProfileEditor();
+openProfileEditor(trigger);
 });
 }
 
@@ -2349,14 +2531,23 @@ let closeBtn = document.getElementById("previewCloseBtn");
 
 if (!overlay || !openBtn || !closeBtn) return;
 
+let focusManager = createModalFocusManager(overlay, {
+close,
+initialFocus: closeBtn,
+restoreFallback: openBtn
+});
+
 function open() {
 overlay.classList.remove("hidden");
 document.body.classList.add("modalOpen");
+focusManager.activate(openBtn);
 }
 
 function close() {
+let wasOpen = !overlay.classList.contains("hidden");
 overlay.classList.add("hidden");
 document.body.classList.remove("modalOpen");
+if (wasOpen) focusManager.restore();
 }
 
 openBtn.addEventListener("click", open);
@@ -2366,9 +2557,6 @@ overlay.addEventListener("click", event => {
 if (event.target === overlay) close();
 });
 
-document.addEventListener("keydown", event => {
-if (event.key === "Escape" && !overlay.classList.contains("hidden")) close();
-});
 }
 
 initAppShell();

@@ -1,11 +1,15 @@
 package com.quizapp.review;
 
 import com.quizapp.health.HealthCounterService;
+import com.quizapp.shared.RevisionedResult;
 import com.quizapp.user.AppUser;
 import com.quizapp.user.AppUserRepository;
 import com.quizapp.vocab.VocabularyRepository;
 import com.quizapp.vocab.VocabularyWord;
+import com.quizapp.vocab.WordDto;
 import com.quizapp.vocab.WordStats;
+import com.quizapp.vocab.WrongBankEntry;
+import com.quizapp.vocab.WrongBankRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -24,18 +28,28 @@ public class SpacedRepetitionService {
 
     private final VocabularyRepository words;
     private final AppUserRepository users;
+    private final WrongBankRepository wrongBank;
 
     @Autowired(required = false)
     private HealthCounterService healthCounters;
 
     @Autowired
-    public SpacedRepetitionService(VocabularyRepository words, AppUserRepository users) {
+    public SpacedRepetitionService(
+            VocabularyRepository words,
+            AppUserRepository users,
+            WrongBankRepository wrongBank
+    ) {
         this.words = words;
         this.users = users;
+        this.wrongBank = wrongBank;
+    }
+
+    public SpacedRepetitionService(VocabularyRepository words, AppUserRepository users) {
+        this(words, users, null);
     }
 
     public SpacedRepetitionService(VocabularyRepository words) {
-        this(words, null);
+        this(words, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -53,28 +67,54 @@ public class SpacedRepetitionService {
     }
 
     @Transactional
-    public ReviewAnswerResponse answer(AppUser user, ReviewAnswerRequest request) {
+    public RevisionedResult<ReviewAnswerResponse> answer(AppUser user, ReviewAnswerRequest request) {
         AppUser syncUser = lockUserForRevision(user);
-        VocabularyWord word = words.findByIdAndUser(request.wordId(), syncUser)
-                .orElseThrow(() -> {
-                    log.warn("[REVIEW] Invalid review payload - word not found userId={} wordId={}",
-                            syncUser.getId(), request.wordId());
-                    if (healthCounters != null) healthCounters.incrementReviewFailures();
-                    return new IllegalArgumentException("Word not found.");
-                });
+        VocabularyWord word = requireWord(syncUser, request.wordId());
         WordStats stats = applyAnswer(word, request.correct(), Instant.now());
         words.save(word);
-        syncUser.incrementSyncRevision();
+        synchronizeWrongBank(syncUser, word, request.correct());
+        long revision = syncUser.incrementSyncRevision();
         log.info("[REVIEW] Answer processed userId={} wordId={} correct={} mastery={}% streak={}",
                 syncUser.getId(), word.getId(), request.correct(),
                 masteryPercent(stats), stats.getCurrentStreak());
-        return new ReviewAnswerResponse(
+        return new RevisionedResult<>(new ReviewAnswerResponse(
                 word.getId(),
                 masteryPercent(stats),
                 stats.getCurrentStreak(),
                 stats.getNextReview(),
-                message(stats, request.correct())
-        );
+                message(stats, request.correct()),
+                WordDto.from(word)
+        ), revision);
+    }
+
+    @Transactional
+    public RevisionedResult<ReviewAnswerResponse> markKnown(AppUser user, MarkKnownRequest request) {
+        AppUser syncUser = lockUserForRevision(user);
+        VocabularyWord word = requireWord(syncUser, request.wordId());
+        WordStats stats = ensureStats(word);
+        Instant reviewedAt = Instant.now();
+        sanitizeStats(stats);
+        stats.setSeen(increment(stats.getSeen()));
+        stats.setCorrect(increment(stats.getCorrect()));
+        stats.setCurrentStreak(Math.max(2, increment(stats.getCurrentStreak())));
+        stats.setBestStreak(Math.max(stats.getBestStreak(), stats.getCurrentStreak()));
+        stats.setMasteryLevel(Math.max(3, Math.min(5, stats.getMasteryLevel() + 1)));
+        stats.setLastReviewed(reviewedAt);
+        word.setMastered(stats.getCurrentStreak() >= 5);
+        stats.setNextReview(nextReview(stats, true, reviewedAt));
+        words.save(word);
+        synchronizeWrongBank(syncUser, word, true);
+        long revision = syncUser.incrementSyncRevision();
+        log.info("[REVIEW] Mark known processed userId={} wordId={} mastery={}% streak={}",
+                syncUser.getId(), word.getId(), masteryPercent(stats), stats.getCurrentStreak());
+        return new RevisionedResult<>(new ReviewAnswerResponse(
+                word.getId(),
+                masteryPercent(stats),
+                stats.getCurrentStreak(),
+                stats.getNextReview(),
+                "Known state saved.",
+                WordDto.from(word)
+        ), revision);
     }
 
     public WordStats applyAnswer(VocabularyWord word, boolean correct, Instant reviewedAt) {
@@ -97,8 +137,8 @@ public class SpacedRepetitionService {
             word.setMastered(false);
         }
 
-        if (stats.getCurrentStreak() >= 5) {
-            word.setMastered(true);
+        word.setMastered(stats.getCurrentStreak() >= 5);
+        if (word.isMastered()) {
             stats.setMasteryLevel(5);
         }
 
@@ -172,6 +212,30 @@ public class SpacedRepetitionService {
             word.setStats(stats);
         }
         return stats;
+    }
+
+    private VocabularyWord requireWord(AppUser user, Long wordId) {
+        return words.findByIdAndUser(wordId, user)
+                .orElseThrow(() -> {
+                    log.warn("[REVIEW] Invalid review payload - word not found userId={} wordId={}",
+                            user.getId(), wordId);
+                    if (healthCounters != null) healthCounters.incrementReviewFailures();
+                    return new IllegalArgumentException("Word not found.");
+                });
+    }
+
+    private void synchronizeWrongBank(AppUser user, VocabularyWord word, boolean correct) {
+        if (wrongBank == null) return;
+        WrongBankEntry entry = wrongBank.findByUserAndWord(user, word).orElse(null);
+        if (!correct && entry == null) {
+            entry = new WrongBankEntry();
+            entry.setUser(user);
+            entry.setWord(word);
+        }
+        if (entry != null) {
+            entry.setMastered(word.isMastered());
+            wrongBank.save(entry);
+        }
     }
 
     private String message(WordStats stats, boolean correct) {
