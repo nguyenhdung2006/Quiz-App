@@ -76,7 +76,7 @@ public class VocabularyController {
 
     @GetMapping("/progress")
     ProgressSummaryDto progress(@AuthenticationPrincipal OAuth2User principal) {
-        return vocabulary.snapshot(currentUsers.requireUser(principal)).progress();
+        return vocabulary.progress(currentUsers.requireUser(principal));
     }
 
     @GetMapping("/achievements")

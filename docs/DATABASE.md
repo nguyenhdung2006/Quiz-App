@@ -41,6 +41,22 @@ Constraints and indexes:
 - `idx_word_tombstones_user_legacy_word_id` on `(user_id, legacy_word_id)`.
 - No FK from `word_tombstones.word_uid` to `vocabulary`; deletes are hard deletes, not soft deletes.
 
+## Finding 10 Query Notes
+
+- Review queues with a positive `limit` calculate the existing priority order
+  and apply the row limit in the repository query. The existing
+  `word_stats(next_review)` index supports due-date filtering; no new index was
+  justified by the local H2 benchmark.
+- Learning progress uses database counts/weekly aggregates rather than loading
+  vocabulary and quiz-history entity collections.
+- Full snapshot and analytics responses still scale with the user's retained
+  data. No pagination, retention cleanup, index migration, or schema change was
+  introduced by Finding 10.
+
+H2 results are application-level before/after evidence only. Any future index
+proposal must include a PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)` or equivalent
+production-like plan and pass the database migration Risk Gate first.
+
 ## Production Runtime Policy
 
 Production must run with:

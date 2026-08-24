@@ -8,7 +8,7 @@ Branch: `chore/audit-reconciliation-and-upgrade`.
 
 Production gate: `NOT_READY`.
 
-Current focus: bounded audit findings 5-9 remediation, pending human review.
+Current focus: bounded Finding 10 scalability remediation, status `PARTIALLY_FIXED` after final review.
 
 Implemented and verified locally:
 
@@ -26,20 +26,28 @@ Implemented and verified locally:
 - Consistent `X-Sync-Revision` mutation propagation to the frontend.
 - Server-authoritative Mark Known/Mark Hard actions and canonical streak-5 mastery.
 - Revision-protected persistence for clearing only mastered wrong-bank entries.
+- Database-side priority ordering/limiting for bounded review queues.
+- Targeted progress count/aggregate queries instead of full snapshot loading.
+- Snapshot vocabulary reuse, wrong-bank ID projection, and achievement N+1 removal.
+- Deterministic 100/1,000/10,000-word Finding 10 benchmark and regression thresholds.
 
 Last verified commands:
 
-- `cd backend; .\mvnw.cmd test`: PASS, 118 tests.
-- `cd backend; .\mvnw.cmd verify`: PASS, 118 tests; 88.76% line coverage (2329/2624).
+- `cd backend; .\mvnw.cmd test`: PASS, 121 tests.
+- `cd backend; .\mvnw.cmd verify`: PASS, 121 tests; 88.90% line coverage (2354/2648).
+- Finding 10 focused regressions: PASS, 3 tests.
+- Finding 10 H2 benchmark/threshold suite: PASS, 1 test across 100/1,000/10,000-word datasets.
 - `npx playwright test --project=chromium`: PASS, 72 tests.
 - Frontend syntax, lint, build, assets, helper tests, docs drift, and secret scan: PASS.
 - `npm run gate:secret-scan`: PASS.
-- `npm run gate:source-integrity`: BLOCKED as expected for the uncommitted review batch and intentional untracked audit artifacts.
+- `npm run gate:source-integrity`: expected `BLOCKED` solely for the three intentionally untracked audit artifacts after this batch is committed.
 
 Remaining limitations for next Codex session:
 
 - Production env vars are not loaded in this workspace.
 - Restore rehearsal evidence is missing.
 - Staging smoke URLs/test identity are missing.
-- Source integrity is dirty until findings 5-9 are reviewed and committed by a separately approved workflow; the three audit artifacts must remain untracked and visible.
-- OpenAPI, pagination/query optimization, full service split, deployed OAuth E2E, and static frontend removal of inline handlers remain future work.
+- Source integrity remains dirty solely because the three audit artifacts must remain untracked and visible.
+- Full snapshot pagination/delta sync, analytics database aggregation, and tombstone/quiz-history retention policy remain future work.
+- The Render exit-137 incident remains a separate unresolved operational issue; the current branch did not reproduce it under a hard 512 MiB limit.
+- OpenAPI, full service split, deployed OAuth E2E, and static frontend removal of inline handlers remain future work.

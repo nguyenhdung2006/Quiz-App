@@ -13,7 +13,7 @@
 - Add generated OpenAPI or checked API contract documentation.
 - Add explicit security header tests after hosting/header policy is finalized.
 - Continue small backend service extraction beyond `SyncService`.
-- Measure and optimize duplicate lookup, due review queue, analytics, recent history, and snapshot queries.
-- Add pagination or delta sync for large accounts.
-- Define tombstone retention/cleanup policy later; do not garbage collect tombstones without retention evidence.
+- Evaluate database aggregate projections for the remaining analytics collection scans with PostgreSQL parity evidence.
+- Design pagination or delta sync for large accounts as a separate architecture-gated contract change.
+- Define tombstone and quiz-history retention/cleanup policy; do not garbage collect either dataset without product/data-lifecycle approval.
 - Upgrade to distributed rate limiting only after multi-instance deployment, material AI cost risk, or abuse evidence.

@@ -74,7 +74,7 @@ public class LearningAnalyticsService {
                     struggling,
                     pressure.dueToday(),
                     averageWordAccuracy(userWords),
-                    quizHistory.countByUser(user),
+                    histories.size(),
                     user.getStreak(),
                     user.getXp(),
                     weeklyXp,

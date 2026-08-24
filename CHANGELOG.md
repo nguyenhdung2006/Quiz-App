@@ -2,6 +2,7 @@
 
 ## 2026-08-24
 
+- Partially remediated Finding 10 with measured DB-side review limiting, targeted progress aggregates, snapshot query reuse/N+1 removal, analytics query deduplication, and a repeatable 100/1,000/10,000-word benchmark; full snapshot/analytics scaling and retention policy remain open.
 - Finding 5: added keyboard focus containment, Escape close, and opener focus restoration to the Profile Editor and How It Works dialogs.
 - Finding 6: added static Vercel CSP and browser security headers without `unsafe-eval` or script `unsafe-inline`.
 - Finding 7: propagated `X-Sync-Revision` on successful backend mutations so subsequent syncs use the server-issued baseline without weakening real conflict detection.

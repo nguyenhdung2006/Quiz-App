@@ -78,6 +78,11 @@ public class VocabularyService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public ProgressSummaryDto progress(AppUser user) {
+        return progress.progress(user, Math.toIntExact(achievements.countUnlocked(user)));
+    }
+
     @Transactional
     public RevisionedResult<WordDto> createWord(AppUser user, WordRequest request) {
         AppUser syncUser = lockUserForRevision(user);

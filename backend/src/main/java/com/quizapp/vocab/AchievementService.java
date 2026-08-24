@@ -21,6 +21,10 @@ public class AchievementService {
         return userAchievements.findByUserOrderByUnlockedAtDesc(user);
     }
 
+    public long countUnlocked(AppUser user) {
+        return userAchievements.countByUser(user);
+    }
+
     public void unlock(AppUser user, String code) {
         Achievement achievement = achievements.findByCode(code)
                 .orElseGet(() -> achievements.save(defaultAchievement(code)));

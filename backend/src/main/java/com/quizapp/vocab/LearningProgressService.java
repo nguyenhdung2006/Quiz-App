@@ -3,7 +3,6 @@ package com.quizapp.vocab;
 import com.quizapp.user.AppUser;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -20,23 +19,30 @@ public class LearningProgressService {
     }
 
     public ProgressSummaryDto progress(AppUser user, int unlockedAchievementCount) {
-        Instant weekStart = Instant.now().minus(Duration.ofDays(7));
-        List<QuizHistory> weekly = quizHistory.findByUserAndCreatedAtAfterOrderByCreatedAtDesc(user, weekStart);
-        int weeklyCorrect = weekly.stream().mapToInt(QuizHistory::getCorrectAnswers).sum();
-        double weeklyAverage = weekly.isEmpty()
-                ? 0
-                : weekly.stream().mapToDouble(QuizHistory::getScore).average().orElse(0);
-        long dueToday = words.findByUserOrderByCreatedAtDesc(user).stream()
-                .map(VocabularyWord::getStats)
-                .filter(stats -> stats != null && stats.getNextReview() != null)
-                .filter(stats -> !stats.getNextReview().isAfter(Instant.now()))
-                .count();
+        Instant now = Instant.now();
+        return progress(user, unlockedAchievementCount, words.countDueForReview(user, now), now);
+    }
+
+    public ProgressSummaryDto progress(AppUser user, int unlockedAchievementCount, long dueToday) {
+        return progress(user, unlockedAchievementCount, dueToday, Instant.now());
+    }
+
+    private ProgressSummaryDto progress(
+            AppUser user,
+            int unlockedAchievementCount,
+            long dueToday,
+            Instant now
+    ) {
+        QuizHistoryRepository.QuizProgressProjection weekly = quizHistory.summarizeAfter(
+                user,
+                now.minus(Duration.ofDays(7))
+        );
 
         return new ProgressSummaryDto(
                 quizHistory.countByUser(user),
-                weekly.size(),
-                weeklyCorrect,
-                Math.round(weeklyAverage * 100.0) / 100.0,
+                Math.toIntExact(weekly.getQuizCount()),
+                Math.toIntExact(weekly.getCorrectAnswers()),
+                Math.round(weekly.getAverageScore() * 100.0) / 100.0,
                 dueToday,
                 unlockedAchievementCount
         );

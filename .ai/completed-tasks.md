@@ -1,5 +1,20 @@
 # Completed Tasks
 
+## 2026-08-24 Audit Finding 10 Bounded Scalability Remediation
+
+- Added a reproducible 100/1,000/10,000-word H2 benchmark covering snapshot, progress, analytics overview, and limited review queue flows.
+- Moved review priority ordering and `limit` into the database query while preserving visible order and filter behavior.
+- Replaced `/api/progress` snapshot construction with targeted count/aggregate queries.
+- Reused snapshot vocabulary rows for due counts and wrong-bank serialization, and removed the achievement lazy-load N+1.
+- Removed the redundant analytics history count query without rewriting analytics semantics.
+- Added observable parity tests and query/entity-load regression thresholds.
+
+Limitations:
+
+- Full snapshot payloads and analytics collection aggregation remain future architecture/query work.
+- Tombstone and quiz-history retention remain blocked on a product/data policy decision.
+- No API contract, schema, migration, deployment, cloud, or production database action was performed.
+
 ## 2026-08-24 Audit Findings 5-9
 
 - Finding 5: added keyboard focus management to the Profile Editor and How It Works dialogs.

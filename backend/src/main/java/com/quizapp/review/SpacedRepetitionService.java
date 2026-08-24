@@ -18,6 +18,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,10 +60,29 @@ public class SpacedRepetitionService {
 
     @Transactional(readOnly = true)
     public List<ReviewQueueItemDto> queue(AppUser user, Integer limit, String tag, String level) {
-        return words.findDueForReview(user, Instant.now(), normalizeFilter(tag), normalizeFilter(level)).stream()
-                .map(this::toQueueItem)
+        Instant now = Instant.now();
+        String normalizedTag = normalizeFilter(tag);
+        String normalizedLevel = normalizeFilter(level);
+        if (limit != null && limit > 0) {
+            return words.findDueForReviewLimited(
+                            user,
+                            now,
+                            now.minus(Duration.ofDays(1)),
+                            now.minus(Duration.ofDays(2)),
+                            now.minus(Duration.ofDays(3)),
+                            now.minus(Duration.ofDays(4)),
+                            now.minus(Duration.ofDays(5)),
+                            now.minus(Duration.ofDays(6)),
+                            normalizedTag,
+                            normalizedLevel,
+                            PageRequest.of(0, limit)
+                    ).stream()
+                    .map(word -> toQueueItem(word, now))
+                    .toList();
+        }
+        return words.findDueForReview(user, now, normalizedTag, normalizedLevel).stream()
+                .map(word -> toQueueItem(word, now))
                 .sorted(Comparator.comparingInt(ReviewQueueItemDto::priority).reversed())
-                .limit(limit == null || limit <= 0 ? Long.MAX_VALUE : limit)
                 .toList();
     }
 
@@ -163,7 +183,7 @@ public class SpacedRepetitionService {
         return safeReviewedAt.plus(Duration.ofDays(days));
     }
 
-    private ReviewQueueItemDto toQueueItem(VocabularyWord word) {
+    private ReviewQueueItemDto toQueueItem(VocabularyWord word, Instant now) {
         WordStats stats = ensureStats(word);
         return new ReviewQueueItemDto(
                 word.getId(),
@@ -175,25 +195,25 @@ public class SpacedRepetitionService {
                 safeCount(stats.getCurrentStreak()),
                 safeCount(stats.getWrong()),
                 stats.getNextReview(),
-                priority(word),
-                reason(word)
+                priority(word, now),
+                reason(word, now)
         );
     }
 
-    private int priority(VocabularyWord word) {
+    private int priority(VocabularyWord word, Instant now) {
         WordStats stats = ensureStats(word);
         long overdueDays = stats.getNextReview() == null
                 ? 0
-                : Math.max(0, ChronoUnit.DAYS.between(stats.getNextReview(), Instant.now()));
+                : Math.max(0, ChronoUnit.DAYS.between(stats.getNextReview(), now));
         int lowMastery = 100 - masteryPercent(stats);
         int wrongPressure = Math.min(30, safeCount(stats.getWrong()) * 6);
         int overduePressure = (int) Math.min(30, overdueDays * 5);
         return Math.max(0, Math.min(100, lowMastery + wrongPressure + overduePressure));
     }
 
-    private String reason(VocabularyWord word) {
+    private String reason(VocabularyWord word, Instant now) {
         WordStats stats = ensureStats(word);
-        boolean overdue = stats.getNextReview() != null && stats.getNextReview().isBefore(Instant.now().minus(Duration.ofDays(1)));
+        boolean overdue = stats.getNextReview() != null && stats.getNextReview().isBefore(now.minus(Duration.ofDays(1)));
         if (overdue && masteryPercent(stats) < 60) return "Overdue and low mastery";
         if (overdue) return "Overdue review";
         if (safeCount(stats.getWrong()) >= 3) return "High wrong count";

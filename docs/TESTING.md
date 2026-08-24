@@ -205,3 +205,29 @@ This verifies:
 - 4xx and 5xx request metrics are recorded;
 - sync conflict, quiz failure, AI failure, and rate-limit hit counters increment;
 - AI in-memory rate limit returns `429`, isolates users through existing tests, and resets after the configured test window.
+
+## Finding 10 Performance Benchmark
+
+Run the focused behavior regressions and the deterministic H2 benchmark from
+`backend/`:
+
+```powershell
+.\mvnw.cmd "-Dtest=Finding10OptimizationTests" test
+.\mvnw.cmd "-Dtest=Finding10PerformanceBenchmark" "-Dfinding10.phase=verification" test
+```
+
+The benchmark seeds separate synthetic users with 100, 1,000, and 10,000
+vocabulary words. Each dataset also includes tombstones (5%), wrong-bank rows
+(20%), quiz history (10%), and five unlocked achievements. It measures full
+snapshot, progress, analytics overview, and review queue with `limit=20`, and
+reports elapsed time, Hibernate prepared-statement count, entity loads,
+response bytes, and approximate heap delta.
+
+The query/entity-load assertions are the deterministic regression guard.
+Elapsed time and heap deltas are diagnostic only because JVM warm-up and GC add
+noise. H2 is useful for before/after application comparisons but is not a
+substitute for PostgreSQL query plans or production-like load testing.
+
+The benchmark requires the explicit `finding10.phase` system property and its
+class name is outside Maven Surefire's default `*Test`/`*Tests` patterns. Normal
+`mvn test` and `mvn verify` runs therefore do not seed the 10,000-word dataset.

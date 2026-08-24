@@ -148,22 +148,35 @@ public class SyncService {
         Set<UUID> deletedUids = userTombstones.stream()
                 .map(WordTombstone::getWordUid)
                 .collect(Collectors.toSet());
+        List<VocabularyWord> userWords = words.findByUserOrderByCreatedAtDesc(user);
+        Map<Long, VocabularyWord> wordsById = userWords.stream()
+                .collect(Collectors.toMap(VocabularyWord::getId, Function.identity()));
+        Instant snapshotTime = Instant.now();
+        long dueToday = userWords.stream()
+                .map(VocabularyWord::getStats)
+                .filter(Objects::nonNull)
+                .map(WordStats::getNextReview)
+                .filter(Objects::nonNull)
+                .filter(nextReview -> !nextReview.isAfter(snapshotTime))
+                .count();
         return new SyncResponse(
                 SYNC_CONTRACT_VERSION,
                 user.getSyncRevision(),
                 ProfileDto.from(user),
-                words.findByUserOrderByCreatedAtDesc(user).stream()
+                userWords.stream()
                         .filter(word -> !deletedUids.contains(word.getWordUid()))
                         .map(WordDto::from)
                         .toList(),
                 userTombstones.stream()
                         .map(WordTombstoneDto::from)
                         .toList(),
-                wrongBank.findByUserOrderByCreatedAtDesc(user).stream()
-                        .filter(entry -> !deletedUids.contains(entry.getWord().getWordUid()))
-                        .map(entry -> WordDto.from(entry.getWord()))
+                wrongBank.findWordIdsByUserOrderByCreatedAtDesc(user).stream()
+                        .map(wordsById::get)
+                        .filter(Objects::nonNull)
+                        .filter(word -> !deletedUids.contains(word.getWordUid()))
+                        .map(WordDto::from)
                         .toList(),
-                progress.progress(user, unlocked.size()),
+                progress.progress(user, unlocked.size(), dueToday),
                 unlocked.stream().map(AchievementDto::from).toList(),
                 recentHistory
         );
