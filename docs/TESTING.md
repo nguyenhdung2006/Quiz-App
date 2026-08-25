@@ -106,6 +106,7 @@ npm run lint
 npm run test:assets
 npm run test:frontend-inline-styles
 npm run test:frontend-learning-studio-storage
+npm run test:frontend-ui-actions
 npm run test:frontend-import-helpers
 npm run test:frontend
 npm run test:docs-drift
@@ -137,6 +138,12 @@ for exact account-key resolution, history JSON fallback, raw achievement-flag
 semantics, and A/B write isolation. Playwright adds browser-level coverage for
 logout/relogin account isolation, offline reload persistence, empty storage,
 and malformed JSON without migration or mutation.
+
+`npm run test:frontend-ui-actions` verifies every existing `data-ui-action`
+mapping, the numeric challenge-duration argument, and unknown-action no-op
+behavior. The focused Playwright coverage verifies desktop/mobile navigation,
+active-page state, native click/Enter activation, and exactly one dispatch per
+activation.
 # Sync V2 Verification
 
 Backend:

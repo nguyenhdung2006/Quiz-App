@@ -42,13 +42,14 @@ sync semantics.
 | 11 | `js/import-helpers.js` | `window.WordArenaImport` pure import preview/merge helper namespace. |
 | 12 | `js/sync-status.js` | `window.WordArenaSyncStatus` copy/render namespace for cloud sync status. |
 | 13 | `js/session-ui.js` | `window.WordArenaSessionUi` profile display model and DOM rendering namespace. |
-| 14 | `js/app.js` | Auth, profile persistence, cloud sync, stale recovery, import/export orchestration, app shell actions. |
-| 15 | `js/curated-decks.js` | Curated deck UI/data helpers. |
-| 16 | `js/ai-deck-client.js` | `window.WordArenaAiDeckClient` endpoint request/error facade. |
-| 17 | `js/learning-studio-storage.js` | `window.WordArenaLearningStudioStorage` account-scoped history/flag access facade. |
-| 18 | `js/learning-studio.js` | Learning Studio tabs, modal, deck generation/import UI. |
-| 19 | `js/analytics-dashboard.js` | Analytics dashboard rendering. |
-| 20 | `js/review-today.js` | Spaced repetition review UI. |
+| 14 | `js/ui-actions.js` | `window.WordArenaUiActions` command mapping for delegated `data-ui-action` controls. |
+| 15 | `js/app.js` | Auth, profile persistence, cloud sync, stale recovery, import/export orchestration, app shell actions. |
+| 16 | `js/curated-decks.js` | Curated deck UI/data helpers. |
+| 17 | `js/ai-deck-client.js` | `window.WordArenaAiDeckClient` endpoint request/error facade. |
+| 18 | `js/learning-studio-storage.js` | `window.WordArenaLearningStudioStorage` account-scoped history/flag access facade. |
+| 19 | `js/learning-studio.js` | Learning Studio tabs, modal, deck generation/import UI. |
+| 20 | `js/analytics-dashboard.js` | Analytics dashboard rendering. |
+| 21 | `js/review-today.js` | Spaced repetition review UI. |
 
 ## Hotspots
 
@@ -67,7 +68,9 @@ sync semantics.
 | `app.js` | `vocab.js` normalization/state helpers | Import, sync, and stale recovery rely on normalized word shape and local save/load behavior. |
 | `app.js` | `sync-status.js` status facade | Compatibility wrappers delegate sync copy, rendering, ARIA text, and Retry visibility to `window.WordArenaSyncStatus`. |
 | `app.js` | `session-ui.js` profile display facade | `applyProfile` keeps sanitize/cache orchestration and delegates display modeling and DOM writes to `window.WordArenaSessionUi`. |
+| `app.js` | `ui-actions.js` command facade | The delegated document click listener forwards action names/source controls without directly naming 16 cross-script action functions. |
 | `app.js` | `ui.js`/existing notification facade | Import and sync flows surface status through existing UI helpers. |
+| `ui-actions.js` | classic-script action globals from vocabulary, quiz, UI, main, and challenge scripts | Centralizes the existing optional calls; providers still must exist by user interaction time. |
 | `ai-deck-client.js` | `config.js` API/CSRF helpers | Captures the configured origin/transport at script load, matching the previous Learning Studio semantics. |
 | `learning-studio-storage.js` | `storage.js` account key resolver and browser `localStorage` | Resolves the current account at each operation and preserves existing key/schema/fallback semantics. |
 | `quiz.js` and review scripts | vocabulary globals and render helpers | Existing Playwright tests characterize main study flows. |
@@ -86,6 +89,7 @@ Keep these stable until every consumer and regression test is moved:
 - import wrapper functions in `app.js`, now delegated to `window.WordArenaImport`;
 - sync status wrapper functions in `app.js`, now delegated to `window.WordArenaSyncStatus`;
 - profile application orchestration in `app.js`, with display rendering delegated to `window.WordArenaSessionUi`;
+- delegated `data-ui-action` command resolution through `window.WordArenaUiActions`;
 - AI Deck endpoint calls through `window.WordArenaAiDeckClient`;
 - Learning Studio history and achievement-flag storage through `window.WordArenaLearningStudioStorage`;
 - current DOM ids used by Playwright, import/export buttons, app navigation, and Learning Studio modal controls.
@@ -164,7 +168,6 @@ responses.
 | --- | --- |
 | Learning Studio profile-read seam | Its remaining `getAccountProfile`/`getCachedProfile` globals need separate account-transition characterization before consolidation. |
 | Stale recovery summary calculations | Related to sync but carries backup, snapshot revision, and fail-closed state that needs a separate focused batch. |
-| Navigation action registry | Needs careful preservation of `data-ui-action` and mobile nav behavior. |
 | Learning Studio feature modules | Requires focused modal/tabs/deck tests per boundary. |
 | CSS layer map and selector ownership | Needs visual regression and viewport coverage before pruning overrides. |
 | Full ES module conversion | Too broad for incremental AUD-008 batches and would risk load-order regressions. |
@@ -173,10 +176,10 @@ responses.
 
 The frontend global-script finding is only partially fixed. The app still
 depends on static script load order, large mutable global state, and a long CSS
-override chain. Batches 1-3 and Finding 11 Batches 11A-11B create five small,
+override chain. Batches 1-3 and Finding 11 Batches 11A-11C create six small,
 tested boundaries for import calculations, sync status rendering, profile
-display, the AI Deck endpoint contract, and Learning Studio storage access; they
-do not complete frontend modularization or CSS layering. Batch 11B removes
+display, the AI Deck endpoint contract, Learning Studio storage access, and UI
+action dispatch; they do not complete frontend modularization or CSS layering. Batch 11B removes
 Learning Studio's direct `localStorage` and `accountStorageKey` use, but the new
 facade itself remains ordered after `storage.js` and before Learning Studio.
 
@@ -198,3 +201,21 @@ Studio, so this batch replaces one direct storage dependency with an explicit
 facade seam but does not reduce static script-order coupling across the runtime.
 The helper suite plus Playwright characterize missing/malformed storage,
 offline reload, and A/B/A logout/relogin isolation.
+
+## Finding 11 Batch 11C Extraction
+
+`frontend/js/ui-actions.js` introduces `window.WordArenaUiActions` for the one
+bounded responsibility previously split between `app.js`'s `UI_ACTIONS` map and
+its special `start-challenge` branch:
+
+- map the existing 15 action names to the same optional browser-global command
+  functions;
+- convert `data-challenge-seconds` with `Number(...)` and call the existing
+  challenge command;
+- leave unknown actions as no-ops.
+
+`app.js` retains the document click listener, nearest-action lookup, and
+`preventDefault`, but now consumes one facade instead of naming 16 action
+globals. This reduces direct coordinator coupling without removing those global
+providers from the runtime graph. `ui-actions.js` loads immediately before
+`app.js`, so static script ordering remains.

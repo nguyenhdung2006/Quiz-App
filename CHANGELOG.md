@@ -2,6 +2,7 @@
 
 ## 2026-08-25
 
+- Continued partial Finding 11 remediation by extracting the delegated `data-ui-action` command registry from `app.js`, preserving desktop/mobile navigation, active-page, click/keyboard, and challenge behavior.
 - Continued partial Finding 11 remediation by extracting Learning Studio's current-account history/flag storage access while preserving exact keys/schema, offline reload behavior, and A/B/A logout/relogin isolation.
 - Partially remediated Finding 11 by extracting the characterized AI Deck endpoint client from Learning Studio while preserving CSRF, request/error semantics, UI behavior, and the static script architecture.
 

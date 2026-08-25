@@ -810,6 +810,44 @@ test("main navigation opens critical sections", async ({ page }) => {
   expect(fatalConsole).toEqual([]);
 });
 
+test("data UI actions dispatch once by click and keyboard while preserving active-page state", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+  await page.evaluate(() => {
+    const originalOpenChallengeMenu = window.openChallengeMenu;
+    window.__dataUiActionCalls = { openChallenge: 0, challengeSeconds: [] };
+    window.openChallengeMenu = () => {
+      window.__dataUiActionCalls.openChallenge++;
+      originalOpenChallengeMenu();
+    };
+    window.startChallenge = seconds => {
+      window.__dataUiActionCalls.challengeSeconds.push(seconds);
+    };
+  });
+
+  const vocabularyNav = page.locator(".appNavBtn[data-app-page='vocabulary']");
+  const dashboardNav = page.locator(".appNavBtn[data-app-page='dashboard']");
+  const openChallengeAction = page.locator("[data-ui-action='open-challenge-menu']");
+
+  await vocabularyNav.click();
+  await expect(vocabularyNav).toHaveAttribute("aria-current", "page");
+  await dashboardNav.click();
+  await expect(dashboardNav).toHaveAttribute("aria-current", "page");
+
+  await openChallengeAction.click();
+  await expect(page.locator("#challengeMenu")).toBeVisible();
+  expect(await page.evaluate(() => window.__dataUiActionCalls.openChallenge)).toBe(1);
+  await page.locator("[data-ui-action='close-challenge-menu']").click();
+
+  await openChallengeAction.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#challengeMenu")).toBeVisible();
+  expect(await page.evaluate(() => window.__dataUiActionCalls.openChallenge)).toBe(2);
+  await page.locator("[data-ui-action='start-challenge'][data-challenge-seconds='15']").click();
+  expect(await page.evaluate(() => window.__dataUiActionCalls.challengeSeconds)).toEqual([15]);
+
+  expect(fatalConsole).toEqual([]);
+});
+
 [
   { width: 320, height: 844 },
   { width: 390, height: 844 },

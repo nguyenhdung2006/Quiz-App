@@ -8,7 +8,7 @@ Branch: `chore/audit-reconciliation-and-upgrade`.
 
 Production gate: `NOT_READY`.
 
-Current focus: Finding 11 Batch 11B account-scoped Learning Studio storage extraction, status `PARTIALLY_FIXED`; Batch 11B is approved.
+Current focus: Finding 11 Batch 11C delegated UI-action registry extraction completed; Finding 11 remains `PARTIALLY_FIXED`.
 
 Implemented and verified locally:
 
@@ -32,6 +32,7 @@ Implemented and verified locally:
 - Deterministic 100/1,000/10,000-word Finding 10 benchmark and regression thresholds.
 - Endpoint-specific AI Deck client facade with characterized request/error semantics.
 - Account-scoped Learning Studio storage facade with characterized A/B/A isolation, offline reload, empty, and malformed-data behavior.
+- Delegated UI-action registry that replaces 16 direct `app.js` action-global calls with one characterized facade.
 
 Last verified commands:
 
@@ -39,11 +40,11 @@ Last verified commands:
 - `cd backend; .\mvnw.cmd verify`: PASS, 121 tests; 88.90% line coverage (2354/2648).
 - Finding 10 focused regressions: PASS, 3 tests.
 - Finding 10 H2 benchmark/threshold suite: PASS, 1 test across 100/1,000/10,000-word datasets.
-- Finding 11B pre-extraction storage characterization: PASS, 4 tests.
-- Finding 11B focused Learning Studio/Auth Playwright: PASS, 12 tests.
-- `npx playwright test --project=chromium`: PASS, 77 tests.
-- Frontend syntax: PASS, 22 files.
-- ESLint: PASS; Learning Studio suppressions reduced from 34 to 28 and total baseline from 499 to 493.
+- Finding 11C pre/post-extraction navigation/data-action characterization: PASS, 7 tests.
+- Finding 11C UI-action registry helper suite: PASS, all 15 mappings, numeric challenge argument, and unknown-action no-op.
+- `npx playwright test --project=chromium`: PASS, 78 tests.
+- Frontend syntax: PASS, 23 files.
+- ESLint: PASS; app baseline remains 135 and total baseline remains 493 because no unrelated suppressions were pruned.
 - Frontend build, assets, inline-style ratchet, helper tests, docs drift, and secret scan: PASS.
 - `npm run gate:secret-scan`: PASS.
 - `npm run gate:source-integrity`: expected `BLOCKED` solely for the three intentionally untracked audit artifacts after this batch is committed.

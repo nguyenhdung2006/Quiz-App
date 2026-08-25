@@ -12,23 +12,7 @@ const STALE_RECOVERY_ENABLED = Boolean(window.QUIZ_APP_CONFIG?.staleRecoveryEnab
 const DELETE_RETRY_30_SECONDS = 30 * 1000;
 const DELETE_RETRY_5_MINUTES = 5 * 60 * 1000;
 const DELETE_RETRY_1_HOUR = 60 * 60 * 1000;
-const UI_ACTIONS = {
-"go-home": () => window.goHome?.(),
-"start-quiz": () => window.startQuiz?.(),
-"add-word": () => window.addWord?.(),
-"open-mistake-screen": () => window.openMistakeScreen?.(),
-"practice-favorites": () => window.practiceFavorites?.(),
-"start-daily-challenge": () => window.startDailyChallenge?.(),
-"open-challenge-menu": () => window.openChallengeMenu?.(),
-"close-challenge-menu": () => window.closeChallengeMenu?.(),
-"prev-question": () => window.prevQuestion?.(),
-"submit-answer": () => window.submitAnswer?.(),
-"next-question": () => window.nextQuestion?.(),
-"open-review-screen": () => window.openReviewScreen?.(),
-"show-result-screen": () => window.showResultScreen?.(),
-"clear-mastered": () => window.clearMastered?.(),
-"practice-wrong": () => window.practiceWrong?.()
-};
+const UI_ACTIONS = window.WordArenaUiActions;
 let cloudSyncReady = false;
 let cloudSyncTimer = null;
 let applyingCloudSnapshot = false;
@@ -1803,14 +1787,8 @@ function initInlineFreeActions() {
 document.addEventListener("click", event => {
 let button = event.target.closest("[data-ui-action]");
 if (!button) return;
-let action = button.dataset.uiAction;
 event.preventDefault();
-if (action === "start-challenge") {
-let seconds = Number(button.dataset.challengeSeconds);
-window.startChallenge?.(seconds);
-return;
-}
-UI_ACTIONS[action]?.();
+UI_ACTIONS.dispatch(button.dataset.uiAction, button);
 });
 }
 

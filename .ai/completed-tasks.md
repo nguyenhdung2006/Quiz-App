@@ -1,5 +1,16 @@
 # Completed Tasks
 
+## 2026-08-25 Audit Finding 11 Batch 11C
+
+- Ranked profile reads, stale-recovery summaries, and delegated UI actions by coupling value and regression/security/sync risk before editing production code.
+- Characterized desktop/mobile navigation, active-page state, native click/Enter behavior, single dispatch, and numeric challenge arguments before extraction.
+- Extracted 15 action mappings plus the `start-challenge` argument branch into `window.WordArenaUiActions`; `app.js` retains one delegated listener and no longer names the 16 provider globals.
+- Reduced `app.js` from 2,610 to 2,588 lines while keeping its 135 suppressions and the total 493 baseline unchanged.
+
+Limitation:
+
+- Finding 11 remains `PARTIALLY_FIXED`; the facade centralizes rather than removes classic-script globals, and static ordering plus large mutable coordinators remain.
+
 ## 2026-08-25 Audit Finding 11 Batch 11B
 
 - Characterized Learning Studio account storage before extraction, including A/B/A logout/relogin, offline reload, empty keys, malformed JSON, and exact raw flag behavior.

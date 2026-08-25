@@ -13,7 +13,7 @@
 - Add generated OpenAPI or checked API contract documentation.
 - Add explicit security header tests after hosting/header policy is finalized.
 - Continue small backend service extraction beyond `SyncService`.
-- If approved as a separate Finding 11 batch, characterize Learning Studio's remaining account-profile read globals or another single low-risk global seam before extraction.
+- Keep Finding 11 paused at the current incremental boundary unless a future evidence-backed seam materially reduces coupling without broad state/module, profile/account, or stale-recovery risk.
 - Evaluate database aggregate projections for the remaining analytics collection scans with PostgreSQL parity evidence.
 - Design pagination or delta sync for large accounts as a separate architecture-gated contract change.
 - Define tombstone and quiz-history retention/cleanup policy; do not garbage collect either dataset without product/data-lifecycle approval.

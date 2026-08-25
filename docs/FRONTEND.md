@@ -31,6 +31,7 @@ npm run test:assets
 npm run test:frontend-inline-styles
 npm run test:frontend-ai-deck-client
 npm run test:frontend-learning-studio-storage
+npm run test:frontend-ui-actions
 npm run test:frontend-import-helpers
 npm run test:frontend-session-ui
 npm run test:frontend-sync-status
@@ -136,6 +137,16 @@ and raw `"true"` flag format. Learning Studio still owns vocabulary import,
 Playwright covers A/B/A logout/relogin isolation, offline reload, missing data,
 and malformed JSON. This incremental facade remains a browser global and adds
 no storage migration or new offline behavior.
+
+Finding 11 Batch 11C extracts the existing `data-ui-action` command mapping
+into `frontend/js/ui-actions.js` as `window.WordArenaUiActions`. `app.js` keeps
+the single delegated document click listener and forwards the action name and
+source button to the facade. The facade preserves the existing optional global
+action calls and numeric `data-challenge-seconds` conversion. Run
+`npm run test:frontend-ui-actions` for mapping/argument coverage; Playwright
+retains desktop/mobile navigation, active-page, click, Enter-key, and
+single-dispatch coverage. This reduces direct coordinator dependencies but does
+not eliminate browser globals or static script ordering.
 
 ## CSRF Lifecycle
 
