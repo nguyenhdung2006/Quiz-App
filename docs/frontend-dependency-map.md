@@ -1,6 +1,6 @@
 # Frontend Dependency Map
 
-Last updated: 2026-08-15 +07
+Last updated: 2026-08-25 +07
 
 This document is the AUD-008 incremental extraction inventory for the current static
 script-global frontend. It records the load order, known globals, and safe
@@ -44,9 +44,10 @@ sync semantics.
 | 13 | `js/session-ui.js` | `window.WordArenaSessionUi` profile display model and DOM rendering namespace. |
 | 14 | `js/app.js` | Auth, profile persistence, cloud sync, stale recovery, import/export orchestration, app shell actions. |
 | 15 | `js/curated-decks.js` | Curated deck UI/data helpers. |
-| 16 | `js/learning-studio.js` | Learning Studio tabs, modal, deck generation/import UI. |
-| 17 | `js/analytics-dashboard.js` | Analytics dashboard rendering. |
-| 18 | `js/review-today.js` | Spaced repetition review UI. |
+| 16 | `js/ai-deck-client.js` | `window.WordArenaAiDeckClient` endpoint request/error facade. |
+| 17 | `js/learning-studio.js` | Learning Studio tabs, modal, deck generation/import UI. |
+| 18 | `js/analytics-dashboard.js` | Analytics dashboard rendering. |
+| 19 | `js/review-today.js` | Spaced repetition review UI. |
 
 ## Hotspots
 
@@ -66,8 +67,9 @@ sync semantics.
 | `app.js` | `sync-status.js` status facade | Compatibility wrappers delegate sync copy, rendering, ARIA text, and Retry visibility to `window.WordArenaSyncStatus`. |
 | `app.js` | `session-ui.js` profile display facade | `applyProfile` keeps sanitize/cache orchestration and delegates display modeling and DOM writes to `window.WordArenaSessionUi`. |
 | `app.js` | `ui.js`/existing notification facade | Import and sync flows surface status through existing UI helpers. |
+| `ai-deck-client.js` | `config.js` API/CSRF helpers | Captures the configured origin/transport at script load, matching the previous Learning Studio semantics. |
 | `quiz.js` and review scripts | vocabulary globals and render helpers | Existing Playwright tests characterize main study flows. |
-| `learning-studio.js` | app/import public facades and DOM ids | Modal and import behavior depends on stable markup ids. |
+| `learning-studio.js` | `ai-deck-client.js`, app/import facades, and DOM ids | AI request/error semantics use `window.WordArenaAiDeckClient`; modal and import behavior keeps existing dependencies. |
 | responsive CSS | preceding base/component/modern rules | Later files intentionally override earlier rules. |
 
 ## Public Facades To Preserve
@@ -82,6 +84,7 @@ Keep these stable until every consumer and regression test is moved:
 - import wrapper functions in `app.js`, now delegated to `window.WordArenaImport`;
 - sync status wrapper functions in `app.js`, now delegated to `window.WordArenaSyncStatus`;
 - profile application orchestration in `app.js`, with display rendering delegated to `window.WordArenaSessionUi`;
+- AI Deck endpoint calls through `window.WordArenaAiDeckClient`;
 - current DOM ids used by Playwright, import/export buttons, app navigation, and Learning Studio modal controls.
 
 ## Batch 1 Extraction
@@ -134,10 +137,29 @@ OAuth, API contracts, storage formats, markup, and CSS are unchanged.
 DOM rendering behavior; existing Playwright tests cover profile save safety and
 the mobile accessible account trigger.
 
+## Finding 11 Batch 11A Extraction
+
+`frontend/js/ai-deck-client.js` owns one endpoint boundary:
+
+- `POST /api/ai/generate-deck` URL, JSON body, and content type;
+- delegation to the existing CSRF/session-aware `window.quizApiFetch` transport;
+- success JSON parsing and the existing 400/429/5xx/network/malformed-response
+  error semantics.
+
+`frontend/js/learning-studio.js` retains a thin `requestAiDeck` wrapper and all
+UI state, cooldown, generated-word validation, editing, and import behavior.
+The extraction removes its direct consumption of `quizApiOrigin` and
+`quizApiFetch` in favor of one explicit endpoint facade. It does not remove a
+runtime ordering edge: the client is loaded immediately before Learning Studio.
+`scripts/frontend-ai-deck-client.test.mjs` covers the endpoint contract, while
+Playwright covers CSRF, successful rendering, rate limiting, retry, and malformed
+responses.
+
 ## Candidate Later Batches
 
 | Candidate | Why later |
 | --- | --- |
+| Learning Studio account-scoped storage facade | Needs local/offline and account-isolation characterization before replacing its remaining raw storage access. |
 | Stale recovery summary calculations | Related to sync but carries backup, snapshot revision, and fail-closed state that needs a separate focused batch. |
 | Navigation action registry | Needs careful preservation of `data-ui-action` and mobile nav behavior. |
 | Learning Studio feature modules | Requires focused modal/tabs/deck tests per boundary. |
@@ -146,8 +168,9 @@ the mobile accessible account trigger.
 
 ## Remaining AUD-008 Risk
 
-AUD-008 is only partially fixed. The app still depends on static script load
-order, large mutable global state, and a long CSS override chain. Batches 1-3
-create the dependency source of truth and extract three small, tested boundaries
-for import calculations, sync status rendering, and profile display rendering;
-they do not complete frontend modularization or CSS layering.
+The frontend global-script finding is only partially fixed. The app still
+depends on static script load order, large mutable global state, and a long CSS
+override chain. Batches 1-3 and Finding 11 Batch 11A create four small, tested
+boundaries for import calculations, sync status rendering, profile display, and
+the AI Deck endpoint contract; they do not complete frontend modularization or
+CSS layering.

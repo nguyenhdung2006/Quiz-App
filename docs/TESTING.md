@@ -231,3 +231,18 @@ substitute for PostgreSQL query plans or production-like load testing.
 The benchmark requires the explicit `finding10.phase` system property and its
 class name is outside Maven Surefire's default `*Test`/`*Tests` patterns. Normal
 `mvn test` and `mvn verify` runs therefore do not seed the 10,000-word dataset.
+
+## Finding 11 Batch 11A Frontend API Client
+
+Run the endpoint-client characterization suite from the repository root:
+
+```powershell
+npm run test:frontend-ai-deck-client
+npx playwright test tests/smoke.spec.js --project=chromium --grep "api client|AI deck"
+```
+
+The helper suite validates the unchanged AI Deck URL, POST body, content type,
+success parsing, backend error copy, rate-limit retry copy, network failure, and
+malformed success response. Playwright verifies that the shared transport still
+adds CSRF, the successful response renders, and the rate-limit/retry/malformed
+UI states remain usable.

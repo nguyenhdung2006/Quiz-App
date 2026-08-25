@@ -29,6 +29,7 @@ npm run check:frontend
 npm run lint
 npm run test:assets
 npm run test:frontend-inline-styles
+npm run test:frontend-ai-deck-client
 npm run test:frontend-import-helpers
 npm run test:frontend-session-ui
 npm run test:frontend-sync-status
@@ -114,6 +115,14 @@ Behavior:
 - Preserves caller headers such as `Content-Type` and custom headers.
 - Does not set `Content-Type` automatically for `FormData`.
 - Does not retry unsafe requests after `403`; it clears the in-memory CSRF token so the next user action can fetch a fresh token.
+
+Finding 11 Batch 11A keeps this generic transport unchanged and extracts the
+AI Deck endpoint contract into `frontend/js/ai-deck-client.js` as
+`window.WordArenaAiDeckClient`. The endpoint client owns the existing POST
+payload, JSON parsing, rate-limit copy, and stable network/server error copy.
+Learning Studio continues to own loading, cooldown, validation, rendering, and
+import behavior. Run `npm run test:frontend-ai-deck-client` for the focused
+contract suite; Playwright retains the browser-level CSRF and AI Deck coverage.
 
 ## CSRF Lifecycle
 

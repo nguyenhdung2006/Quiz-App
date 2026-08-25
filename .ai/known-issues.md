@@ -32,6 +32,16 @@ Workaround: keep the exact inline-style ratchet and compatible style policy whil
 
 Next action: migrate the remaining allowlisted style writes, validate report-only evidence, then remove style `unsafe-inline`.
 
+## Frontend Global Coupling
+
+Severity: Medium
+
+Impact: the tested AI Deck client seam reduces one hotspot's direct API coupling, but `app.js`, `vocab.js`, and `learning-studio.js` still depend on mutable globals and static script ordering.
+
+Workaround: continue small facade-backed extractions with characterization tests; do not perform a framework or wholesale ES-module rewrite.
+
+Next action: characterize and extract Learning Studio's account-scoped storage reads/writes without changing localStorage keys, offline behavior, or account isolation.
+
 ## In-Memory Rate Limiting
 
 Severity: Medium

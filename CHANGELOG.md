@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-08-25
+
+- Partially remediated Finding 11 by extracting the characterized AI Deck endpoint client from Learning Studio while preserving CSRF, request/error semantics, UI behavior, and the static script architecture.
+
 ## 2026-08-24
 
 - Partially remediated Finding 10 with measured DB-side review limiting, targeted progress aggregates, snapshot query reuse/N+1 removal, analytics query deduplication, and a repeatable 100/1,000/10,000-word benchmark; full snapshot/analytics scaling and retention policy remain open.

@@ -1,5 +1,16 @@
 # Completed Tasks
 
+## 2026-08-25 Audit Finding 11 Batch 11A
+
+- Characterized the AI Deck success request plus existing CSRF, rate-limit, retry, and malformed-response behavior before extraction.
+- Extracted the `POST /api/ai/generate-deck` request and stable response/error parsing into `window.WordArenaAiDeckClient`.
+- Kept Learning Studio UI, cooldown, validation, import behavior, auth transport, API contract, and local storage unchanged.
+- Reduced `learning-studio.js` from 1,606 to 1,551 lines and its ESLint suppression baseline from 40 to 34 without mass formatting.
+
+Limitation:
+
+- Finding 11 remains `PARTIALLY_FIXED`; large script-global state and load-order coupling remain in `app.js`, `vocab.js`, and Learning Studio.
+
 ## 2026-08-24 Audit Finding 10 Bounded Scalability Remediation
 
 - Added a reproducible 100/1,000/10,000-word H2 benchmark covering snapshot, progress, analytics overview, and limited review queue flows.

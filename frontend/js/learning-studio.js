@@ -152,8 +152,6 @@ return String(value || "")
 }
 
 let generatedAiDeckWords = [];
-const AI_DECK_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
-const API_FETCH = window.quizApiFetch || fetch.bind(window);
 const AI_DECK_POS_OPTIONS = ["n", "v", "adj", "adv", "conj", "prep", "idiom", "phrase"];
 const AI_DECK_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 const AI_DECK_COOLDOWN_MS = 8000;
@@ -1006,60 +1004,7 @@ maxWords: Number.isFinite(maxWords) ? maxWords : 20
 }
 
 async function requestAiDeck(text, options = {}) {
-let response;
-try {
-response = await API_FETCH(`${AI_DECK_API_ORIGIN}/api/ai/generate-deck`, {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({
-text,
-targetLevel: options.targetLevel || "Any",
-maxWords: options.maxWords || 20
-})
-});
-} catch (error) {
-throw new Error("AI deck generation failed. Please try again.");
-}
-
-if (!response.ok) {
-throw new Error(await aiDeckErrorMessage(response));
-}
-
-try {
-return await response.json();
-} catch (error) {
-throw new Error("AI response could not be processed. Please try again.");
-}
-}
-
-async function aiDeckErrorMessage(response) {
-if (response.status === 429) {
-let retry = await aiRetrySeconds(response);
-return retry
-? `Daily AI limit reached. Please try again in ${retry}s.`
-: "Daily AI limit reached. Please try again later.";
-}
-if (response.status >= 500) {
-return "AI deck generation failed. Please try again.";
-}
-try {
-let payload = await response.clone().json();
-if (payload?.message) return String(payload.message);
-if (payload?.error) return String(payload.error);
-} catch (error) {
-// Keep the user-facing message stable when the error body is not JSON.
-}
-return "AI response could not be processed. Please try again.";
-}
-
-async function aiRetrySeconds(response) {
-try {
-let payload = await response.clone().json();
-let retry = Number(payload?.retryAfterSeconds || 0);
-return Number.isFinite(retry) && retry > 0 ? retry : 0;
-} catch (error) {
-return 0;
-}
+return window.WordArenaAiDeckClient.request(text, options);
 }
 
 function renderAiDeckList() {

@@ -13,6 +13,7 @@
 - Add generated OpenAPI or checked API contract documentation.
 - Add explicit security header tests after hosting/header policy is finalized.
 - Continue small backend service extraction beyond `SyncService`.
+- Characterize and extract Learning Studio account-scoped storage access as the next bounded Finding 11 batch; preserve current keys and offline behavior.
 - Evaluate database aggregate projections for the remaining analytics collection scans with PostgreSQL parity evidence.
 - Design pagination or delta sync for large accounts as a separate architecture-gated contract change.
 - Define tombstone and quiz-history retention/cleanup policy; do not garbage collect either dataset without product/data-lifecycle approval.

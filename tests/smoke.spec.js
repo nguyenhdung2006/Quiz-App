@@ -136,6 +136,7 @@ async function preparePage(page, options = {}) {
   const deleteRequests = [];
   const reviewBodies = [];
   const knownBodies = [];
+  const aiDeckRequests = [];
   let meRequestCount = 0;
   let snapshotRequestCount = 0;
   const profile = options.profile || {
@@ -314,6 +315,11 @@ async function preparePage(page, options = {}) {
       return;
     }
     if (url.endsWith("/api/ai/generate-deck")) {
+      aiDeckRequests.push({
+        method,
+        headers: route.request().headers(),
+        body: route.request().postDataJSON()
+      });
       if (options.aiDeckRawBody !== undefined || options.aiDeckStatus) {
         await route.fulfill({
           status: options.aiDeckStatus || 200,
@@ -402,6 +408,7 @@ async function preparePage(page, options = {}) {
   Object.defineProperty(fatalConsole, "deleteRequests", { value: deleteRequests });
   Object.defineProperty(fatalConsole, "reviewBodies", { value: reviewBodies });
   Object.defineProperty(fatalConsole, "knownBodies", { value: knownBodies });
+  Object.defineProperty(fatalConsole, "aiDeckRequests", { value: aiDeckRequests });
   Object.defineProperty(fatalConsole, "accountId", { value: accountId });
   Object.defineProperty(fatalConsole, "meRequestCount", { get: () => meRequestCount });
   Object.defineProperty(fatalConsole, "snapshotRequestCount", { get: () => snapshotRequestCount });
@@ -2419,6 +2426,48 @@ test("AI deck panel opens without calling a real AI service", async ({ page }) =
   await expect(page.locator("#aiDeckGenerateBtn")).toBeVisible();
   await expect(page.locator(".trustNote--studio")).toContainText("edit every generated word");
 
+  expect(fatalConsole).toEqual([]);
+});
+
+test("AI deck successful request preserves request semantics and renders generated words", async ({ page }) => {
+  const fatalConsole = await preparePage(page, {
+    aiDeckResponse: {
+      source: "openai",
+      items: [
+        {
+          english: "concentrate",
+          vietnameseMeaning: "tập trung",
+          partOfSpeech: "v",
+          level: "B1",
+          exampleSentence: "Students concentrate during focused practice.",
+          tag: "study",
+          source: "mock"
+        }
+      ]
+    }
+  });
+
+  await page.getByRole("button", { name: "AI Deck", exact: true }).click();
+  await page.locator("#aiDeckBtn").click();
+  await page.locator("#aiDeckText").fill("Students concentrate during focused practice.");
+  await page.locator("#aiDeckTargetLevel").selectOption("B1");
+  await page.locator("#aiDeckMaxWords").selectOption("10");
+  await page.locator("#aiDeckGenerateBtn").click();
+
+  await expect(page.locator("#aiDeckStatus")).toContainText("Generated 1 B1 vocabulary items");
+  await expect(page.locator("#aiDeckSource")).toContainText("AI Generated");
+  await expect(page.locator("#aiDeckList .aiDeckField--eng input")).toHaveValue("concentrate");
+  expect(fatalConsole.aiDeckRequests).toHaveLength(1);
+  expect(fatalConsole.aiDeckRequests[0]).toMatchObject({
+    method: "POST",
+    body: {
+      text: "Students concentrate during focused practice.",
+      targetLevel: "B1",
+      maxWords: 10
+    }
+  });
+  expect(fatalConsole.aiDeckRequests[0].headers["content-type"]).toContain("application/json");
+  expect(fatalConsole.aiDeckRequests[0].headers["x-xsrf-token"]).toBe("smoke-csrf-token");
   expect(fatalConsole).toEqual([]);
 });
 

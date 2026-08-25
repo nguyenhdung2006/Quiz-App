@@ -46,13 +46,10 @@
       "count": 28
     },
     "no-unused-vars": {
-      "count": 8
+      "count": 4
     },
     "no-useless-assignment": {
       "count": 1
-    },
-    "preserve-caught-error": {
-      "count": 2
     }
   },
   "frontend/js/login.js": {
