@@ -36,11 +36,11 @@ Next action: migrate the remaining allowlisted style writes, validate report-onl
 
 Severity: Medium
 
-Impact: the tested AI Deck client seam reduces one hotspot's direct API coupling, but `app.js`, `vocab.js`, and `learning-studio.js` still depend on mutable globals and static script ordering.
+Impact: the tested AI Deck and Learning Studio storage seams reduce direct API and browser-storage coupling, but `app.js`, `vocab.js`, and `learning-studio.js` still depend on mutable globals and static script ordering.
 
 Workaround: continue small facade-backed extractions with characterization tests; do not perform a framework or wholesale ES-module rewrite.
 
-Next action: characterize and extract Learning Studio's account-scoped storage reads/writes without changing localStorage keys, offline behavior, or account isolation.
+Next action: if another Finding 11 batch is approved, characterize Learning Studio's remaining account-profile reads or another single low-risk global seam before extraction; do not begin a broad module conversion.
 
 ## In-Memory Rate Limiting
 

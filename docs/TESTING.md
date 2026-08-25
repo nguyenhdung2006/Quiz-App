@@ -105,6 +105,7 @@ npm run check:frontend
 npm run lint
 npm run test:assets
 npm run test:frontend-inline-styles
+npm run test:frontend-learning-studio-storage
 npm run test:frontend-import-helpers
 npm run test:frontend
 npm run test:docs-drift
@@ -130,6 +131,12 @@ production release gate.
 duplicate-aware merge stats, summary counts, and Merge/Replace candidate state.
 Run it whenever `frontend/js/import-helpers.js` or the `app.js` import wrappers
 change.
+
+`npm run test:frontend-learning-studio-storage` runs the focused facade suite
+for exact account-key resolution, history JSON fallback, raw achievement-flag
+semantics, and A/B write isolation. Playwright adds browser-level coverage for
+logout/relogin account isolation, offline reload persistence, empty storage,
+and malformed JSON without migration or mutation.
 # Sync V2 Verification
 
 Backend:

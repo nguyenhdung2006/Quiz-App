@@ -30,6 +30,7 @@ npm run lint
 npm run test:assets
 npm run test:frontend-inline-styles
 npm run test:frontend-ai-deck-client
+npm run test:frontend-learning-studio-storage
 npm run test:frontend-import-helpers
 npm run test:frontend-session-ui
 npm run test:frontend-sync-status
@@ -123,6 +124,18 @@ payload, JSON parsing, rate-limit copy, and stable network/server error copy.
 Learning Studio continues to own loading, cooldown, validation, rendering, and
 import behavior. Run `npm run test:frontend-ai-deck-client` for the focused
 contract suite; Playwright retains the browser-level CSRF and AI Deck coverage.
+
+Finding 11 Batch 11B puts Learning Studio's direct account-scoped browser
+storage access behind `frontend/js/learning-studio-storage.js` as
+`window.WordArenaLearningStudioStorage`. The facade resolves the current account
+through the existing `accountStorageKey` source and preserves the exact
+`quizHistory`, `focusStarted`, and `deckImported` key suffixes, JSON fallback,
+and raw `"true"` flag format. Learning Studio still owns vocabulary import,
+`save()`/sync orchestration, profile rendering, and UI state. Run
+`npm run test:frontend-learning-studio-storage` for the focused helper suite;
+Playwright covers A/B/A logout/relogin isolation, offline reload, missing data,
+and malformed JSON. This incremental facade remains a browser global and adds
+no storage migration or new offline behavior.
 
 ## CSRF Lifecycle
 

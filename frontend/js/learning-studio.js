@@ -91,6 +91,7 @@ const STUDIO_FOCUSABLE_SELECTOR = [
 "select:not([disabled])",
 "[tabindex]:not([tabindex='-1'])"
 ].join(",");
+const STUDIO_STORAGE = window.WordArenaLearningStudioStorage;
 
 const BADGES = [
 { code: "FIRST_WORD", name: "First Word", description: "Add your first word.", test: () => getWords().length > 0 },
@@ -98,18 +99,9 @@ const BADGES = [
 { code: "PERFECT_ROUND", name: "Perfect Round", description: "Score a clean round.", test: () => getHistory().some(h => h.totalQuestions > 0 && h.correctAnswers === h.totalQuestions) },
 { code: "COMBO_10", name: "Combo 10", description: "Reach a 10-answer combo.", test: () => getHistory().some(h => Number(h.maxCombo || 0) >= 10) },
 { code: "DAILY_CHALLENGE", name: "Daily Challenger", description: "Complete a daily challenge.", test: () => getHistory().some(h => h.quizMode === "daily") },
-{ code: "FOCUS_START", name: "Calm Focus", description: "Start a 5-minute focus session.", test: () => localStorage.getItem(accountStorageKey("focusStarted")) === "true" },
-{ code: "DECK_IMPORT", name: "Deck Builder", description: "Import a topic deck or CSV.", test: () => localStorage.getItem(accountStorageKey("deckImported")) === "true" }
+{ code: "FOCUS_START", name: "Calm Focus", description: "Start a 5-minute focus session.", test: () => STUDIO_STORAGE.hasFocusStarted() },
+{ code: "DECK_IMPORT", name: "Deck Builder", description: "Import a topic deck or CSV.", test: () => STUDIO_STORAGE.hasDeckImported() }
 ];
-
-function readJson(key, fallback) {
-try {
-let raw = localStorage.getItem(key);
-return raw ? JSON.parse(raw) : fallback;
-} catch (error) {
-return fallback;
-}
-}
 
 function getWords() {
 return Array.isArray(window.vocab) ? window.vocab : vocab;
@@ -120,7 +112,7 @@ return Array.isArray(window.wrongWords) ? window.wrongWords : wrongWords;
 }
 
 function getHistory() {
-return readJson(accountStorageKey("quizHistory"), []);
+return STUDIO_STORAGE.readHistory();
 }
 
 function getProfile() {
@@ -509,7 +501,7 @@ if (words.length < 4) {
 toastStudio("Add at least 4 words before focus mode.", "warn");
 return;
 }
-localStorage.setItem(accountStorageKey("focusStarted"), "true");
+STUDIO_STORAGE.markFocusStarted();
 closeStudio();
 startWordSetQuiz(words, "mixed", { challenge: true, time: 30, kind: "focus" });
 }
@@ -1358,7 +1350,7 @@ return { merged, added, skipped };
 function importWordsToVocabulary(words) {
 let result = mergeWordsWithImportStats(getWords(), words);
 vocab = result.merged;
-localStorage.setItem(accountStorageKey("deckImported"), "true");
+STUDIO_STORAGE.markDeckImported();
 save();
 renderTable();
 renderStudio();

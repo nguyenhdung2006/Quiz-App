@@ -1,5 +1,16 @@
 # Completed Tasks
 
+## 2026-08-25 Audit Finding 11 Batch 11B
+
+- Characterized Learning Studio account storage before extraction, including A/B/A logout/relogin, offline reload, empty keys, malformed JSON, and exact raw flag behavior.
+- Extracted current-account `quizHistory`, `focusStarted`, and `deckImported` access into `window.WordArenaLearningStudioStorage` without changing keys, schema, identity, fallbacks, auth, or sync behavior.
+- Removed all five direct `localStorage` calls and all direct `accountStorageKey` use from `learning-studio.js`; vocabulary `save()` and sync orchestration remain in Learning Studio.
+- Reduced `learning-studio.js` from 1,551 to 1,543 lines and its ESLint suppression baseline from 34 to 28; total suppressions fell from 499 to 493.
+
+Limitation:
+
+- Finding 11 remains `PARTIALLY_FIXED`; the facade and application still use browser globals and static script ordering, and large responsibilities remain in `app.js`, `vocab.js`, and Learning Studio.
+
 ## 2026-08-25 Audit Finding 11 Batch 11A
 
 - Characterized the AI Deck success request plus existing CSRF, rate-limit, retry, and malformed-response behavior before extraction.

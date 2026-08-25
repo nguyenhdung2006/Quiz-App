@@ -8,7 +8,7 @@ Branch: `chore/audit-reconciliation-and-upgrade`.
 
 Production gate: `NOT_READY`.
 
-Current focus: Finding 11 Batch 11A frontend API-client extraction, status `PARTIALLY_FIXED` after final review.
+Current focus: Finding 11 Batch 11B account-scoped Learning Studio storage extraction, status `PARTIALLY_FIXED`; Batch 11B is approved.
 
 Implemented and verified locally:
 
@@ -31,6 +31,7 @@ Implemented and verified locally:
 - Snapshot vocabulary reuse, wrong-bank ID projection, and achievement N+1 removal.
 - Deterministic 100/1,000/10,000-word Finding 10 benchmark and regression thresholds.
 - Endpoint-specific AI Deck client facade with characterized request/error semantics.
+- Account-scoped Learning Studio storage facade with characterized A/B/A isolation, offline reload, empty, and malformed-data behavior.
 
 Last verified commands:
 
@@ -38,10 +39,11 @@ Last verified commands:
 - `cd backend; .\mvnw.cmd verify`: PASS, 121 tests; 88.90% line coverage (2354/2648).
 - Finding 10 focused regressions: PASS, 3 tests.
 - Finding 10 H2 benchmark/threshold suite: PASS, 1 test across 100/1,000/10,000-word datasets.
-- Finding 11 focused API/AI Deck Playwright: PASS, 8 tests.
-- `npx playwright test --project=chromium`: PASS, 73 tests.
-- Frontend syntax: PASS, 21 files.
-- ESLint: PASS; suppression baseline reduced from 505 to 499.
+- Finding 11B pre-extraction storage characterization: PASS, 4 tests.
+- Finding 11B focused Learning Studio/Auth Playwright: PASS, 12 tests.
+- `npx playwright test --project=chromium`: PASS, 77 tests.
+- Frontend syntax: PASS, 22 files.
+- ESLint: PASS; Learning Studio suppressions reduced from 34 to 28 and total baseline from 499 to 493.
 - Frontend build, assets, inline-style ratchet, helper tests, docs drift, and secret scan: PASS.
 - `npm run gate:secret-scan`: PASS.
 - `npm run gate:source-integrity`: expected `BLOCKED` solely for the three intentionally untracked audit artifacts after this batch is committed.

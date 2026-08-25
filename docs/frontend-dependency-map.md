@@ -45,9 +45,10 @@ sync semantics.
 | 14 | `js/app.js` | Auth, profile persistence, cloud sync, stale recovery, import/export orchestration, app shell actions. |
 | 15 | `js/curated-decks.js` | Curated deck UI/data helpers. |
 | 16 | `js/ai-deck-client.js` | `window.WordArenaAiDeckClient` endpoint request/error facade. |
-| 17 | `js/learning-studio.js` | Learning Studio tabs, modal, deck generation/import UI. |
-| 18 | `js/analytics-dashboard.js` | Analytics dashboard rendering. |
-| 19 | `js/review-today.js` | Spaced repetition review UI. |
+| 17 | `js/learning-studio-storage.js` | `window.WordArenaLearningStudioStorage` account-scoped history/flag access facade. |
+| 18 | `js/learning-studio.js` | Learning Studio tabs, modal, deck generation/import UI. |
+| 19 | `js/analytics-dashboard.js` | Analytics dashboard rendering. |
+| 20 | `js/review-today.js` | Spaced repetition review UI. |
 
 ## Hotspots
 
@@ -68,8 +69,9 @@ sync semantics.
 | `app.js` | `session-ui.js` profile display facade | `applyProfile` keeps sanitize/cache orchestration and delegates display modeling and DOM writes to `window.WordArenaSessionUi`. |
 | `app.js` | `ui.js`/existing notification facade | Import and sync flows surface status through existing UI helpers. |
 | `ai-deck-client.js` | `config.js` API/CSRF helpers | Captures the configured origin/transport at script load, matching the previous Learning Studio semantics. |
+| `learning-studio-storage.js` | `storage.js` account key resolver and browser `localStorage` | Resolves the current account at each operation and preserves existing key/schema/fallback semantics. |
 | `quiz.js` and review scripts | vocabulary globals and render helpers | Existing Playwright tests characterize main study flows. |
-| `learning-studio.js` | `ai-deck-client.js`, app/import facades, and DOM ids | AI request/error semantics use `window.WordArenaAiDeckClient`; modal and import behavior keeps existing dependencies. |
+| `learning-studio.js` | `ai-deck-client.js`, `learning-studio-storage.js`, app/import facades, and DOM ids | AI transport and account-scoped storage access use focused browser-global facades; modal/import/UI behavior keeps existing dependencies. |
 | responsive CSS | preceding base/component/modern rules | Later files intentionally override earlier rules. |
 
 ## Public Facades To Preserve
@@ -85,6 +87,7 @@ Keep these stable until every consumer and regression test is moved:
 - sync status wrapper functions in `app.js`, now delegated to `window.WordArenaSyncStatus`;
 - profile application orchestration in `app.js`, with display rendering delegated to `window.WordArenaSessionUi`;
 - AI Deck endpoint calls through `window.WordArenaAiDeckClient`;
+- Learning Studio history and achievement-flag storage through `window.WordArenaLearningStudioStorage`;
 - current DOM ids used by Playwright, import/export buttons, app navigation, and Learning Studio modal controls.
 
 ## Batch 1 Extraction
@@ -159,7 +162,7 @@ responses.
 
 | Candidate | Why later |
 | --- | --- |
-| Learning Studio account-scoped storage facade | Needs local/offline and account-isolation characterization before replacing its remaining raw storage access. |
+| Learning Studio profile-read seam | Its remaining `getAccountProfile`/`getCachedProfile` globals need separate account-transition characterization before consolidation. |
 | Stale recovery summary calculations | Related to sync but carries backup, snapshot revision, and fail-closed state that needs a separate focused batch. |
 | Navigation action registry | Needs careful preservation of `data-ui-action` and mobile nav behavior. |
 | Learning Studio feature modules | Requires focused modal/tabs/deck tests per boundary. |
@@ -170,7 +173,28 @@ responses.
 
 The frontend global-script finding is only partially fixed. The app still
 depends on static script load order, large mutable global state, and a long CSS
-override chain. Batches 1-3 and Finding 11 Batch 11A create four small, tested
-boundaries for import calculations, sync status rendering, profile display, and
-the AI Deck endpoint contract; they do not complete frontend modularization or
-CSS layering.
+override chain. Batches 1-3 and Finding 11 Batches 11A-11B create five small,
+tested boundaries for import calculations, sync status rendering, profile
+display, the AI Deck endpoint contract, and Learning Studio storage access; they
+do not complete frontend modularization or CSS layering. Batch 11B removes
+Learning Studio's direct `localStorage` and `accountStorageKey` use, but the new
+facade itself remains ordered after `storage.js` and before Learning Studio.
+
+## Finding 11 Batch 11B Extraction
+
+`frontend/js/learning-studio-storage.js` introduces
+`window.WordArenaLearningStudioStorage` with one narrow responsibility:
+
+- read the current account's existing `quizHistory` JSON with the existing
+  missing/malformed fallback;
+- read and set the existing raw `focusStarted` and `deckImported` `"true"`
+  flags;
+- resolve every key through the existing current-account resolver without
+  accepting an account id from UI callers.
+
+Learning Studio retains UI state, rendering, import validation, vocabulary
+`save()`, and cloud sync calls. The facade loads immediately before Learning
+Studio, so this batch replaces one direct storage dependency with an explicit
+facade seam but does not reduce static script-order coupling across the runtime.
+The helper suite plus Playwright characterize missing/malformed storage,
+offline reload, and A/B/A logout/relogin isolation.

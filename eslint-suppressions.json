@@ -43,10 +43,10 @@
       "count": 1
     },
     "no-undef": {
-      "count": 28
+      "count": 23
     },
     "no-unused-vars": {
-      "count": 4
+      "count": 3
     },
     "no-useless-assignment": {
       "count": 1

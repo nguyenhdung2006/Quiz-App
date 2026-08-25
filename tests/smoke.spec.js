@@ -144,6 +144,8 @@ async function preparePage(page, options = {}) {
     email: "",
     avatar: "images/icon.png"
   };
+  let activeProfile = profile;
+  let sessionAuthenticated = Boolean(options.authenticated);
   const accountId = String(profile.email || "").trim().toLowerCase() || "local-guest";
   const baseCloudSnapshot = options.cloudSnapshot || {
     profile,
@@ -196,8 +198,8 @@ async function preparePage(page, options = {}) {
         return;
       }
       await route.fulfill({
-        json: options.authenticated
-          ? { authenticated: true, ...profile }
+        json: sessionAuthenticated
+          ? { authenticated: true, ...activeProfile }
           : { authenticated: false }
       });
       return;
@@ -213,7 +215,12 @@ async function preparePage(page, options = {}) {
         return;
       }
       await route.fulfill({
-        json: cloudSnapshots[Math.min(snapshotRequestCount - 1, cloudSnapshots.length - 1)]
+        json: options.mutableSession
+          ? {
+              ...cloudSnapshots[Math.min(snapshotRequestCount - 1, cloudSnapshots.length - 1)],
+              profile: activeProfile
+            }
+          : cloudSnapshots[Math.min(snapshotRequestCount - 1, cloudSnapshots.length - 1)]
       });
       return;
     }
@@ -351,6 +358,13 @@ async function preparePage(page, options = {}) {
     await route.fulfill({ json: {} });
   });
 
+  if (options.mutableSession) {
+    await page.route("http://localhost:8080/logout", async (route) => {
+      sessionAuthenticated = false;
+      await route.fulfill({ status: 204, body: "" });
+    });
+  }
+
   await page.addInitScript((seed) => {
     window.QUIZ_APP_CONFIG = {
       apiOrigin: "http://localhost:8080",
@@ -377,20 +391,27 @@ async function preparePage(page, options = {}) {
         }
       };
     }
-    localStorage.clear();
-    let accountId = String(seed.profile.email || "").trim().toLowerCase() || "local-guest";
-    localStorage.setItem("quizUserProfile", JSON.stringify(seed.profile));
-    if (seed.vocab) {
-      localStorage.setItem(`quizAccount:${accountId}:vocab`, JSON.stringify(seed.vocab));
-    }
-    if (seed.wrongWords) {
-      localStorage.setItem(`quizAccount:${accountId}:wrongWords`, JSON.stringify(seed.wrongWords));
-    }
-    if (seed.pendingDeletes) {
-      localStorage.setItem(`quizAccount:${accountId}:cloudDeleteQueue`, JSON.stringify(seed.pendingDeletes));
-    }
-    if (seed.syncMeta) {
-      localStorage.setItem(`quizAccount:${accountId}:cloudSyncMeta`, JSON.stringify(seed.syncMeta));
+    const alreadySeeded = sessionStorage.getItem("__quizSmokeStorageSeeded") === "true";
+    if (!seed.preserveStorageOnNavigation || !alreadySeeded) {
+      localStorage.clear();
+      let accountId = String(seed.profile.email || "").trim().toLowerCase() || "local-guest";
+      localStorage.setItem("quizUserProfile", JSON.stringify(seed.profile));
+      if (seed.vocab) {
+        localStorage.setItem(`quizAccount:${accountId}:vocab`, JSON.stringify(seed.vocab));
+      }
+      if (seed.wrongWords) {
+        localStorage.setItem(`quizAccount:${accountId}:wrongWords`, JSON.stringify(seed.wrongWords));
+      }
+      if (seed.pendingDeletes) {
+        localStorage.setItem(`quizAccount:${accountId}:cloudDeleteQueue`, JSON.stringify(seed.pendingDeletes));
+      }
+      if (seed.syncMeta) {
+        localStorage.setItem(`quizAccount:${accountId}:cloudSyncMeta`, JSON.stringify(seed.syncMeta));
+      }
+      Object.entries(seed.extraStorage || {}).forEach(([key, value]) => {
+        localStorage.setItem(key, value);
+      });
+      sessionStorage.setItem("__quizSmokeStorageSeeded", "true");
     }
   }, {
     profile,
@@ -398,6 +419,8 @@ async function preparePage(page, options = {}) {
     wrongWords: options.wrongWords || [],
     pendingDeletes: options.pendingDeletes || null,
     syncMeta: options.syncMeta || null,
+    extraStorage: options.extraStorage || null,
+    preserveStorageOnNavigation: Boolean(options.preserveStorageOnNavigation),
     fixedNow: options.fixedNow || null,
     staleRecoveryEnabled: options.staleRecoveryEnabled || false
   });
@@ -412,6 +435,12 @@ async function preparePage(page, options = {}) {
   Object.defineProperty(fatalConsole, "accountId", { value: accountId });
   Object.defineProperty(fatalConsole, "meRequestCount", { get: () => meRequestCount });
   Object.defineProperty(fatalConsole, "snapshotRequestCount", { get: () => snapshotRequestCount });
+  Object.defineProperty(fatalConsole, "setSession", {
+    value: (nextProfile) => {
+      activeProfile = nextProfile;
+      sessionAuthenticated = true;
+    }
+  });
   return fatalConsole;
 }
 
@@ -471,6 +500,19 @@ async function readImportStorage(page, accountId = "local-guest") {
     pendingDeletes: JSON.parse(localStorage.getItem(`quizAccount:${id}:cloudDeleteQueue`) || "[]"),
     syncMeta: JSON.parse(localStorage.getItem(`quizAccount:${id}:cloudSyncMeta`) || "{}")
   }), accountId);
+}
+
+async function openLearningStudio(page, tab = "profile") {
+  await page.getByRole("button", { name: "Studio", exact: true }).click();
+  await page.locator("#studioBtn").click();
+  await expect(page.locator("#learningStudio")).toBeVisible();
+  if (tab !== "profile") {
+    await page.locator(`.studioTab[data-studio-tab='${tab}']`).click();
+  }
+}
+
+function studioBadge(page, name) {
+  return page.locator("#badgeGallery .badgeCard").filter({ hasText: name });
 }
 
 async function loadConfigOnly(page) {
@@ -2331,6 +2373,143 @@ test("review queue renders ratings and accepts one local review", async ({ page 
   await expect(page.locator("#reviewTodayBody")).toContainText("Review Complete");
   await expect(page.locator(".reviewSessionOverview")).toContainText("Progress: 1 / 1");
   await expect(page.locator(".reviewCompletionStats")).toContainText("Good");
+
+  expect(fatalConsole).toEqual([]);
+});
+
+test("learning studio storage remains isolated across account logout and relogin", async ({ page }) => {
+  const profileA = {
+    name: "Storage User A",
+    email: "User.A@Example.com",
+    avatar: "images/icon.png"
+  };
+  const profileB = {
+    name: "Storage User B",
+    email: "user.b@example.com",
+    avatar: "images/icon.png"
+  };
+  const accountA = "user.a@example.com";
+  const accountB = "user.b@example.com";
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    mutableSession: true,
+    preserveStorageOnNavigation: true,
+    snapshotFails: true,
+    profile: profileA
+  });
+
+  await openLearningStudio(page, "decks");
+  await page.locator("#topicDeckGrid .topicDeckCard").first().getByRole("button", { name: "Import Deck" }).click();
+  const accountAState = await page.evaluate((accountId) => ({
+    deckImported: localStorage.getItem(`quizAccount:${accountId}:deckImported`),
+    vocab: localStorage.getItem(`quizAccount:${accountId}:vocab`)
+  }), accountA);
+  expect(accountAState.deckImported).toBe("true");
+  expect(JSON.parse(accountAState.vocab)).not.toHaveLength(0);
+
+  await page.keyboard.press("Escape");
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true$/);
+
+  fatalConsole.setSession(profileB);
+  await page.goto("index.html");
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await openLearningStudio(page, "badges");
+  await expect(studioBadge(page, "Deck Builder")).toContainText("Locked");
+  const accountBState = await page.evaluate(({ accountAId, accountBId }) => ({
+    accountADeckImported: localStorage.getItem(`quizAccount:${accountAId}:deckImported`),
+    accountAVocab: localStorage.getItem(`quizAccount:${accountAId}:vocab`),
+    accountBDeckImported: localStorage.getItem(`quizAccount:${accountBId}:deckImported`),
+    accountBVocab: localStorage.getItem(`quizAccount:${accountBId}:vocab`)
+  }), { accountAId: accountA, accountBId: accountB });
+  expect(accountBState.accountADeckImported).toBe(accountAState.deckImported);
+  expect(accountBState.accountAVocab).toBe(accountAState.vocab);
+  expect(accountBState.accountBDeckImported).toBeNull();
+  expect(JSON.parse(accountBState.accountBVocab || "[]")).toEqual([]);
+
+  await page.keyboard.press("Escape");
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true$/);
+
+  fatalConsole.setSession(profileA);
+  await page.goto("index.html");
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await openLearningStudio(page, "badges");
+  await expect(studioBadge(page, "Deck Builder")).toContainText("Unlocked");
+  const restoredAState = await page.evaluate((accountId) => ({
+    deckImported: localStorage.getItem(`quizAccount:${accountId}:deckImported`),
+    vocab: localStorage.getItem(`quizAccount:${accountId}:vocab`)
+  }), accountA);
+  expect(restoredAState).toEqual(accountAState);
+
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("learning studio local state survives an offline reload without schema changes", async ({ page }) => {
+  const fatalConsole = await preparePage(page, {
+    preserveStorageOnNavigation: true
+  });
+
+  await openLearningStudio(page, "decks");
+  await page.locator("#topicDeckGrid .topicDeckCard").first().getByRole("button", { name: "Import Deck" }).click();
+  const beforeReload = await page.evaluate(() => ({
+    deckImported: localStorage.getItem("quizAccount:local-guest:deckImported"),
+    vocab: localStorage.getItem("quizAccount:local-guest:vocab")
+  }));
+  expect(beforeReload.deckImported).toBe("true");
+  expect(JSON.parse(beforeReload.vocab)).not.toHaveLength(0);
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await openLearningStudio(page, "badges");
+  await expect(studioBadge(page, "Deck Builder")).toContainText("Unlocked");
+  const afterReload = await page.evaluate(() => ({
+    deckImported: localStorage.getItem("quizAccount:local-guest:deckImported"),
+    vocab: localStorage.getItem("quizAccount:local-guest:vocab")
+  }));
+  expect(afterReload).toEqual(beforeReload);
+
+  expect(fatalConsole).toEqual([]);
+});
+
+test("learning studio handles missing account storage with existing empty fallbacks", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+
+  await openLearningStudio(page, "history");
+  await expect(page.locator("#historySummary")).toHaveText("No rounds yet");
+  await expect(page.locator("#historyList")).toContainText("Finish a quiz or focus session");
+  await page.locator(".studioTab[data-studio-tab='badges']").click();
+  await expect(studioBadge(page, "Calm Focus")).toContainText("Locked");
+  await expect(studioBadge(page, "Deck Builder")).toContainText("Locked");
+  const stored = await page.evaluate(() => ({
+    history: localStorage.getItem("quizAccount:local-guest:quizHistory"),
+    focusStarted: localStorage.getItem("quizAccount:local-guest:focusStarted"),
+    deckImported: localStorage.getItem("quizAccount:local-guest:deckImported")
+  }));
+  expect(stored).toEqual({ history: null, focusStarted: null, deckImported: null });
+
+  expect(fatalConsole).toEqual([]);
+});
+
+test("learning studio preserves malformed JSON and exact flag fallback semantics", async ({ page }) => {
+  const malformedHistory = "{not-json";
+  const fatalConsole = await preparePage(page, {
+    extraStorage: {
+      "quizAccount:local-guest:quizHistory": malformedHistory,
+      "quizAccount:local-guest:focusStarted": "TRUE",
+      "quizAccount:local-guest:deckImported": "false"
+    }
+  });
+
+  await openLearningStudio(page, "history");
+  await expect(page.locator("#historySummary")).toHaveText("No rounds yet");
+  await expect(page.locator("#historyList")).toContainText("Finish a quiz or focus session");
+  await page.locator(".studioTab[data-studio-tab='badges']").click();
+  await expect(studioBadge(page, "Calm Focus")).toContainText("Locked");
+  await expect(studioBadge(page, "Deck Builder")).toContainText("Locked");
+  expect(await page.evaluate(() => localStorage.getItem("quizAccount:local-guest:quizHistory"))).toBe(malformedHistory);
 
   expect(fatalConsole).toEqual([]);
 });
