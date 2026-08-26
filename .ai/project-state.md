@@ -8,7 +8,7 @@ Branch: `chore/audit-reconciliation-and-upgrade`.
 
 Production gate: `NOT_READY`.
 
-Current focus: Finding 11 Batch 11C delegated UI-action registry extraction completed; Finding 11 remains `PARTIALLY_FIXED`.
+Current focus: Finding 12 Batch 12A server-issued online quiz-attempt foundation is implemented for review; Finding 12 remains `PARTIALLY_FIXED / LEGACY PATH STILL OPEN`.
 
 Implemented and verified locally:
 
@@ -33,11 +33,14 @@ Implemented and verified locally:
 - Endpoint-specific AI Deck client facade with characterized request/error semantics.
 - Account-scoped Learning Studio storage facade with characterized A/B/A isolation, offline reload, empty, and malformed-data behavior.
 - Delegated UI-action registry that replaces 16 direct `app.js` action-global calls with one characterized facade.
+- UUID-addressed, owned quiz attempts with captured answer context, 24-hour expiry, database locking, server scoring, and idempotent exact retry.
 
 Last verified commands:
 
-- `cd backend; .\mvnw.cmd test`: PASS, 121 tests.
-- `cd backend; .\mvnw.cmd verify`: PASS, 121 tests; 88.90% line coverage (2354/2648).
+- Finding 12 focused hardening/schema/attempt suites: PASS, 35 tests.
+- `cd backend; .\mvnw.cmd verify`: PASS, 132 tests; 89.56% line coverage (2635/2942).
+- `cd backend; .\mvnw.cmd -DskipTests package`: PASS.
+- Local PostgreSQL 16.14 Flyway/Hibernate gate: PASS for fresh V1-V5 migration and repeat startup/validation at schema version 5.
 - Finding 10 focused regressions: PASS, 3 tests.
 - Finding 10 H2 benchmark/threshold suite: PASS, 1 test across 100/1,000/10,000-word datasets.
 - Finding 11C pre/post-extraction navigation/data-action characterization: PASS, 7 tests.
@@ -47,15 +50,17 @@ Last verified commands:
 - ESLint: PASS; app baseline remains 135 and total baseline remains 493 because no unrelated suppressions were pruned.
 - Frontend build, assets, inline-style ratchet, helper tests, docs drift, and secret scan: PASS.
 - `npm run gate:secret-scan`: PASS.
-- `npm run gate:source-integrity`: expected `BLOCKED` solely for the three intentionally untracked audit artifacts after this batch is committed.
+- `npm run gate:source-integrity`: expected `BLOCKED` for the three intentionally untracked audit artifacts and the opt-in legacy replay proof while they remain untracked.
 
 Remaining limitations for next Codex session:
 
 - Production env vars are not loaded in this workspace.
 - Restore rehearsal evidence is missing.
 - Staging smoke URLs/test identity are missing.
-- Source integrity remains dirty solely because the three audit artifacts must remain untracked and visible.
+- Source integrity remains dirty because the three audit artifacts and the opt-in legacy replay proof must remain untracked and visible.
 - Full snapshot pagination/delta sync, analytics database aggregation, and tombstone/quiz-history retention policy remain future work.
 - The Render exit-137 incident remains a separate unresolved operational issue; the current branch did not reproduce it under a hard 512 MiB limit.
 - Frontend global-script risk remains partially fixed; account storage/state and broader app/vocabulary boundaries remain future bounded batches.
+- Legacy `POST /api/quiz-results` remains replayable until the frontend moves to attempts in Batch 12B; review and Mark Known/Hard replay semantics remain open.
+- Consumed-attempt cleanup has an approved seven-day target but is not implemented in Batch 12A.
 - OpenAPI, full service split, deployed OAuth E2E, and static frontend removal of inline handlers remain future work.

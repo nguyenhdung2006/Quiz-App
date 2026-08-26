@@ -55,7 +55,7 @@ Important status codes:
 - `200`: normal JSON response, including direct deletes with an empty body.
 - `400`: validation error, malformed JSON, invalid avatar, or Sync V2 upgrade required.
 - `403`: invalid/missing CSRF token or authenticated user lacks required role.
-- `409`: Sync V2 revision conflict.
+- `409`: Sync V2 revision conflict, expired quiz attempt, or conflicting quiz-attempt replay.
 - `413`: `/api/sync` body exceeded `app.sync.max-request-body-bytes`.
 - `429`: AI per-user rate limit exceeded.
 - `500`: unexpected server error.
@@ -98,6 +98,8 @@ Unsafe documented routes:
 - `DELETE /api/vocab/uid/{wordUid}`
 - `POST /api/sync`
 - `POST /api/quiz-results`
+- `POST /api/quiz/attempts`
+- `POST /api/quiz/attempts/{attemptId}/submit`
 - `POST /api/review/answer`
 - `POST /api/review/known`
 - `POST /api/admin/sample-words`
@@ -141,6 +143,8 @@ goal 160, bio 2000, and birthday must not be in the future.
 | GET | `/api/achievements` | Auth | `VocabularyController` | none | list of `AchievementDto` | backend smoke/hardening tests |
 | GET | `/api/quiz-history` | Auth | `VocabularyController` | none | list of `QuizHistoryDto` | backend smoke/hardening tests |
 | POST | `/api/quiz-results` | Auth + CSRF | `VocabularyController` | `QuizResultRequest` | full `SyncResponse` after stats/history/achievement updates | `LearningAnalyticsTests`, `BackendHardeningTests` |
+| POST | `/api/quiz/attempts` | Auth + CSRF | `QuizAttemptController` | quiz mode, optional challenge seconds, and 1-500 unique owned word IDs with `eng`/`vie` direction | UUID attempt, 24-hour expiry, and issued ordinal/prompt context | `Finding12QuizAttemptTests` |
+| POST | `/api/quiz/attempts/{attemptId}/submit` | Auth + CSRF | `QuizAttemptController` | complete unique ordinal/selected-answer list | immutable scored outcome plus current `SyncResponse`; `X-Sync-Revision` header | `Finding12QuizAttemptTests` |
 | POST | `/api/admin/sample-words` | Auth + CSRF + admin role | `VocabularyController` | none | `SyncResponse` after starter import | auth/admin path covered by backend tests |
 
 `WordRequest` requires `eng` and `vie` and accepts optional `id`, `wordUid`,
@@ -149,6 +153,35 @@ synonyms, antonyms, common mistake, note, favorite/mastered flags, and stats.
 
 `QuizResultRequest` stores quiz history and answers. It requires `answers` and
 clamps aggregate numeric values to safe ranges; answers are limited to 500.
+
+`POST /api/quiz/attempts` is the additive server-issued online-attempt contract.
+The server validates ownership, rejects duplicate words, captures the answer
+context at issuance, and expires unconsumed attempts after 24 hours. The submit
+contract accepts only each issued ordinal and its selected answer; it has no
+client-authoritative XP, score, correctness, mastery, streak, combo, or revision
+fields. Submission order and JSON property order do not affect the canonical
+fingerprint.
+
+Quiz modes are exact, case-sensitive identifiers: `quiz`, `challenge`,
+`wrong-practice`, `favorites`, `daily`, `mixed`, `eng`, `vie`, `quick-add`,
+`focus`, and `weak-words`. Whitespace/case variants are rejected rather than
+normalized. Issued ordinals are server-assigned, contiguous from zero, and a
+submit may send them in any order but must include each ordinal exactly once.
+
+The first valid submit locks the owned attempt, recomputes correctness, and runs
+the existing quiz reward/history path once. A retry with the same logical
+payload returns `200` with `replayed: true`, the original immutable outcome, and
+a freshly built current snapshot without another mutation. A different payload
+for the consumed attempt returns `409` with
+`QUIZ_ATTEMPT_REPLAY_CONFLICT`; an expired unconsumed attempt returns `409` with
+`QUIZ_ATTEMPT_EXPIRED`. An attempt belonging to another user uses the same
+non-disclosing `400` not-found behavior as an unknown attempt.
+
+The current frontend still calls legacy `POST /api/quiz-results`. That route is
+temporarily retained for compatibility and does not have attempt/replay
+protection. Finding 12 therefore remains partially fixed until Batch 12B moves
+the frontend and closes or hardens the legacy reward path; review and Mark
+Known/Hard replay semantics are also outside Batch 12A.
 
 ## Sync Contract V2
 
@@ -326,5 +359,5 @@ Flyway migrations live under `backend/src/main/resources/db/migration`. The
 latest migration at this commit is:
 
 ```text
-V4__add_legacy_word_id_to_word_tombstones.sql
+V5__add_quiz_attempts.sql
 ```

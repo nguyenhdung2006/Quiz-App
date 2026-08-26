@@ -160,27 +160,78 @@ public class VocabularyService {
         AppUser syncUser = lockUserForRevision(user);
         log.info("[QUIZ] Recording quiz result userId={} mode={} total={} correct={}",
                 syncUser.getId(), request.quizMode(), request.totalQuestions(), request.correctAnswers());
+        Map<String, VocabularyWord> wordsByEnglish = quizWordsByEnglish(syncUser, request.answers());
+        List<AuthoritativeQuizAnswer> answers = request.answers().stream()
+                .filter(answer -> answer.eng() != null && !answer.eng().isBlank())
+                .map(answer -> {
+                    VocabularyWord word = wordsByEnglish.get(englishLookupKey(answer.eng()));
+                    if (word == null) return null;
+                    String questionMode = normalizeQuestionMode(answer.questionMode());
+                    return new AuthoritativeQuizAnswer(
+                            word,
+                            questionMode,
+                            promptFor(word, questionMode),
+                            answer.selectedAnswer(),
+                            correctAnswerFor(word, questionMode)
+                    );
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+
+        return processAuthoritativeQuizResult(
+                syncUser,
+                defaultText(request.quizMode(), "mixed"),
+                request.challengeSeconds(),
+                answers
+        ).snapshot();
+    }
+
+    @Transactional
+    public AuthoritativeQuizResult recordIssuedQuizResult(
+            AppUser user,
+            String quizMode,
+            Integer challengeSeconds,
+            List<AuthoritativeQuizAnswer> answers
+    ) {
+        AppUser syncUser = lockUserForRevision(user);
+        for (AuthoritativeQuizAnswer answer : answers) {
+            if (answer == null
+                    || answer.word() == null
+                    || answer.word().getUser() == null
+                    || !syncUser.getId().equals(answer.word().getUser().getId())) {
+                throw new IllegalArgumentException("Quiz attempt contains an invalid word.");
+            }
+        }
+        return processAuthoritativeQuizResult(
+                syncUser,
+                defaultText(quizMode, "mixed"),
+                challengeSeconds,
+                answers
+        );
+    }
+
+    private AuthoritativeQuizResult processAuthoritativeQuizResult(
+            AppUser syncUser,
+            String quizMode,
+            Integer challengeSeconds,
+            List<AuthoritativeQuizAnswer> answers
+    ) {
         try {
             QuizHistory history = new QuizHistory();
             history.setUser(syncUser);
-            history.setQuizMode(defaultText(request.quizMode(), "mixed"));
-            history.setChallengeSeconds(request.challengeSeconds());
+            history.setQuizMode(quizMode);
+            history.setChallengeSeconds(challengeSeconds);
             int verifiedTotal = 0;
             int verifiedCorrect = 0;
             int verifiedMaxCombo = 0;
             int currentCombo = 0;
-            Map<String, VocabularyWord> wordsByEnglish = quizWordsByEnglish(syncUser, request.answers());
-            Map<Long, WrongBankEntry> wrongEntriesByWordId = wrongEntriesByWordId(syncUser, wordsByEnglish.values());
+            Map<Long, WrongBankEntry> wrongEntriesByWordId = wrongEntriesByWordId(
+                    syncUser,
+                    answers.stream().map(AuthoritativeQuizAnswer::word).distinct().toList()
+            );
 
-            for (QuizAnswerRequest answer : request.answers()) {
-                if (answer.eng() == null || answer.eng().isBlank()) continue;
-
-                VocabularyWord word = wordsByEnglish.get(englishLookupKey(answer.eng()));
-                if (word == null) continue;
-
-                String questionMode = normalizeQuestionMode(answer.questionMode());
-                String serverCorrectAnswer = correctAnswerFor(word, questionMode);
-                boolean answerIsCorrect = answersMatch(answer.selectedAnswer(), serverCorrectAnswer);
+            for (AuthoritativeQuizAnswer answer : answers) {
+                boolean answerIsCorrect = answersMatch(answer.selectedAnswer(), answer.correctAnswer());
                 verifiedTotal++;
                 if (answerIsCorrect) {
                     verifiedCorrect++;
@@ -193,10 +244,8 @@ public class VocabularyService {
                 applyVerifiedAnswer(
                         syncUser,
                         history,
-                        word,
+                        answer.word(),
                         answer,
-                        questionMode,
-                        serverCorrectAnswer,
                         answerIsCorrect,
                         wrongEntriesByWordId
                 );
@@ -225,14 +274,24 @@ public class VocabularyService {
             if (verifiedMaxCombo >= 10) {
                 achievements.unlock(syncUser, "COMBO_10");
             }
-            if (verifiedTotal > 0 && "daily".equalsIgnoreCase(defaultText(request.quizMode(), ""))) {
+            if (verifiedTotal > 0 && "daily".equalsIgnoreCase(quizMode)) {
                 achievements.unlock(syncUser, "DAILY_CHALLENGE");
             }
 
-            markCloudChanged(syncUser);
+            long resultingRevision = markCloudChanged(syncUser);
             SyncResponse result = snapshot(syncUser);
             log.info("[QUIZ] Quiz result recorded successfully userId={} earnedXp={}", syncUser.getId(), earnedXp);
-            return result;
+            return new AuthoritativeQuizResult(
+                    result,
+                    history,
+                    verifiedTotal,
+                    verifiedCorrect,
+                    verifiedWrong,
+                    history.getScore(),
+                    verifiedMaxCombo,
+                    earnedXp,
+                    resultingRevision
+            );
         } catch (RuntimeException ex) {
             log.error("[QUIZ] Quiz recording failed userId={} type={} message={}",
                     syncUser.getId(), ex.getClass().getSimpleName(), ex.getMessage());
@@ -245,9 +304,7 @@ public class VocabularyService {
             AppUser user,
             QuizHistory history,
             VocabularyWord word,
-            QuizAnswerRequest answer,
-            String questionMode,
-            String serverCorrectAnswer,
+            AuthoritativeQuizAnswer answer,
             boolean answerIsCorrect,
             Map<Long, WrongBankEntry> wrongEntriesByWordId
     ) {
@@ -290,10 +347,10 @@ public class VocabularyService {
 
         QuizHistoryAnswer savedAnswer = new QuizHistoryAnswer();
         savedAnswer.setWord(word);
-        savedAnswer.setQuestionMode(questionMode);
-        savedAnswer.setPrompt(promptFor(word, questionMode));
+        savedAnswer.setQuestionMode(answer.questionMode());
+        savedAnswer.setPrompt(answer.prompt());
         savedAnswer.setSelectedAnswer(trim(answer.selectedAnswer()));
-        savedAnswer.setCorrectAnswer(serverCorrectAnswer);
+        savedAnswer.setCorrectAnswer(answer.correctAnswer());
         savedAnswer.setCorrect(answerIsCorrect);
         history.addAnswer(savedAnswer);
     }

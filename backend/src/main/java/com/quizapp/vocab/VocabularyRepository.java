@@ -25,6 +25,9 @@ public interface VocabularyRepository extends JpaRepository<VocabularyWord, Long
     @EntityGraph(attributePaths = "stats")
     Optional<VocabularyWord> findByUserAndEngIgnoreCase(AppUser user, String eng);
 
+    @EntityGraph(attributePaths = "stats")
+    List<VocabularyWord> findByUserAndIdIn(AppUser user, Collection<Long> ids);
+
     @Query("""
             select w from VocabularyWord w
             left join fetch w.stats

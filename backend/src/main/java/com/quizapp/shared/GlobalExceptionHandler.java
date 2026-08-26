@@ -3,6 +3,8 @@ package com.quizapp.shared;
 import com.quizapp.ai.AiRateLimitError;
 import com.quizapp.ai.AiRateLimitExceededException;
 import com.quizapp.health.HealthCounterService;
+import com.quizapp.quiz.QuizAttemptConflictException;
+import com.quizapp.quiz.QuizAttemptConflictResponse;
 import com.quizapp.vocab.SyncConflictResponse;
 import com.quizapp.vocab.SyncClientUpgradeRequiredException;
 import com.quizapp.vocab.SyncClientUpgradeResponse;
@@ -83,6 +85,16 @@ public class GlobalExceptionHandler {
                         exception.getExpectedRevision(),
                         exception.getCurrentRevision()
                 ));
+    }
+
+    @ExceptionHandler(QuizAttemptConflictException.class)
+    ResponseEntity<QuizAttemptConflictResponse> handleQuizAttemptConflict(
+            QuizAttemptConflictException exception
+    ) {
+        log.warn("[QUIZ] Attempt conflict: error={} message={}", exception.getError(), exception.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(new QuizAttemptConflictResponse(exception.getError(), exception.getMessage()));
     }
 
     @ExceptionHandler(SyncClientUpgradeRequiredException.class)

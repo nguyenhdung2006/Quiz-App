@@ -1,5 +1,16 @@
 # Completed Tasks
 
+## 2026-08-25 Audit Finding 12 Batch 12A
+
+- Added the V5 PostgreSQL migration for owned UUID quiz attempts, immutable issued answer context, canonical submission fingerprints, and bounded immutable outcome metadata without snapshot JSON storage.
+- Added authenticated attempt issuance and submit APIs with 24-hour expiry, duplicate/ownership validation, pessimistic row locking, server-controlled scoring/rewards, and same-payload idempotent retry.
+- Reused the existing authoritative quiz mutation algorithm for both compatibility and attempt paths; captured context keeps an issued question stable if its word is edited before submit.
+- Added deterministic security/regression tests for manufactured payloads, exact/conflicting replay, IDOR, expiry, answer edits, and concurrent submissions.
+
+Limitation:
+
+- Finding 12 remains `PARTIALLY FIXED / LEGACY PATH STILL OPEN`; the frontend still uses replayable `POST /api/quiz-results`, and review plus Mark Known/Hard replay handling are deferred. Seven-day consumed-attempt physical cleanup is documented but not yet implemented.
+
 ## 2026-08-25 Audit Finding 11 Batch 11C
 
 - Ranked profile reads, stale-recovery summaries, and delegated UI actions by coupling value and regression/security/sync risk before editing production code.

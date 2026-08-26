@@ -31,4 +31,32 @@ class DatabaseSchemaTests {
         assertThat(migration).doesNotContain("delete from");
         assertThat(migration).doesNotContain("truncate");
     }
+
+    @Test
+    void quizAttemptMigrationEnforcesOwnershipUniquenessAndBoundedOutcomeStorage() throws Exception {
+        String migration = Files.readString(Path.of(
+                "src", "main", "resources", "db", "migration", "V5__add_quiz_attempts.sql"
+        )).toLowerCase();
+        String schema = Files.readString(Path.of("..", "database", "schema.sql")).toLowerCase();
+
+        assertThat(migration).contains("create table learning_attempt");
+        assertThat(migration).contains("create table learning_attempt_item");
+        assertThat(migration).contains("unique (attempt_id, ordinal)");
+        assertThat(migration).contains("unique (attempt_id, word_id)");
+        assertThat(migration).contains("references learning_attempt(id, user_id)");
+        assertThat(migration).contains("references vocabulary(id, user_id)");
+        assertThat(migration).contains("submission_fingerprint varchar(64)");
+        assertThat(migration).contains("char_length(submission_fingerprint) = 64");
+        assertThat(migration).contains("quiz_history_id is not null");
+        assertThat(migration).contains("consumed_at >= created_at");
+        assertThat(migration).contains("consumed_at < expires_at");
+        assertThat(migration).doesNotContain(
+                "foreign key (quiz_history_id) references quiz_history(id) on delete set null"
+        );
+        assertThat(migration).doesNotContain("json");
+        assertThat(migration).doesNotContain("drop table");
+        assertThat(migration).doesNotContain("delete from");
+        assertThat(schema).contains("create table if not exists learning_attempt");
+        assertThat(schema).contains("create table if not exists learning_attempt_item");
+    }
 }

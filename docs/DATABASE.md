@@ -16,8 +16,30 @@ Current migrations:
 | V2 | `V2__add_sync_revision.sql` | Adds `app_users.sync_revision BIGINT NOT NULL DEFAULT 0` additively. |
 | V3 | `V3__add_word_uid_and_word_tombstones.sql` | Adds stable `vocabulary.word_uid`, backfills it deterministically, enforces unique `(user_id, word_uid)`, and creates `word_tombstones`. |
 | V4 | `V4__add_legacy_word_id_to_word_tombstones.sql` | Adds nullable `word_tombstones.legacy_word_id` and an index for legacy-device anti-resurrection matching. |
+| V5 | `V5__add_quiz_attempts.sql` | Adds owned, UUID-addressed quiz attempts and bounded issued items/outcome metadata for transactional at-most-once submit and idempotent retry. |
 
-Do not edit an already-applied migration. Future schema changes must use a new `V5__...sql` or later migration.
+Do not edit an already-applied migration. Future schema changes must use a new `V6__...sql` or later migration.
+
+## Quiz Attempt Persistence
+
+`learning_attempt` stores an unpredictable UUID, owning user, `QUIZ` type,
+issued/consumed status, quiz configuration, creation/24-hour expiry/consumption
+timestamps, a SHA-256 canonical submission fingerprint, original resulting
+sync revision, quiz-history reference, and bounded immutable score/XP metadata.
+It does not store a snapshot or JSON response blob.
+
+`learning_attempt_item` stores the owned vocabulary reference, ordinal,
+`eng`/`vie` direction, and the immutable prompt/correct-answer context captured
+when the attempt was issued. Composite foreign keys bind items to the same
+attempt owner and vocabulary owner. Unique constraints reject duplicate
+ordinals and duplicate words within one attempt. A word deleted before submit
+leaves the captured context but clears the word reference, causing submit to
+fail closed rather than mutating a deleted/different word.
+
+Consumed-attempt retention has an approved target of seven days. Batch 12A
+records the required timestamps but does not yet run physical cleanup; no
+scheduler or implicit lazy deletion is claimed. Cleanup remains a later bounded
+Finding 12 lifecycle task.
 
 ## Stable Word Identity And Tombstones
 

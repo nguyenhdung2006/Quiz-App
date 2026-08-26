@@ -81,3 +81,21 @@ Impact: a Render runtime exited with status 137 before readiness, but the curren
 Workaround: keep production status `NOT_READY`; do not add speculative JVM, pool, thread, or container changes.
 
 Next action: verify the exact Render commit/image/Dockerfile/service root and obtain platform memory/OOM event evidence. Root cause remains unconfirmed and separate from Finding 10.
+
+## Finding 12 Legacy Reward Replay
+
+Severity: High
+
+Impact: the additive quiz-attempt API is replay-safe, but the current frontend
+still uses legacy `POST /api/quiz-results`, which has no server-issued attempt
+identity and can still be used for same-user reward farming. Review is
+self-rated without replay identity; Mark Known/Hard retry semantics are also
+unchanged.
+
+Workaround: do not claim Finding 12 fixed or production-ready. Treat the new
+attempt API as a backend foundation only.
+
+Next action: Batch 12B must migrate online frontend quiz flows to attempts and
+close/harden the legacy reward path. Later bounded Finding 12 work must address
+review and Mark Known/Hard replay semantics and implement the approved
+seven-day consumed-attempt cleanup lifecycle.

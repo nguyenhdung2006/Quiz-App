@@ -84,6 +84,27 @@ cd backend
 under `backend/target/site/jacoco/`, and enforces the current bundle line
 coverage threshold of 80%.
 
+## Finding 12 Batch 12A Quiz-Attempt Verification
+
+`Finding12QuizAttemptTests` uses deterministic injected attempt time and covers
+owned/bounded issuance, foreign/nonexistent/duplicate words, unsupported mode,
+strict non-normalizing mode validation, server-only scoring,
+manufactured/missing/extra/duplicate selections, order-independent canonical
+exact replay, conflicting replay, IDOR isolation, exact 24-hour expiry,
+captured answer context after word edit, and concurrent identical/conflicting
+submission. The concurrency assertions use persisted revision/history/stats
+counts rather than timing as the security oracle.
+
+```powershell
+cd backend
+.\mvnw.cmd "-Dtest=Finding12QuizAttemptTests,DatabaseSchemaTests,BackendHardeningTests" test
+```
+
+The legacy replay proof is not part of normal CI while
+`POST /api/quiz-results` remains available. Normal regression tests cover only
+the green additive attempt API; Batch 12B must migrate the frontend and close or
+harden the legacy reward route.
+
 Production database safety guard:
 
 ```powershell
@@ -159,7 +180,7 @@ Frontend:
 PostgreSQL:
 
 - CI starts PostgreSQL 16 and runs `SPRING_PROFILES_ACTIVE=prod ./mvnw -B -Dtest=QuizApplicationTests test` with Flyway enabled and Hibernate `ddl-auto=validate`.
-- This verifies ordered V1 -> V4 migrations against PostgreSQL in CI. The latest migration at this commit is `V4__add_legacy_word_id_to_word_tombstones.sql`. It does not execute a production or staging migration.
+- This verifies ordered V1 -> V5 migrations against PostgreSQL in CI. The latest migration at this commit is `V5__add_quiz_attempts.sql`. It does not execute a production or staging migration.
 
 Docs drift:
 

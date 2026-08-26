@@ -198,6 +198,31 @@ The production release gate adds these fail-closed security checks:
 
 If staging variables are missing, staging security smoke is `BLOCKED` and the gate conclusion is `NO-GO`.
 
+## Quiz Attempt Replay Boundary
+
+The additive online quiz-attempt API uses a server-generated UUID bearer
+identifier plus mandatory authenticated ownership checks. Issuance accepts only
+owned word IDs and supported direction/configuration; it rejects duplicate
+words and captures the answer context for the attempt. Submit accepts only
+ordinal/selected-answer pairs. The server recomputes correctness, score, combo,
+XP, mastery, wrong-bank effects, achievements, quiz history, and sync revision.
+
+Submit takes a database pessimistic write lock on the owned attempt. The reward
+mutation and transition to `CONSUMED` occur in one transaction. A SHA-256
+fingerprint of the canonical logical selection set gives safe HTTP retry:
+identical retry returns the original bounded outcome without mutation, while a
+different retry returns `409`. Unconsumed attempts expire after 24 hours and
+fail closed. Multiple tabs may hold independent attempts, and a later new
+attempt may legitimately include the same word.
+
+This is only Finding 12 Batch 12A. The current frontend and legacy
+`POST /api/quiz-results` still bypass attempt protection, so same-user farming
+remains possible through that compatibility route. Review remains self-rated
+without replay identity, and Mark Known/Hard retry semantics are unchanged.
+Finding 12 remains `PARTIALLY FIXED / LEGACY PATH STILL OPEN`. Fully offline
+quiz learning remains local-only and cannot later claim cloud XP without a
+server-issued attempt.
+
 ## Logging Safety
 
 Production logs must not include secrets, OAuth credentials, cookies, CSRF tokens, passwords, API keys, raw request bodies, or user-authored vocabulary payloads. The backend log format includes `requestId` for correlation and keeps application events as bounded key-value messages.
