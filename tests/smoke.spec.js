@@ -2526,6 +2526,291 @@ function authenticatedQuizOptions(overrides = {}) {
   };
 }
 
+async function readQuizLearningState(page) {
+  return page.evaluate(() => {
+    const prefix = `quizAccount:${window.getCurrentAccountId()}:`;
+    const read = key => JSON.parse(localStorage.getItem(prefix + key) || "[]");
+    const learning = words => words.map(({ id, mastered, stats }) => ({ id, mastered, stats }))
+      .sort((left, right) => left.id - right.id);
+    return {
+      vocab: learning(read("vocab")),
+      wrongWords: learning(read("wrongWords")),
+      history: read("quizHistory"),
+      profile: JSON.parse(localStorage.getItem("quizUserProfile") || "{}"),
+      revision: window.quizCloud.state().lastKnownRevision
+    };
+  });
+}
+
+async function completeQuizWithOneWrongAnswer(page) {
+  for (let ordinal = 0; ordinal < 4; ordinal++) {
+    const prompt = await page.locator("#question .keyword").textContent();
+    const item = sampleWords.find(candidate => candidate.eng === prompt || candidate.vie === prompt);
+    const correct = item.eng === prompt ? item.vie : item.eng;
+    const choices = page.locator("#answers .answer");
+    const labels = (await choices.allTextContents()).map(label => label.replace(/^\d+\. /, ""));
+    const choice = labels.findIndex(label => item.id === 4 ? label !== correct : label === correct);
+    expect(choice).toBeGreaterThanOrEqual(0);
+    await choices.nth(choice).click();
+    if (ordinal < 3) await page.locator(".nextBtn").click();
+  }
+  await page.locator(".submitBtn").click();
+  await expect(page.locator("#resultScreen")).toBeVisible();
+}
+
+test("pending issued quiz retains local learning effects exactly once", async ({ page }) => {
+  const fatalConsole = await preparePage(page, authenticatedQuizOptions({
+    fixedNow: "2026-08-28T00:00:00.000Z",
+    attemptSubmitResponses: [{ status: 503 }]
+  }));
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  const before = await readQuizLearningState(page);
+  const syncCount = fatalConsole.syncBodies.length;
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await completeQuizWithOneWrongAnswer(page);
+  await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("pending");
+  const after = await readQuizLearningState(page);
+  await test.info().attach("pending-local-learning-before-after", {
+    body: JSON.stringify({ before, after }), contentType: "application/json"
+  });
+  expect(after.history).toHaveLength(1);
+  expect(after.history[0]).toMatchObject({ totalQuestions: 4, correctAnswers: 3, wrongAnswers: 1 });
+  expect(after.revision).toBe(before.revision);
+  expect(after.profile).toEqual(before.profile);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(2);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+  expect(after.vocab.map(item => item.stats.seen)).toEqual([1, 1, 1, 1]);
+  expect(after.vocab.map(item => item.stats.correct)).toEqual([1, 1, 1, 0]);
+  expect(after.vocab.map(item => item.stats.wrong)).toEqual([0, 0, 0, 1]);
+  expect(after.vocab.map(item => item.stats.streak)).toEqual([1, 1, 1, 0]);
+  expect(after.vocab.map(item => item.stats.masteryLevel)).toEqual([1, 1, 1, 0]);
+  expect(after.vocab.map(item => item.stats.nextReview)).toEqual([
+    "2026-08-31T00:00:00.000Z", "2026-08-31T00:00:00.000Z",
+    "2026-08-31T00:00:00.000Z", "2026-08-29T00:00:00.000Z"
+  ]);
+  expect(after.wrongWords.map(item => item.id)).toEqual([4]);
+  await page.evaluate(async () => {
+    window.finishQuiz();
+    await window.WordArenaQuizAttemptClient.retryActiveSubmission();
+  });
+  expect(await readQuizLearningState(page)).toEqual(after);
+  expect(fatalConsole.syncBodies).toHaveLength(syncCount);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(3);
+  expect(new Set(fatalConsole.attemptSubmitRequests.map(item => item.body)).size).toBe(1);
+  expect(new Set(fatalConsole.attemptSubmitRequests.map(item => item.url)).size).toBe(1);
+});
+
+function learningReconciliationOptions(overrides = {}) {
+  const seededWords = sampleWords.map(item => ({
+    ...item,
+    wordUid: `20000000-0000-4000-8000-${String(item.id).padStart(12, "0")}`,
+    updatedAt: "2026-08-20T00:00:00.000Z",
+    mastered: item.id === 4,
+    stats: { ...item.stats, seen: 4, correct: 4, streak: 4, bestStreak: 4, masteryLevel: 4 }
+  }));
+  const profile = { ...authenticatedQuizOptions().profile, xp: 100, level: 1 };
+  const cloudSnapshot = {
+    ...authenticatedQuizOptions().cloudSnapshot,
+    profile,
+    vocab: seededWords,
+    wrongWords: [seededWords[0]]
+  };
+  // Deliberately different from browser answers, and older than the local completion timestamp.
+  // Authoritative learning must win even when the editable-field merge prefers the local word.
+  const serverWords = seededWords.map(item => ({
+    ...item,
+    updatedAt: "2026-08-27T23:59:59.000Z",
+    mastered: item.id !== 2,
+    stats: {
+      seen: 5, correct: item.id === 2 ? 4 : 5, wrong: item.id === 2 ? 1 : 0,
+      streak: item.id === 2 ? 0 : 5, bestStreak: item.id === 2 ? 4 : 5,
+      masteryLevel: item.id === 2 ? 3 : 5,
+      lastReviewed: "2026-08-27T23:59:59.000Z", nextReview: "2026-09-01T00:00:00.000Z"
+    }
+  }));
+  const outcome = {
+    quizHistoryId: 91, totalQuestions: 4, correctAnswers: 3, wrongAnswers: 1,
+    score: 7.5, maxCombo: 2, awardedQuizXp: 46, awardedAchievementXp: 20, resultingSyncRevision: 8
+  };
+  const snapshot = {
+    ...cloudSnapshot,
+    profile: { ...profile, xp: 166 },
+    vocab: serverWords,
+    wrongWords: [serverWords[1]],
+    quizHistory: [{ id: 91, totalQuestions: 4, correctAnswers: 3, wrongAnswers: 1, score: 7.5, maxCombo: 2 }],
+    revision: 8
+  };
+  return authenticatedQuizOptions({
+    profile, vocab: seededWords, wrongWords: cloudSnapshot.wrongWords, cloudSnapshot,
+    fixedNow: "2026-08-28T00:00:00.000Z", attemptOutcome: outcome,
+    attemptSnapshot: snapshot, syncResponse: cloudSnapshot, ...overrides
+  });
+}
+
+function expectAuthoritativeLearning(state, snapshot) {
+  const learning = words => words.map(({ id, mastered, stats }) => ({ id, mastered, stats }))
+    .sort((left, right) => left.id - right.id);
+  expect(state.vocab).toEqual(learning(snapshot.vocab));
+  expect(state.wrongWords).toEqual(learning(snapshot.wrongWords));
+  expect(state.history).toHaveLength(1);
+  expect(state.history[0]).toMatchObject({ totalQuestions: 4, correctAnswers: 3, wrongAnswers: 1, score: 7.5, maxCombo: 2 });
+  expect(state.profile.xp).toBe(snapshot.profile.xp);
+  expect(state.revision).toBe(snapshot.revision);
+}
+
+test("successful issued quiz reconciles local learning and wrong bank to the server snapshot", async ({ page }) => {
+  const options = learningReconciliationOptions();
+  const fatalConsole = await preparePage(page, options);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await completeQuizWithOneWrongAnswer(page);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Quiz saved securely");
+  expectAuthoritativeLearning(await readQuizLearningState(page), options.attemptSnapshot);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(1);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+});
+
+for (const lostResponse of [false, true]) {
+  test(`pending local learning reconciles on ${lostResponse ? "lost-response replay" : "retry success"} without doubling`, async ({ page }) => {
+    const options = learningReconciliationOptions({
+      attemptSubmitResponses: [
+        lostResponse ? { abort: true } : { status: 503 },
+        { status: 503 },
+        { replayed: lostResponse }
+      ]
+    });
+    const fatalConsole = await preparePage(page, options);
+    await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+    const before = await readQuizLearningState(page);
+    // A normal sync after the Retry button is a no-op at the same server revision.
+    options.syncResponse = options.attemptSnapshot;
+    await page.getByRole("button", { name: "Start Quiz" }).last().click();
+    await expect(page.locator("#quizScreen")).toBeVisible();
+    await completeQuizWithOneWrongAnswer(page);
+    await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("pending");
+    const pending = await readQuizLearningState(page);
+    expect(pending.vocab.map(item => item.stats.seen)).toEqual(before.vocab.map(item => item.stats.seen + 1));
+    expect(pending.wrongWords.map(item => item.id)).toContain(4);
+    expect(pending.history).toHaveLength(1);
+    expect(pending.profile.xp).toBe(before.profile.xp);
+    expect(pending.revision).toBe(before.revision);
+    const attempt = await page.evaluate(() => window.WordArenaQuizAttemptClient.state());
+    await page.getByRole("button", { name: "Retry Sync", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("consumed");
+    await expect(page.locator("#syncRetryBtn")).toBeEnabled();
+    expectAuthoritativeLearning(await readQuizLearningState(page), options.attemptSnapshot);
+    const consumed = await page.evaluate(() => window.WordArenaQuizAttemptClient.state());
+    expect(consumed.attemptId).toBe(attempt.attemptId);
+    expect(consumed.lastResponse.outcome).toEqual(options.attemptOutcome);
+    expect(consumed.lastResponse.replayed).toBe(lostResponse);
+    expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+    expect(fatalConsole.attemptSubmitRequests).toHaveLength(3);
+    expect(new Set(fatalConsole.attemptSubmitRequests.map(item => item.body)).size).toBe(1);
+    expect(new Set(fatalConsole.attemptSubmitRequests.map(item => item.url)).size).toBe(1);
+    expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+  });
+}
+
+for (const practice of [false, true]) {
+  test(`pending quiz preserves local-only learning semantics (${practice ? "wrong practice" : "standard"})`, async ({ page, browser }) => {
+    const options = learningReconciliationOptions({ attemptSubmitResponses: [{ status: 503 }] });
+    const fatalConsole = await preparePage(page, options);
+    await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+    const start = target => target.evaluate(isPractice => window.startWordSetQuiz(
+      window.readAccountArray("vocab"), "eng", { practice: isPractice, kind: isPractice ? "wrong-practice" : "quiz" }
+    ), practice);
+    await start(page);
+    await expect(page.locator("#quizScreen")).toBeVisible();
+    await completeQuizWithOneWrongAnswer(page);
+    await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("pending");
+    const pending = await readQuizLearningState(page);
+
+    const localPage = await browser.newPage();
+    try {
+      const localRequests = await preparePage(localPage, { ...options, authenticated: false });
+      await expect.poll(() => localPage.evaluate(() => window.quizCloud.isReady())).toBe(false);
+      await start(localPage);
+      await expect(localPage.locator("#quizScreen")).toBeVisible();
+      await completeQuizWithOneWrongAnswer(localPage);
+      const local = await readQuizLearningState(localPage);
+      expect(pending.vocab).toEqual(local.vocab);
+      expect(pending.wrongWords).toEqual(local.wrongWords);
+      expect(pending.history).toHaveLength(1);
+      expect(local.history).toHaveLength(1);
+      expect(pending.vocab.map(item => item.mastered)).toEqual([true, true, true, false]);
+      expect(pending.vocab.map(item => item.stats.streak)).toEqual([5, 5, 5, 0]);
+      expect(pending.vocab.map(item => item.stats.masteryLevel)).toEqual([5, 5, 5, 3]);
+      expect(pending.wrongWords.find(item => item.id === 1).mastered).toBe(practice);
+      expect(localRequests.attemptCreateBodies).toHaveLength(0);
+      expect(localRequests.attemptSubmitRequests).toHaveLength(0);
+      expect(localRequests.legacyQuizRequests).toHaveLength(0);
+    } finally {
+      await localPage.close();
+    }
+    expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+    expect(fatalConsole.attemptSubmitRequests).toHaveLength(2);
+    expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+  });
+}
+
+test("quiz local fallback is not applied after the issuing account changes", async ({ page }) => {
+  const fatalConsole = await preparePage(page, learningReconciliationOptions());
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  // The storage-switch save schedules ordinary sync; isolate this quiz boundary from that unrelated response.
+  await page.route("**/api/sync", route => route.fulfill({ status: 503, json: {} }));
+  await page.evaluate(() => window.switchAccountStorage({ email: "other-account@example.com", name: "Other" }));
+  const before = await readQuizLearningState(page);
+  await completeQuizWithOneWrongAnswer(page);
+  expect(await readQuizLearningState(page)).toEqual(before);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(0);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+});
+
+test("logout preserves completed local learning and cancels late attempt delivery", async ({ page }) => {
+  const fatalConsole = await preparePage(page, learningReconciliationOptions({ mutableSession: true }));
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  let releaseSubmit;
+  const submitGate = new Promise(resolve => { releaseSubmit = resolve; });
+  let submitReceived = false;
+  await page.route("**/api/quiz/attempts/*/submit", async route => {
+    submitReceived = true;
+    await submitGate;
+    await route.fallback();
+  });
+  let releaseLogout;
+  const logoutGate = new Promise(resolve => { releaseLogout = resolve; });
+  await page.route("http://localhost:8080/logout", async route => {
+    await logoutGate;
+    await route.fallback();
+  });
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await completeQuizWithOneWrongAnswer(page);
+  await expect.poll(() => submitReceived).toBe(true);
+  const completed = await readQuizLearningState(page);
+  expect(completed.vocab.map(item => item.stats.seen)).toEqual([5, 5, 5, 5]);
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+  expect(await page.evaluate(() => window.WordArenaQuizAttemptClient.state())).toBeNull();
+  const oldResponse = page.waitForResponse(response => response.url().endsWith("/submit"));
+  releaseSubmit();
+  await (await oldResponse).finished();
+  expect(await readQuizLearningState(page)).toEqual(completed);
+  releaseLogout();
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true$/);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(1);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+});
+
 test("online quiz issues once, binds issued items, and applies authoritative outcome", async ({ page }) => {
   const options = authenticatedQuizOptions({
     attemptOutcome: {

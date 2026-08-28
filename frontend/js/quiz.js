@@ -50,6 +50,7 @@ return data;
 let quizInputLocked = false;
 let quizFinishing = false;
 let quizStarting = false;
+let quizAccountId = null;
 
 function quizUsesIssuedAttempt() {
 let clientState = window.WordArenaQuizAttemptClient?.state?.();
@@ -63,6 +64,7 @@ async function beginPreparedQuiz(preparedQuiz, preparedData, options = {}) {
 if (quizStarting) return false;
 quizStarting = true;
 try {
+let accountId = window.getCurrentAccountId();
 let kind = options.kind || (options.challenge ? "challenge" : "quiz");
 let issueResult = await window.WordArenaQuizAttemptClient?.issue?.({
 quizMode: kind,
@@ -73,8 +75,9 @@ questionMode: item.mode,
 expectedPrompt: item.prompt
 }))
 });
-if (issueResult?.cancelled) return false;
+if (issueResult?.cancelled || accountId !== window.getCurrentAccountId()) return false;
 
+quizAccountId = accountId;
 quiz = preparedQuiz;
 quizData = preparedData.map((item, ordinal) => {
 let issued = issueResult?.online ? issueResult.items[ordinal] : null;
@@ -450,6 +453,31 @@ startQuestionTimer();
 }
 }
 
+function recordLocalQuizAnswer(word, isCorrect, practice) {
+recordWordResult(word, isCorrect);
+if (isCorrect) {
+if (practice) {
+let wrongWord = wrongWords.find(w => sameWordIdentity(w, word));
+if (wrongWord) wrongWord.mastered = true;
+}
+} else {
+wrongWords = wrongWords.filter(w => !sameWordIdentity(w, word));
+wrongWords.push({ ...word, stats: { ...word.stats }, mastered: false });
+}
+}
+
+function captureQuizLocalResultPlan() {
+return Object.freeze({
+accountId: quizAccountId,
+practice: isPracticeMode,
+items: Object.freeze(quizData.map((item, ordinal) => Object.freeze({
+word: Object.freeze({ ...item.word, stats: Object.freeze({ ...item.word.stats }) }),
+selectedAnswer: answers[ordinal] || "",
+isCorrect: answers[ordinal] === item.correctAnswer
+})))
+});
+}
+
 function checkAnswer() {
 if (answered[index]) return;
 if (isChallengeMode) clearInterval(questionTimer);
@@ -460,29 +488,14 @@ let correct = quizData[index].correctAnswer;
 let isCorrect = selectedAnswer === correct;
 
 if (!quizUsesIssuedAttempt()) {
-recordWordResult(q, isCorrect);
+recordLocalQuizAnswer(q, isCorrect, isPracticeMode);
 }
 
 if (isCorrect) {
 correctCount++;
 updateCombo(true);
-
-if (isPracticeMode && !quizUsesIssuedAttempt()) {
-let word = wrongWords.find(w => typeof sameWordIdentity === "function" ? sameWordIdentity(w, q) : w.eng === q.eng);
-if (word) {
-word.mastered = true;
-}
-}
 } else {
 updateCombo(false);
-
-if (!quizUsesIssuedAttempt()) {
-wrongWords = wrongWords.filter(w => typeof sameWordIdentity === "function" ? !sameWordIdentity(w, q) : w.eng !== q.eng);
-wrongWords.push({
-...q,
-mastered: false
-});
-}
 }
 
 if (quizUsesIssuedAttempt()) {

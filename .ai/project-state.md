@@ -8,7 +8,7 @@ Branch: `chore/audit-reconciliation-and-upgrade`.
 
 Production gate: `NOT_READY`.
 
-Current focus: Finding 12 Batch 12B is implemented and locally verified, uncommitted and awaiting review; supported online quizzes use attempts and the legacy reward route is retired. Finding 12 remains `PARTIALLY_FIXED` for Review Today, Mark Known/Hard retry semantics, and retention cleanup.
+Current focus: Finding 12 Batch 12B.1 pending-quiz local learning resilience is implemented and verified. Batch 12B was committed and pushed as `adc66a9f6ad89e9c24b454d5c8076d62442a876c`; supported online quizzes use attempts and the legacy reward route is retired. No deployment occurred. Finding 12 remains `PARTIALLY_FIXED` for Review Today, Mark Known/Hard retry semantics, and retention cleanup.
 
 Implemented and verified locally:
 
@@ -37,7 +37,7 @@ Implemented and verified locally:
 - Browser attempt facade with in-memory exact retry, authoritative online outcomes, honest local-only fallback, and zero frontend legacy-route calls.
 - Deterministic non-mutating `410 Gone` retirement of `POST /api/quiz-results`.
 
-Last verified commands:
+Verified Batch 12B baseline:
 
 - Finding 12 focused attempt/schema/hardening/reward/analytics/observability/capacity suites: PASS, 53 tests (11 attempt tests, including both concurrency cases).
 - `cd backend; .\mvnw.cmd clean verify`: PASS, 134 tests in 26 suites; 0 failures/errors/skips. Clean JaCoCo line coverage 88.33% (2604/2948), branch coverage 61.95% (723/1167); 80% line gate passed.
@@ -50,15 +50,23 @@ Last verified commands:
 - All 7 frontend helper suites: PASS, including the new attempt-client suite.
 - Docs drift: PASS, 31 controller routes, 32 environment keys, latest migration V6.
 - `npm run gate:secret-scan`: PASS.
-- `git diff --check`: PASS. No files staged; no commit/push/deployment performed.
-- Source-integrity release gate is not a completion claim: Batch 12B is intentionally uncommitted and three audit artifacts remain untouched/untracked. Temporary replay proof was removed after its useful evidence was incorporated into permanent passing tests.
+- `git diff --check`: PASS. Batch 12B was committed/pushed without amending Batch 12A; no deployment occurred.
+- At the committed Batch 12B boundary, only `docs/full-project-audit.docx`, `docs/full-project-audit.md`, and `full-project-audit.docx` remained untouched/untracked. Source-integrity release readiness is not claimed. Temporary replay proof was removed after its useful evidence was incorporated into permanent passing tests.
+
+Verified Batch 12B.1 follow-up (2026-08-28):
+
+- Characterized the pending regression before production edits: one history entry, but zero local learning updates. Completed issued quizzes now persist one account-bound immutable local result plan through the existing local-only learning routine; no cloud reward or revision is fabricated.
+- Authoritative attempt snapshots replace the attempt words' learning/wrong-bank state on success or exact replay; editable-field sync semantics and backend/API/auth/schema remain unchanged.
+- Focused Chromium: 11/11 passed. Full Chromium: 94/94 passed, including all existing late-response cases and eight new resilience cases.
+- Backend trust-boundary re-confirmation on in-memory H2: 33/33 passed (11 attempt + 22 hardening tests); no backend files or V1-V6 migrations changed.
+- Syntax: 24 files; ESLint, static build, all 7 frontend helper suites, 10 CSS assets, 27 inline-style usages across 9 files, docs drift (31 routes / 32 env keys / V6), secret scan, and `git diff --check`: PASS.
 
 Remaining limitations for next Codex session:
 
 - Production env vars are not loaded in this workspace.
 - Restore rehearsal evidence is missing.
 - Staging smoke URLs/test identity are missing.
-- Source integrity remains dirty because Batch 12B awaits review/commit and the three audit artifacts must remain untracked and visible.
+- The three intentional audit artifacts must remain untracked and visible; Batch 12B no longer awaits commit.
 - Full snapshot pagination/delta sync, analytics database aggregation, and tombstone/quiz-history retention policy remain future work.
 - The Render exit-137 incident remains a separate unresolved operational issue; the current branch did not reproduce it under a hard 512 MiB limit.
 - Frontend global-script risk remains partially fixed; account storage/state and broader app/vocabulary boundaries remain future bounded batches.

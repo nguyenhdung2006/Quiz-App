@@ -116,7 +116,7 @@ changes, then verifies that the old response cannot mutate the new lifecycle.
 The attempt-client helper suite covers reset during issuance, submit, response
 parsing and manual retry, plus mismatched response identities.
 
-Local Batch 12B evidence (2026-08-28, uncommitted):
+Local Batch 12B evidence (2026-08-28; committed/pushed as `adc66a9f6ad89e9c24b454d5c8076d62442a876c`, not deployed):
 
 - Focused backend security/schema/reward suites: 53 tests passed, including 11
   attempt tests and both concurrent-submit cases.
@@ -136,6 +136,40 @@ Local Batch 12B evidence (2026-08-28, uncommitted):
   `-1273792706`. The initial host timezone alias `Asia/Saigon` was rejected
   before connection; process-scoped UTC resolved the local rehearsal issue.
   The temporary container was removed; no cloud/production DB was accessed.
+
+### Batch 12B.1 local-progress resilience
+
+Before changing production code, the pending-submit characterization failed:
+a completed four-question round had one local history entry (3 correct, 1
+wrong), but all four vocabulary `seen` counts stayed at zero and the wrong bank
+was empty after both submit requests failed.
+
+Completion now captures one immutable account-bound local result plan and uses
+the existing local-only learning routine once. That local save does not schedule
+sync or grant cloud XP/history/revision. Normal submit and later exact replay
+replace the attempt words' learning fields and wrong-bank membership with the
+authoritative snapshot, even when the local completion timestamp is newer.
+Unrelated editable-field sync rules and backend trust semantics are unchanged.
+
+The focused 11-case Chromium suite covers pending progress and repeated retry,
+normal success, pending-to-success, lost-response replay, parity with local-only
+standard/wrong-practice quizzes, account changes before completion, logout,
+and both existing late-response regressions. Retry tests assert one issuance,
+byte-identical submissions, one local history entry, and server snapshot/XP/
+revision reconciliation without doubling learning counters.
+
+Backend re-confirmation uses only in-memory H2: `Finding12QuizAttemptTests`
+(11) and `BackendHardeningTests` (22) pass, including sync rejection of
+client-managed learning fields, exact replay, concurrent submits, and legacy
+retirement. No backend production, API, auth, schema, or migration changes are
+part of this follow-up; V6 is unchanged.
+
+Final local verification: focused Chromium 11/11 and full Chromium 94/94
+passed; syntax (24 files), ESLint, static build, all seven frontend helper
+suites, CSS assets (10), inline-style ratchet (27 usages / 9 files), docs drift
+(31 routes / 32 environment keys / V6), secret scan, and `git diff --check`
+passed. The initial full-browser runner was interrupted; the completed rerun
+passed all 94 tests. No cloud/production database or deployment was involved.
 
 Production database safety guard:
 

@@ -1,6 +1,8 @@
 # Completed Tasks
 
-## 2026-08-28 Audit Finding 12 Batch 12B (uncommitted)
+## 2026-08-28 Audit Finding 12 Batch 12B
+
+Committed and pushed as `adc66a9f6ad89e9c24b454d5c8076d62442a876c`. No deployment occurred; only the three intentional audit artifacts remained untouched/untracked at that boundary.
 
 - Migrated all supported rewarded online quiz entry points to one server-issued attempt before rendering; offline/create-failure rounds remain local-only with no retroactive reward or legacy fallback.
 - Added an in-memory `WordArenaQuizAttemptClient` that binds issued context and retries a lost/transient response with the same attempt ID and serialized logical payload.

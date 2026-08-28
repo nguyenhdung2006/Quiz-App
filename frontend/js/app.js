@@ -1044,7 +1044,7 @@ bio: profile.bio || ""
 };
 }
 
-function applyServerSnapshot(snapshot) {
+function applyServerSnapshot(snapshot, quizResultPlan = null) {
 if (!snapshot) return;
 if (!rememberCloudRevision(snapshot.revision)) {
 cloudSyncState.lastKnownRevision = null;
@@ -1070,6 +1070,7 @@ let cloudWrong = snapshot.wrongWords.filter(word =>
 );
 wrongWords = mergeWordLists(getWrongWords(), cloudWrong);
 }
+if (quizResultPlan) reconcileQuizLearningSnapshot(snapshot, quizResultPlan);
 if (snapshot.progress) latestProgressSummary = snapshot.progress;
 if (Array.isArray(snapshot.achievements)) latestAchievements = snapshot.achievements;
 save();
@@ -1319,6 +1320,35 @@ state: () => ({ ...cloudSyncState, pullInFlight: Boolean(cloudSyncState.pullInFl
 
 let pendingQuizResultContext = null;
 
+function reconcileQuizLearningSnapshot(snapshot, plan) {
+// Only attempt completion overrides local learning; editable-field sync keeps its existing merge rules.
+let wordIds = new Set(plan.items.map(item => Number(item.word.id)));
+let serverWords = new Map((snapshot.vocab || []).map(word => [Number(word.id), fromServerWord(word)]));
+vocab = getVocab().map(word => {
+let serverWord = wordIds.has(Number(word.id)) && serverWords.get(Number(word.id));
+return serverWord ? { ...word, mastered: serverWord.mastered, stats: { ...serverWord.stats } } : word;
+});
+let serverWrong = new Map((snapshot.wrongWords || []).map(word => [Number(word.id), fromServerWord(word)]));
+wrongWords = getWrongWords().flatMap(word => {
+if (!wordIds.has(Number(word.id))) return [word];
+let serverWord = serverWrong.get(Number(word.id));
+return serverWord ? [serverWord] : [];
+});
+}
+
+function applyQuizLocalResultOnce(context) {
+if (context.localApplied || pendingQuizResultContext !== context
+|| context.accountId !== currentAccountId()
+|| context.attemptId !== window.WordArenaQuizAttemptClient?.state?.()?.attemptId) return;
+for (let item of context.localPlan.items) {
+window.recordLocalQuizAnswer(item.word, item.isCorrect, context.localPlan.practice);
+}
+context.localApplied = true;
+// Persist learning only: no sync scheduling, reward mutation, or fabricated revision.
+originalSave();
+refreshAccountData();
+}
+
 function updateRecordedQuizHistory(createdAt, outcome) {
 if (!createdAt || !outcome) return;
 let history = getQuizHistory();
@@ -1339,7 +1369,7 @@ if (!context || pendingQuizResultContext !== context
 || context.attemptId !== result.body.attemptId
 || context.attemptId !== window.WordArenaQuizAttemptClient?.state?.()?.attemptId) return false;
 rememberResponseRevision(result.response);
-applyServerSnapshot(result.body.snapshot);
+applyServerSnapshot(result.body.snapshot, context.localPlan);
 applyAuthoritativeQuizOutcome(result.body.outcome);
 updateRecordedQuizHistory(context?.historyCreatedAt, result.body.outcome);
 pendingQuizResultContext = null;
@@ -1352,9 +1382,10 @@ async function submitIssuedQuizAttempt(context) {
 let client = window.WordArenaQuizAttemptClient;
 let attemptId = client?.state?.()?.attemptId;
 if (!attemptId) return false;
-let submissionContext = { ...context, attemptId, accountId: currentAccountId() };
+let submissionContext = { ...context, attemptId, accountId: context.localPlan.accountId, localApplied: false };
 pendingQuizResultContext = submissionContext;
-let result = await client.submit(answers.map(answer => answer || ""));
+applyQuizLocalResultOnce(submissionContext);
+let result = await client.submit(submissionContext.localPlan.items.map(item => item.selectedAnswer));
 return applyQuizAttemptSubmission(result, submissionContext);
 }
 
@@ -2598,11 +2629,17 @@ let originalFinishQuiz = window.finishQuiz;
 if (typeof originalFinishQuiz === "function") {
 window.finishQuiz = function (...args) {
 let result = originalFinishQuiz.apply(this, args);
+let attemptState = window.WordArenaQuizAttemptClient?.state?.();
+let localPlan = null;
+if (window.quizUsesIssuedAttempt()) {
+if (attemptState?.status !== "issued") return result;
+localPlan = window.captureQuizLocalResultPlan();
+if (localPlan.accountId !== currentAccountId()) return result;
+}
 let historyCreatedAt = recordLocalQuizHistory();
 updateStats();
-let attemptState = window.WordArenaQuizAttemptClient?.state?.();
-if (attemptState?.status === "issued") {
-submitIssuedQuizAttempt({ historyCreatedAt });
+if (localPlan) {
+submitIssuedQuizAttempt({ historyCreatedAt, localPlan });
 }
 return result;
 };
