@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oauth2Login;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -167,6 +168,7 @@ class Finding12QuizAttemptTests {
                 .andExpect(jsonPath("$.outcome.score").value(5.0))
                 .andExpect(jsonPath("$.outcome.maxCombo").value(1))
                 .andExpect(jsonPath("$.outcome.awardedQuizXp").value(19))
+                .andExpect(jsonPath("$.outcome.awardedAchievementXp").value(20))
                 .andExpect(jsonPath("$.outcome.resultingSyncRevision").value(3))
                 .andExpect(jsonPath("$.snapshot.revision").value(3))
                 .andReturn();
@@ -185,6 +187,55 @@ class Finding12QuizAttemptTests {
         assertThat(correct.getStats().getMasteryLevel()).isEqualTo(1);
         assertThat(wrong.getStats().getSeen()).isEqualTo(1);
         assertThat(wrong.getStats().getWrong()).isEqualTo(1);
+    }
+
+    @Test
+    void legacyQuizResultRouteIsDeterministicallyRetiredAndNeverMutatesState() throws Exception {
+        String email = uniqueEmail("legacy-retired");
+        long wordId = createWord(email, "focus", "tap trung");
+        AppUser before = user(email);
+        int xpBefore = before.getXp();
+        long revisionBefore = before.getSyncRevision();
+        JsonNode snapshotBefore = body(mockMvc.perform(get("/api/snapshot").with(oauthUser(email)))
+                .andExpect(status().isOk())
+                .andReturn());
+
+        String maliciousDuplicatePayload = """
+                {
+                  "quizMode": "daily",
+                  "totalQuestions": 500,
+                  "correctAnswers": 500,
+                  "score": 10,
+                  "answers": [
+                    {"eng":"focus","questionMode":"eng","selectedAnswer":"tap trung","correct":true},
+                    {"eng":"focus","questionMode":"vie","selectedAnswer":"focus","correct":true}
+                  ]
+                }
+                """;
+
+        for (int call = 0; call < 2; call++) {
+            mockMvc.perform(post("/api/quiz-results")
+                            .with(oauthUser(email))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(maliciousDuplicatePayload))
+                    .andExpect(status().isGone())
+                    .andExpect(jsonPath("$.error").value("QUIZ_RESULT_ENDPOINT_RETIRED"))
+                    .andExpect(jsonPath("$.message").value(
+                            "Legacy quiz results are retired. Use server-issued quiz attempts."
+                    ));
+            JsonNode snapshotAfter = body(mockMvc.perform(get("/api/snapshot").with(oauthUser(email)))
+                    .andExpect(status().isOk())
+                    .andReturn());
+            assertThat(snapshotAfter).isEqualTo(snapshotBefore);
+        }
+
+        AppUser after = user(email);
+        assertThat(after.getXp()).isEqualTo(xpBefore);
+        assertThat(after.getSyncRevision()).isEqualTo(revisionBefore);
+        assertThat(quizHistory.countByUser(after)).isZero();
+        assertThat(ownedWord(email, wordId).getStats().getSeen()).isZero();
+        assertThat(ownedWord(email, wordId).getStats().getCorrect()).isZero();
+        assertThat(ownedWord(email, wordId).getStats().getWrong()).isZero();
     }
 
     @Test

@@ -8,6 +8,7 @@ public record QuizAttemptOutcomeDto(
         double score,
         int maxCombo,
         int awardedQuizXp,
+        int awardedAchievementXp,
         long resultingSyncRevision
 ) {
 }

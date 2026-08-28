@@ -59,4 +59,20 @@ class DatabaseSchemaTests {
         assertThat(schema).contains("create table if not exists learning_attempt");
         assertThat(schema).contains("create table if not exists learning_attempt_item");
     }
+
+    @Test
+    void quizAttemptAchievementXpMigrationKeepsReplayOutcomeImmutable() throws Exception {
+        String migration = Files.readString(Path.of(
+                "src", "main", "resources", "db", "migration", "V6__capture_quiz_attempt_achievement_xp.sql"
+        )).toLowerCase();
+        String schema = Files.readString(Path.of("..", "database", "schema.sql")).toLowerCase();
+
+        assertThat(migration).contains("add column awarded_achievement_xp integer");
+        assertThat(migration).contains("status = 'issued' and awarded_achievement_xp is null");
+        assertThat(migration).contains("status = 'consumed' and awarded_achievement_xp is not null");
+        assertThat(migration).doesNotContain("drop table");
+        assertThat(migration).doesNotContain("truncate");
+        assertThat(schema).contains("awarded_achievement_xp integer");
+        assertThat(schema).contains("awarded_achievement_xp >= 0");
+    }
 }

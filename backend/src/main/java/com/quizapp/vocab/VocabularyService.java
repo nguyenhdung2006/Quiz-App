@@ -265,17 +265,18 @@ public class VocabularyService {
             syncUser.setLevel(Math.max(1, syncUser.getXp() / 250 + 1));
             syncUser.setBestStreak(Math.max(syncUser.getBestStreak(), verifiedMaxCombo));
 
+            int awardedAchievementXp = 0;
             if (verifiedTotal > 0) {
-                achievements.unlock(syncUser, "FIRST_QUIZ");
+                awardedAchievementXp += achievements.unlock(syncUser, "FIRST_QUIZ");
             }
             if (verifiedTotal > 0 && verifiedCorrect == verifiedTotal) {
-                achievements.unlock(syncUser, "PERFECT_ROUND");
+                awardedAchievementXp += achievements.unlock(syncUser, "PERFECT_ROUND");
             }
             if (verifiedMaxCombo >= 10) {
-                achievements.unlock(syncUser, "COMBO_10");
+                awardedAchievementXp += achievements.unlock(syncUser, "COMBO_10");
             }
             if (verifiedTotal > 0 && "daily".equalsIgnoreCase(quizMode)) {
-                achievements.unlock(syncUser, "DAILY_CHALLENGE");
+                awardedAchievementXp += achievements.unlock(syncUser, "DAILY_CHALLENGE");
             }
 
             long resultingRevision = markCloudChanged(syncUser);
@@ -290,6 +291,7 @@ public class VocabularyService {
                     history.getScore(),
                     verifiedMaxCombo,
                     earnedXp,
+                    awardedAchievementXp,
                     resultingRevision
             );
         } catch (RuntimeException ex) {

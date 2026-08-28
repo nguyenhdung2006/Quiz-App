@@ -404,32 +404,8 @@ class BackendHardeningTests {
     @Test
     void authenticatedReadEndpointsHandleLegacyNullMetrics() throws Exception {
         String email = "legacy-null-metrics@example.com";
-        createWord(email, "legacy metrics", "chi so cu");
-
-        mockMvc.perform(post("/api/quiz-results")
-                        .with(oauthUser(email))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "quizMode": "mixed",
-                                  "challengeSeconds": 30,
-                                  "totalQuestions": 1,
-                                  "correctAnswers": 0,
-                                  "wrongAnswers": 1,
-                                  "score": 0,
-                                  "maxCombo": 0,
-                                  "answers": [
-                                    {
-                                      "eng": "legacy metrics",
-                                      "questionMode": "mixed",
-                                      "selectedAnswer": "wrong",
-                                      "correctAnswer": "chi so cu",
-                                      "correct": false
-                                    }
-                                  ]
-                                }
-                                """))
-                .andExpect(status().isOk());
+        long wordId = createWord(email, "legacy metrics", "chi so cu");
+        recordIssuedQuiz(email, wordId, "eng", "wrong");
 
         try (var connection = dataSource.getConnection();
              var statement = connection.createStatement()) {
@@ -550,7 +526,7 @@ class BackendHardeningTests {
         int xpBefore = objectMapper.readTree(beforeResult.getResponse().getContentAsString())
                 .path("profile").path("xp").asInt();
 
-        MvcResult result = mockMvc.perform(post("/api/quiz-results")
+        mockMvc.perform(post("/api/quiz-results")
                         .with(oauthUser(email))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -573,29 +549,21 @@ class BackendHardeningTests {
                                   ]
                                 }
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.quizHistory[0].totalQuestions", is(1)))
-                .andExpect(jsonPath("$.quizHistory[0].correctAnswers", is(0)))
-                .andExpect(jsonPath("$.quizHistory[0].wrongAnswers", is(1)))
-                .andExpect(jsonPath("$.quizHistory[0].score", is(0.0)))
-                .andExpect(jsonPath("$.quizHistory[0].maxCombo", is(0)))
-                .andExpect(jsonPath("$.vocab[0].stats.seen", is(1)))
-                .andExpect(jsonPath("$.vocab[0].stats.correct", is(0)))
-                .andExpect(jsonPath("$.vocab[0].stats.wrong", is(1)))
-                .andExpect(jsonPath("$.vocab[0].mastered", is(false)))
-                .andReturn();
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.error", is("QUIZ_RESULT_ENDPOINT_RETIRED")));
 
-        JsonNode snapshot = objectMapper.readTree(result.getResponse().getContentAsString());
-        int xpAfter = snapshot.path("profile").path("xp").asInt();
-        org.assertj.core.api.Assertions.assertThat(xpAfter - xpBefore).isBetween(3, 23);
-        org.assertj.core.api.Assertions.assertThat(snapshot.path("achievements").findValuesAsText("code"))
-                .contains("FIRST_QUIZ")
-                .doesNotContain("PERFECT_ROUND", "COMBO_10");
+        MvcResult afterResult = mockMvc.perform(get("/api/snapshot").with(oauthUser(email)))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode snapshot = objectMapper.readTree(afterResult.getResponse().getContentAsString());
+        org.assertj.core.api.Assertions.assertThat(snapshot.path("profile").path("xp").asInt()).isEqualTo(xpBefore);
+        org.assertj.core.api.Assertions.assertThat(snapshot.path("quizHistory")).isEmpty();
+        org.assertj.core.api.Assertions.assertThat(snapshot.path("vocab").path(0).path("stats").path("seen").asInt()).isZero();
     }
 
     @Test
     void emptyForgedQuizResultDoesNotAwardXpOrAchievements() throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/quiz-results")
+        mockMvc.perform(post("/api/quiz-results")
                         .with(oauthUser("quiz-empty-forged@example.com"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -610,18 +578,13 @@ class BackendHardeningTests {
                                   "answers": []
                                 }
                                 """))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.error", is("QUIZ_RESULT_ENDPOINT_RETIRED")));
+
+        mockMvc.perform(get("/api/snapshot").with(oauthUser("quiz-empty-forged@example.com")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.profile.xp", is(0)))
-                .andExpect(jsonPath("$.achievements.length()", is(0)))
-                .andExpect(jsonPath("$.quizHistory[0].totalQuestions", is(0)))
-                .andExpect(jsonPath("$.quizHistory[0].correctAnswers", is(0)))
-                .andExpect(jsonPath("$.quizHistory[0].wrongAnswers", is(0)))
-                .andExpect(jsonPath("$.quizHistory[0].score", is(0.0)))
-                .andExpect(jsonPath("$.quizHistory[0].maxCombo", is(0)))
-                .andReturn();
-
-        JsonNode snapshot = objectMapper.readTree(result.getResponse().getContentAsString());
-        org.assertj.core.api.Assertions.assertThat(snapshot.path("profile").path("xp").asInt()).isZero();
+                .andExpect(jsonPath("$.quizHistory.length()", is(0)));
     }
 
     @Test
@@ -653,10 +616,8 @@ class BackendHardeningTests {
                                   ]
                                 }
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.profile.xp", is(0)))
-                .andExpect(jsonPath("$.achievements.length()", is(0)))
-                .andExpect(jsonPath("$.quizHistory[0].totalQuestions", is(0)));
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.error", is("QUIZ_RESULT_ENDPOINT_RETIRED")));
 
         mockMvc.perform(get("/api/snapshot")
                         .with(oauthUser(ownerEmail)))
@@ -773,8 +734,8 @@ class BackendHardeningTests {
                         .with(oauthUser("malformed-json@example.com"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"quizMode\":\"mixed\",\"score\":"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", is("Malformed request body.")));
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.error", is("QUIZ_RESULT_ENDPOINT_RETIRED")));
 
         mockMvc.perform(post("/api/sync")
                         .with(oauthUser("malformed-time@example.com"))
@@ -865,6 +826,27 @@ class BackendHardeningTests {
 
         JsonNode created = objectMapper.readTree(result.getResponse().getContentAsString());
         return created.get("id").asLong();
+    }
+
+    private void recordIssuedQuiz(String email, long wordId, String questionMode, String selectedAnswer) throws Exception {
+        MvcResult issued = mockMvc.perform(post("/api/quiz/attempts")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "quizMode", "quiz",
+                                "items", List.of(Map.of("wordId", wordId, "questionMode", questionMode))
+                        ))))
+                .andExpect(status().isOk())
+                .andReturn();
+        String attemptId = objectMapper.readTree(issued.getResponse().getContentAsString())
+                .path("attemptId").asText();
+        mockMvc.perform(post("/api/quiz/attempts/" + attemptId + "/submit")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "answers", List.of(Map.of("ordinal", 0, "selectedAnswer", selectedAnswer))
+                        ))))
+                .andExpect(status().isOk());
     }
 
     private int postSyncStatus(String email, String eng, String vie) throws Exception {

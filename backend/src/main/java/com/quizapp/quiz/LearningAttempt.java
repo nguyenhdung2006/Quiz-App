@@ -66,6 +66,9 @@ public class LearningAttempt {
     @Column(name = "awarded_quiz_xp")
     private Integer awardedQuizXp;
 
+    @Column(name = "awarded_achievement_xp")
+    private Integer awardedAchievementXp;
+
     @Column(name = "result_total_questions")
     private Integer resultTotalQuestions;
 
@@ -123,6 +126,7 @@ public class LearningAttempt {
             long resultingSyncRevision,
             QuizHistory quizHistory,
             int awardedQuizXp,
+            int awardedAchievementXp,
             int totalQuestions,
             int correctAnswers,
             int wrongAnswers,
@@ -144,6 +148,7 @@ public class LearningAttempt {
         if (quizHistory == null
                 || resultingSyncRevision < 0
                 || awardedQuizXp < 0
+                || awardedAchievementXp < 0
                 || totalQuestions <= 0
                 || correctAnswers < 0
                 || wrongAnswers < 0
@@ -162,6 +167,7 @@ public class LearningAttempt {
         this.resultingSyncRevision = resultingSyncRevision;
         this.quizHistory = quizHistory;
         this.awardedQuizXp = awardedQuizXp;
+        this.awardedAchievementXp = awardedAchievementXp;
         this.resultTotalQuestions = totalQuestions;
         this.resultCorrectAnswers = correctAnswers;
         this.resultWrongAnswers = wrongAnswers;
@@ -182,6 +188,7 @@ public class LearningAttempt {
     public Long getResultingSyncRevision() { return resultingSyncRevision; }
     public QuizHistory getQuizHistory() { return quizHistory; }
     public Integer getAwardedQuizXp() { return awardedQuizXp; }
+    public Integer getAwardedAchievementXp() { return awardedAchievementXp; }
     public Integer getResultTotalQuestions() { return resultTotalQuestions; }
     public Integer getResultCorrectAnswers() { return resultCorrectAnswers; }
     public Integer getResultWrongAnswers() { return resultWrongAnswers; }

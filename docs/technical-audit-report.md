@@ -36,7 +36,7 @@ This does not mean the app is production-ready. Current assessment:
 | Finding | Current status | Notes |
 | --- | --- | --- |
 | CSRF disabled with cookie sessions | RESOLVED | `SecurityConfig` enables Cookie CSRF, `/api/csrf`, JSON `403`, and CSRF-protected POST logout. |
-| Client can forge XP/progress through `/api/quiz-results` | RESOLVED | `VocabularyService.recordQuizResult` resolves answers against current user's words and recomputes total, correct, score, combo, XP, stats, and achievements. |
+| Client can forge XP/progress through `/api/quiz-results` | RESOLVED FOR SUPPORTED QUIZ API | Rewarded online quizzes require owned server-issued attempts; the legacy route is a non-mutating `410 Gone` retirement stub. Review Today and Mark Known/Hard remain separate Finding 12 work. |
 | Client sync can overwrite official XP/stat/mastery | RESOLVED | `SyncService` applies editable word fields and ensures stats exist; it does not apply incoming stats/mastered as official progress. |
 | Sync has no tombstone/delete contract | RESOLVED | Sync V2 requires `syncContractVersion: 2`, `expectedRevision`, stable `wordUid`, `deletions`, and tombstone-aware snapshots. |
 | Production `ddl-auto=update` / Flyway disabled | OBSOLETE for prod, still local default | Default local H2 keeps `ddl-auto=update` and Flyway off. Production profile pins `ddl-auto=validate`, Flyway enabled, and fail-fast safety guard. |

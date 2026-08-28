@@ -25,11 +25,11 @@ public class AchievementService {
         return userAchievements.countByUser(user);
     }
 
-    public void unlock(AppUser user, String code) {
+    public int unlock(AppUser user, String code) {
         Achievement achievement = achievements.findByCode(code)
                 .orElseGet(() -> achievements.save(defaultAchievement(code)));
         UserAchievementId id = new UserAchievementId(user.getId(), achievement.getId());
-        if (userAchievements.existsById(id)) return;
+        if (userAchievements.existsById(id)) return 0;
 
         UserAchievement unlocked = new UserAchievement();
         unlocked.setId(id);
@@ -38,6 +38,7 @@ public class AchievementService {
         userAchievements.save(unlocked);
         user.setXp(user.getXp() + achievement.getXpReward());
         user.setLevel(Math.max(1, user.getXp() / 250 + 1));
+        return achievement.getXpReward();
     }
 
     private Achievement defaultAchievement(String code) {

@@ -1,8 +1,15 @@
 # Changelog
 
+## 2026-08-28
+
+- Finding 12 Batch 12B: migrated supported online quizzes to server-issued attempts, bound each question to its issued context, and made submit/lost-response retries reuse the same attempt and payload. Offline or failed-issuance rounds stay local-only without retroactive cloud rewards.
+- Retired `POST /api/quiz-results` with deterministic, non-mutating `410 Gone` and permanent exploit regression coverage; no automatic create-and-submit compatibility shim remains.
+- Added V6 immutable achievement-XP outcome metadata alongside quiz XP, score, combo, and original revision; exact replay does not award again. Late responses are isolated from replacement quizzes and other accounts.
+- Finding 12 remains partially fixed: Review Today replay protection, Mark Known/Hard retry semantics, and seven-day physical attempt cleanup remain deferred. Deployment version skew requires backend-first sequencing; this batch has not been deployed.
+
 ## 2026-08-25
 
-- Partially remediated Finding 12 with server-issued online quiz attempts, captured answer context, server-authoritative scoring, transactional at-most-once mutation, 24-hour expiry, and idempotent exact retry; the legacy frontend reward path and review replay remain open.
+- Partially remediated Finding 12 with server-issued online quiz attempts, captured answer context, server-authoritative scoring, transactional at-most-once mutation, 24-hour expiry, and idempotent exact retry; at the Batch 12A boundary the legacy frontend reward path and review replay remained open (quiz legacy closure is recorded above in Batch 12B).
 - Continued partial Finding 11 remediation by extracting the delegated `data-ui-action` command registry from `app.js`, preserving desktop/mobile navigation, active-page, click/keyboard, and challenge behavior.
 - Continued partial Finding 11 remediation by extracting Learning Studio's current-account history/flag storage access while preserving exact keys/schema, offline reload behavior, and A/B/A logout/relogin isolation.
 - Partially remediated Finding 11 by extracting the characterized AI Deck endpoint client from Learning Studio while preserving CSRF, request/error semantics, UI behavior, and the static script architecture.

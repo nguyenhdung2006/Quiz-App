@@ -17,6 +17,7 @@
     "test:assets": "node scripts/frontend-css-assets-check.mjs",
     "test:frontend-inline-styles": "node scripts/frontend-inline-style-guard.mjs",
     "test:frontend-ai-deck-client": "node scripts/frontend-ai-deck-client.test.mjs",
+    "test:frontend-quiz-attempt-client": "node scripts/frontend-quiz-attempt-client.test.mjs",
     "test:frontend-learning-studio-storage": "node scripts/frontend-learning-studio-storage.test.mjs",
     "test:frontend-ui-actions": "node scripts/frontend-ui-actions.test.mjs",
     "test:docs-drift": "node scripts/audit-docs-drift-check.mjs",

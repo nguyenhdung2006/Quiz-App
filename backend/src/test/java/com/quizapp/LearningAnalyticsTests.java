@@ -44,27 +44,25 @@ class LearningAnalyticsTests {
     @Test
     void analyticsEndpointsAggregateLearningDataAndInsights() throws Exception {
         String email = "analytics-user@example.com";
-        createWord(email, "negotiate", "dam phan", "business", "B2", 1, 4, 5, false, null);
+        long negotiateId = createWord(email, "negotiate", "dam phan", "business", "B2", 1, 4, 5, false, null);
         createWord(email, "contract", "hop dong", "business", "B2", 5, 0, 5, true, null);
         createWord(email, "invoice", "hoa don", "business", "B1", 1, 2, 3, false, Instant.now().minusSeconds(86400));
 
-        mockMvc.perform(post("/api/quiz-results")
+        var issued = mockMvc.perform(post("/api/quiz/attempts")
                         .with(oauthUser(email))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "quizMode", "vie",
-                                "totalQuestions", 5,
-                                "correctAnswers", 1,
-                                "wrongAnswers", 4,
-                                "score", 2.0,
-                                "maxCombo", 1,
-                                "answers", List.of(Map.of(
-                                        "eng", "negotiate",
-                                        "questionMode", "vie",
-                                        "selectedAnswer", "wrong",
-                                        "correctAnswer", "negotiate",
-                                        "correct", false
-                                ))
+                                "items", List.of(Map.of("wordId", negotiateId, "questionMode", "vie"))
+                        ))))
+                .andExpect(status().isOk())
+                .andReturn();
+        String attemptId = objectMapper.readTree(issued.getResponse().getContentAsString()).path("attemptId").asText();
+        mockMvc.perform(post("/api/quiz/attempts/" + attemptId + "/submit")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "answers", List.of(Map.of("ordinal", 0, "selectedAnswer", "wrong"))
                         ))))
                 .andExpect(status().isOk());
 
@@ -105,7 +103,7 @@ class LearningAnalyticsTests {
                 .andExpect(jsonPath("$.quizModes[0].name", is("vie")));
     }
 
-    private void createWord(
+    private long createWord(
             String email,
             String eng,
             String vie,
@@ -183,6 +181,7 @@ class LearningAnalyticsTests {
             statement.setLong(8, wordId);
             statement.executeUpdate();
         }
+        return wordId;
     }
 
     private static RequestPostProcessor oauthUser(String email) {

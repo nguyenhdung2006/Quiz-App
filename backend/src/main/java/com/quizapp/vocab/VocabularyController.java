@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -95,11 +96,14 @@ public class VocabularyController {
     }
 
     @PostMapping("/quiz-results")
-    ResponseEntity<SyncResponse> quizResult(
-            @AuthenticationPrincipal OAuth2User principal,
-            @Valid @RequestBody QuizResultRequest request
+    ResponseEntity<LegacyQuizResultRetiredResponse> quizResult(
+            @AuthenticationPrincipal OAuth2User principal
     ) {
-        return syncResponse(vocabulary.recordQuizResult(currentUsers.requireUser(principal), request));
+        currentUsers.requireUser(principal);
+        return ResponseEntity.status(HttpStatus.GONE).body(new LegacyQuizResultRetiredResponse(
+                "QUIZ_RESULT_ENDPOINT_RETIRED",
+                "Legacy quiz results are retired. Use server-issued quiz attempts."
+        ));
     }
 
     private <T> ResponseEntity<T> revisionResponse(RevisionedResult<T> result) {

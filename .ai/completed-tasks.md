@@ -1,5 +1,18 @@
 # Completed Tasks
 
+## 2026-08-28 Audit Finding 12 Batch 12B (uncommitted)
+
+- Migrated all supported rewarded online quiz entry points to one server-issued attempt before rendering; offline/create-failure rounds remain local-only with no retroactive reward or legacy fallback.
+- Added an in-memory `WordArenaQuizAttemptClient` that binds issued context and retries a lost/transient response with the same attempt ID and serialized logical payload.
+- Made server counts, score, combo, quiz XP, achievement XP, snapshot, and revision authoritative for online completion while preserving local quiz UX.
+- Retired authenticated `POST /api/quiz-results` as deterministic non-mutating `410 Gone`, including first/repeated malicious-payload regression coverage.
+- Added V6 immutable achievement-XP outcome storage and browser regressions for happy path, lost response, create/submit failure, monotonic replay revision, and zero frontend legacy calls.
+- Isolated late async responses from replacement quizzes and different accounts; reset/logout cancels only browser delivery, never reverses an already accepted server outcome.
+
+Limitation:
+
+- Finding 12 remains `PARTIALLY FIXED`: Review Today, Mark Known/Hard retry semantics, and seven-day consumed-attempt physical cleanup are deferred. Backend-first deployment sequencing is required because old frontend/new backend intentionally fails closed.
+
 ## 2026-08-25 Audit Finding 12 Batch 12A
 
 - Added the V5 PostgreSQL migration for owned UUID quiz attempts, immutable issued answer context, canonical submission fingerprints, and bounded immutable outcome metadata without snapshot JSON storage.
@@ -7,9 +20,10 @@
 - Reused the existing authoritative quiz mutation algorithm for both compatibility and attempt paths; captured context keeps an issued question stable if its word is edited before submit.
 - Added deterministic security/regression tests for manufactured payloads, exact/conflicting replay, IDOR, expiry, answer edits, and concurrent submissions.
 
-Limitation:
+Limitation at the Batch 12A boundary (superseded for the legacy quiz route by
+Batch 12B above):
 
-- Finding 12 remains `PARTIALLY FIXED / LEGACY PATH STILL OPEN`; the frontend still uses replayable `POST /api/quiz-results`, and review plus Mark Known/Hard replay handling are deferred. Seven-day consumed-attempt physical cleanup is documented but not yet implemented.
+- Review plus Mark Known/Hard replay handling and seven-day consumed-attempt physical cleanup remained deferred.
 
 ## 2026-08-25 Audit Finding 11 Batch 11C
 

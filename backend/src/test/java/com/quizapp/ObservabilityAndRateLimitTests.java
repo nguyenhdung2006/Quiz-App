@@ -171,27 +171,26 @@ class ObservabilityAndRateLimitTests {
     @Test
     void quizFailureIncrementsMetric() throws Exception {
         String email = "metrics-quiz-failure@example.com";
-        createWord(email, "focus", "tap trung");
+        long wordId = createWord(email, "focus", "tap trung");
+        MvcResult issued = mockMvc.perform(post("/api/quiz/attempts")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "quizMode", "quiz",
+                                "items", java.util.List.of(Map.of("wordId", wordId, "questionMode", "eng"))
+                        ))))
+                .andExpect(status().isOk())
+                .andReturn();
+        String attemptId = objectMapper.readTree(issued.getResponse().getContentAsString()).path("attemptId").asText();
         when(quizHistory.save(any())).thenThrow(new RuntimeException("storage unavailable"));
         double before = counter("wordarena.quiz.failures");
 
-        mockMvc.perform(post("/api/quiz-results")
+        mockMvc.perform(post("/api/quiz/attempts/" + attemptId + "/submit")
                         .with(oauthUser(email))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "quizMode": "mixed",
-                                  "answers": [
-                                    {
-                                      "eng": "focus",
-                                      "questionMode": "eng",
-                                      "selectedAnswer": "wrong",
-                                      "correctAnswer": "tap trung",
-                                      "correct": false
-                                    }
-                                  ]
-                                }
-                                """))
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "answers", java.util.List.of(Map.of("ordinal", 0, "selectedAnswer", "wrong"))
+                        ))))
                 .andExpect(status().isInternalServerError());
 
         org.assertj.core.api.Assertions.assertThat(counter("wordarena.quiz.failures")).isGreaterThan(before);

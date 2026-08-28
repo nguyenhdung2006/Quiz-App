@@ -56,6 +56,7 @@ Important status codes:
 - `400`: validation error, malformed JSON, invalid avatar, or Sync V2 upgrade required.
 - `403`: invalid/missing CSRF token or authenticated user lacks required role.
 - `409`: Sync V2 revision conflict, expired quiz attempt, or conflicting quiz-attempt replay.
+- `410`: authenticated use of the retired legacy quiz-result mutation route.
 - `413`: `/api/sync` body exceeded `app.sync.max-request-body-bytes`.
 - `429`: AI per-user rate limit exceeded.
 - `500`: unexpected server error.
@@ -142,17 +143,20 @@ goal 160, bio 2000, and birthday must not be in the future.
 | GET | `/api/progress` | Auth | `VocabularyController` | none | `ProgressSummaryDto` | backend smoke/hardening tests |
 | GET | `/api/achievements` | Auth | `VocabularyController` | none | list of `AchievementDto` | backend smoke/hardening tests |
 | GET | `/api/quiz-history` | Auth | `VocabularyController` | none | list of `QuizHistoryDto` | backend smoke/hardening tests |
-| POST | `/api/quiz-results` | Auth + CSRF | `VocabularyController` | `QuizResultRequest` | full `SyncResponse` after stats/history/achievement updates | `LearningAnalyticsTests`, `BackendHardeningTests` |
+| POST | `/api/quiz-results` | Auth + CSRF | `VocabularyController` | body ignored | deterministic `410 Gone`, `QUIZ_RESULT_ENDPOINT_RETIRED`; no mutation | `Finding12QuizAttemptTests`, `BackendHardeningTests` |
 | POST | `/api/quiz/attempts` | Auth + CSRF | `QuizAttemptController` | quiz mode, optional challenge seconds, and 1-500 unique owned word IDs with `eng`/`vie` direction | UUID attempt, 24-hour expiry, and issued ordinal/prompt context | `Finding12QuizAttemptTests` |
-| POST | `/api/quiz/attempts/{attemptId}/submit` | Auth + CSRF | `QuizAttemptController` | complete unique ordinal/selected-answer list | immutable scored outcome plus current `SyncResponse`; `X-Sync-Revision` header | `Finding12QuizAttemptTests` |
+| POST | `/api/quiz/attempts/{attemptId}/submit` | Auth + CSRF | `QuizAttemptController` | complete unique ordinal/selected-answer list | immutable scored outcome, quiz/achievement XP, and current `SyncResponse`; `X-Sync-Revision` header | `Finding12QuizAttemptTests` |
 | POST | `/api/admin/sample-words` | Auth + CSRF + admin role | `VocabularyController` | none | `SyncResponse` after starter import | auth/admin path covered by backend tests |
 
 `WordRequest` requires `eng` and `vie` and accepts optional `id`, `wordUid`,
 POS, tag, IPA, CEFR/level, context, example, example meaning, collocation,
 synonyms, antonyms, common mistake, note, favorite/mastered flags, and stats.
 
-`QuizResultRequest` stores quiz history and answers. It requires `answers` and
-clamps aggregate numeric values to safe ranges; answers are limited to 500.
+`POST /api/quiz-results` is retained only as an authenticated retirement stub.
+It does not deserialize or normalize the legacy body and cannot create an
+attempt. Every authenticated call returns `410 Gone` with stable error code
+`QUIZ_RESULT_ENDPOINT_RETIRED` and performs no reward, stats, history,
+wrong-bank, achievement, or revision mutation.
 
 `POST /api/quiz/attempts` is the additive server-issued online-attempt contract.
 The server validates ownership, rejects duplicate words, captures the answer
@@ -177,11 +181,19 @@ for the consumed attempt returns `409` with
 `QUIZ_ATTEMPT_EXPIRED`. An attempt belonging to another user uses the same
 non-disclosing `400` not-found behavior as an unknown attempt.
 
-The current frontend still calls legacy `POST /api/quiz-results`. That route is
-temporarily retained for compatibility and does not have attempt/replay
-protection. Finding 12 therefore remains partially fixed until Batch 12B moves
-the frontend and closes or hardens the legacy reward path; review and Mark
-Known/Hard replay semantics are also outside Batch 12A.
+The online frontend uses only the attempt routes. It binds the issued attempt,
+ordinals, word identity, direction, and prompt before rendering; submit retries
+reuse the same attempt ID and byte-identical logical payload. If issuance is not
+available, the round remains local-only and never falls back to the retired
+route or claims cloud reward retroactively.
+Attempt/retry state is memory-only. Home/reset, logout, or a full reload ends
+that retry lifecycle; reload-resilient delivery is not implemented. Late
+responses cannot overwrite a replacement quiz or another account's state.
+
+Finding 12 remains partially fixed after Batch 12B because Review Today remains
+self-rated without attempt identity, Mark Known/Hard retry semantics are
+unchanged, and seven-day consumed-attempt cleanup is documented but not
+physically implemented.
 
 ## Sync Contract V2
 
@@ -359,5 +371,5 @@ Flyway migrations live under `backend/src/main/resources/db/migration`. The
 latest migration at this commit is:
 
 ```text
-V5__add_quiz_attempts.sql
+V6__capture_quiz_attempt_achievement_xp.sql
 ```

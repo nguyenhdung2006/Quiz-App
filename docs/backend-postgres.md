@@ -115,7 +115,9 @@ Learning:
 - `GET /api/wrong-words`
 - `GET /api/snapshot`
 - `POST /api/sync`
-- `POST /api/quiz-results`
+- `POST /api/quiz-results` (retired, non-mutating `410 Gone`)
+- `POST /api/quiz/attempts`
+- `POST /api/quiz/attempts/{attemptId}/submit`
 - `GET /api/progress`
 - `GET /api/achievements`
 - `GET /api/quiz-history`

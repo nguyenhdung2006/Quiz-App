@@ -27,7 +27,7 @@
 ## Later
 
 - Add pagination or delta sync for large accounts.
-- Add quiz attempt anti-replay only if product requirements demand it.
+- Complete the remaining Finding 12 Review Today, Mark Known/Hard retry, and consumed-attempt retention boundaries; rewarded online quizzes already use server-issued attempts.
 - Define tombstone retention and cleanup policy after real data-age needs are known.
 - Upgrade AI rate limiting to distributed storage only when the backend runs multiple instances, AI cost risk is material, or abuse evidence appears.
 - Add external monitoring/APM and verify alert delivery when production traffic

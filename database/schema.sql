@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS learning_attempt (
     resulting_sync_revision BIGINT,
     quiz_history_id BIGINT,
     awarded_quiz_xp INTEGER,
+    awarded_achievement_xp INTEGER,
     result_total_questions INTEGER,
     result_correct_answers INTEGER,
     result_wrong_answers INTEGER,
@@ -168,6 +169,7 @@ CREATE TABLE IF NOT EXISTS learning_attempt (
             AND resulting_sync_revision IS NULL
             AND quiz_history_id IS NULL
             AND awarded_quiz_xp IS NULL
+            AND awarded_achievement_xp IS NULL
             AND result_total_questions IS NULL
             AND result_correct_answers IS NULL
             AND result_wrong_answers IS NULL
@@ -181,12 +183,14 @@ CREATE TABLE IF NOT EXISTS learning_attempt (
             AND resulting_sync_revision IS NOT NULL
             AND quiz_history_id IS NOT NULL
             AND awarded_quiz_xp IS NOT NULL
+            AND awarded_achievement_xp IS NOT NULL
             AND result_total_questions IS NOT NULL
             AND result_correct_answers IS NOT NULL
             AND result_wrong_answers IS NOT NULL
             AND result_score IS NOT NULL
             AND result_max_combo IS NOT NULL
             AND awarded_quiz_xp >= 0
+            AND awarded_achievement_xp >= 0
             AND result_total_questions > 0
             AND result_correct_answers >= 0
             AND result_wrong_answers >= 0

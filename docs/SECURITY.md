@@ -215,13 +215,28 @@ different retry returns `409`. Unconsumed attempts expire after 24 hours and
 fail closed. Multiple tabs may hold independent attempts, and a later new
 attempt may legitimately include the same word.
 
-This is only Finding 12 Batch 12A. The current frontend and legacy
-`POST /api/quiz-results` still bypass attempt protection, so same-user farming
-remains possible through that compatibility route. Review remains self-rated
-without replay identity, and Mark Known/Hard retry semantics are unchanged.
-Finding 12 remains `PARTIALLY FIXED / LEGACY PATH STILL OPEN`. Fully offline
-quiz learning remains local-only and cannot later claim cloud XP without a
-server-issued attempt.
+Finding 12 Batch 12B moves every supported online frontend quiz flow to this
+attempt boundary. Lost responses retry the same in-memory attempt ID and exact
+logical payload; exact replay cannot cause a second mutation, and stale replay
+headers/snapshots cannot reduce the frontend's monotonic known revision. The
+legacy `POST /api/quiz-results` URL remains present only as an authenticated,
+non-mutating `410 Gone` retirement stub.
+Responses are bound to the original in-memory attempt and account before
+application. Home/reset/logout cancels that browser lifecycle; late responses
+cannot consume a replacement attempt or apply rewards to a different account.
+An already accepted server mutation is not undone by browser cancellation.
+Full-reload retry recovery is not persisted in Batch 12B.
+
+New frontend with old backend degrades to an honest local-only round and never
+falls back to the legacy route. Old frontend with new backend receives the
+retirement response. Deployment therefore requires backend-first sequencing;
+no insecure compatibility shim is provided.
+
+Finding 12 remains `PARTIALLY FIXED`: Review Today still lacks attempt/replay
+identity, Mark Known/Hard retry semantics are unchanged, and physical cleanup
+of consumed attempts after the approved seven-day retention period is not yet
+implemented. Fully offline quiz learning remains local-only and cannot later
+claim cloud XP without a server-issued attempt.
 
 ## Logging Safety
 

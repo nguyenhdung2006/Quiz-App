@@ -166,7 +166,7 @@ function initSyncRetry() {
   btn.addEventListener("click", () => {
     if (typeof window.quizCloud?.syncNow === "function") {
       btn.disabled = true;
-      Promise.resolve(window.quizCloud.syncNow()).finally(() => {
+      Promise.resolve(retryPendingQuizAttempt()).then(() => window.quizCloud.syncNow()).finally(() => {
         btn.disabled = false;
       });
     }
@@ -1317,42 +1317,57 @@ isReady: () => cloudSyncReady,
 state: () => ({ ...cloudSyncState, pullInFlight: Boolean(cloudSyncState.pullInFlight) })
 };
 
-async function submitCloudQuizResult() {
-if (!cloudSyncReady || !Array.isArray(quizData) || quizData.length === 0) return;
+let pendingQuizResultContext = null;
 
-try {
-let reviewAnswers = quizData.map((item, i) => {
-let word = normalizeWord(item.word);
-let correctAnswer = item.mode === "eng" ? word.vie : word.eng;
-let selectedAnswer = answers[i] || "";
-return {
-eng: word.eng,
-questionMode: item.mode,
-selectedAnswer,
-correctAnswer,
-correct: selectedAnswer === correctAnswer
-};
-});
-
-let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/quiz-results`, {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({
-quizMode: window.currentQuizKind || modeSelect?.value || currentMode || "mixed",
-challengeSeconds: isChallengeMode ? questionTime : null,
-totalQuestions: quizData.length,
-correctAnswers: correctCount,
-wrongAnswers: quizData.length - correctCount,
-score: quizData.length ? Number((correctCount / quizData.length * 10).toFixed(2)) : 0,
-maxCombo,
-answers: reviewAnswers
-})
-});
-
-if (response.ok) applyServerSnapshot(await response.json());
-} catch (error) {
-// Quiz result remains saved locally even if cloud sync cannot be reached.
+function updateRecordedQuizHistory(createdAt, outcome) {
+if (!createdAt || !outcome) return;
+let history = getQuizHistory();
+let entry = history.find(item => item.createdAt === createdAt);
+if (!entry) return;
+entry.totalQuestions = Number(outcome.totalQuestions);
+entry.correctAnswers = Number(outcome.correctAnswers);
+entry.wrongAnswers = Number(outcome.wrongAnswers);
+entry.score = Number(outcome.score);
+entry.maxCombo = Number(outcome.maxCombo);
+saveQuizHistory(history);
 }
+
+function applyQuizAttemptSubmission(result, context) {
+if (!result?.ok || !result.body?.outcome || !result.body?.snapshot) return false;
+if (!context || pendingQuizResultContext !== context
+|| context.accountId !== currentAccountId()
+|| context.attemptId !== result.body.attemptId
+|| context.attemptId !== window.WordArenaQuizAttemptClient?.state?.()?.attemptId) return false;
+rememberResponseRevision(result.response);
+applyServerSnapshot(result.body.snapshot);
+applyAuthoritativeQuizOutcome(result.body.outcome);
+updateRecordedQuizHistory(context?.historyCreatedAt, result.body.outcome);
+pendingQuizResultContext = null;
+updateStats();
+setSyncStatus(result.body.replayed ? "Quiz save confirmed (no duplicate reward)" : "Quiz saved securely", "ok");
+return true;
+}
+
+async function submitIssuedQuizAttempt(context) {
+let client = window.WordArenaQuizAttemptClient;
+let attemptId = client?.state?.()?.attemptId;
+if (!attemptId) return false;
+let submissionContext = { ...context, attemptId, accountId: currentAccountId() };
+pendingQuizResultContext = submissionContext;
+let result = await client.submit(answers.map(answer => answer || ""));
+return applyQuizAttemptSubmission(result, submissionContext);
+}
+
+async function retryPendingQuizAttempt() {
+if (!pendingQuizResultContext) return false;
+let context = pendingQuizResultContext;
+if (context.accountId !== currentAccountId()
+|| context.attemptId !== window.WordArenaQuizAttemptClient?.state?.()?.attemptId) {
+pendingQuizResultContext = null;
+return false;
+}
+let result = await window.WordArenaQuizAttemptClient?.retryActiveSubmission?.();
+return applyQuizAttemptSubmission(result, context);
 }
 
 function updateStats() {
@@ -1546,8 +1561,9 @@ function recordLocalQuizHistory() {
 if (!Array.isArray(quizData) || quizData.length === 0) return;
 
 let history = getQuizHistory();
+let createdAt = new Date().toISOString();
 history.push({
-createdAt: new Date().toISOString(),
+createdAt,
 quizMode: window.currentQuizKind || modeSelect?.value || currentMode || "mixed",
 challengeSeconds: isChallengeMode ? questionTime : null,
 totalQuestions: quizData.length,
@@ -1557,6 +1573,7 @@ score: quizData.length ? Number((correctCount / quizData.length * 10).toFixed(2)
 maxCombo
 });
 saveQuizHistory(history);
+return createdAt;
 }
 
 function updateProfilePanel() {
@@ -2096,6 +2113,8 @@ logoutButtons.forEach(button => {
 button.addEventListener("click", async () => {
 button.disabled = true;
 closeMenu();
+window.WordArenaQuizAttemptClient?.reset?.();
+pendingQuizResultContext = null;
 try {
 await API_FETCH(`${AUTH_API_ORIGIN}/logout`, { method: "POST" });
 } catch (error) {
@@ -2579,9 +2598,12 @@ let originalFinishQuiz = window.finishQuiz;
 if (typeof originalFinishQuiz === "function") {
 window.finishQuiz = function (...args) {
 let result = originalFinishQuiz.apply(this, args);
-recordLocalQuizHistory();
+let historyCreatedAt = recordLocalQuizHistory();
 updateStats();
-submitCloudQuizResult();
+let attemptState = window.WordArenaQuizAttemptClient?.state?.();
+if (attemptState?.status === "issued") {
+submitIssuedQuizAttempt({ historyCreatedAt });
+}
 return result;
 };
 }

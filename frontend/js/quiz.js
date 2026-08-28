@@ -25,19 +25,22 @@ function buildQuizData(words, mode) {
 let data = [];
 
 for (let q of words) {
+let word = JSON.parse(JSON.stringify(normalizeWord(q)));
 let questionMode = mode;
 
 if (mode === "mixed") {
 questionMode = Math.random() < 0.5 ? "eng" : "vie";
 }
 
-let options = buildOptionsForQuestion(q, questionMode);
+let options = buildOptionsForQuestion(word, questionMode);
 if (!options) return null;
 
 data.push({
-word: q,
+word,
 mode: questionMode,
-options
+prompt: questionMode === "eng" ? word.eng : word.vie,
+correctAnswer: questionMode === "eng" ? word.vie : word.eng,
+options: [...options]
 });
 }
 
@@ -46,6 +49,70 @@ return data;
 
 let quizInputLocked = false;
 let quizFinishing = false;
+let quizStarting = false;
+
+function quizUsesIssuedAttempt() {
+let clientState = window.WordArenaQuizAttemptClient?.state?.();
+return Boolean(clientState?.attemptId
+&& Array.isArray(quizData)
+&& quizData.length > 0
+&& quizData.every(item => Number.isInteger(item.attemptOrdinal)));
+}
+
+async function beginPreparedQuiz(preparedQuiz, preparedData, options = {}) {
+if (quizStarting) return false;
+quizStarting = true;
+try {
+let kind = options.kind || (options.challenge ? "challenge" : "quiz");
+let issueResult = await window.WordArenaQuizAttemptClient?.issue?.({
+quizMode: kind,
+challengeSeconds: options.challenge ? (options.time || 15) : null,
+items: preparedData.map(item => ({
+wordId: item.word.id,
+questionMode: item.mode,
+expectedPrompt: item.prompt
+}))
+});
+if (issueResult?.cancelled) return false;
+
+quiz = preparedQuiz;
+quizData = preparedData.map((item, ordinal) => {
+let issued = issueResult?.online ? issueResult.items[ordinal] : null;
+return {
+...item,
+prompt: issued?.prompt || item.prompt,
+attemptOrdinal: issued?.ordinal
+};
+});
+
+index = 0;
+answers = [];
+answered = [];
+correctCount = 0;
+combo = 0;
+maxCombo = 0;
+quizInputLocked = false;
+quizFinishing = false;
+isPracticeMode = Boolean(options.practice);
+isChallengeMode = Boolean(options.challenge);
+window.currentQuizKind = kind;
+
+if (options.challenge) {
+questionTime = options.time || 15;
+document.getElementById("timer").hidden = false;
+} else {
+document.getElementById("timer").hidden = true;
+}
+
+document.getElementById("comboDisplay").innerText = "Combo x0";
+hideAllScreens();
+quizScreen.classList.remove("hidden");
+loadQuestion();
+return true;
+} finally {
+quizStarting = false;
+}
+}
 
 function isQuizActive() {
 return quizScreen && !quizScreen.classList.contains("hidden") && Array.isArray(quizData) && quizData.length > 0;
@@ -119,7 +186,7 @@ nextQuestion();
 return true;
 }
 
-function startWordSetQuiz(words, mode, options = {}) {
+async function startWordSetQuiz(words, mode, options = {}) {
 clearInterval(questionTimer);
 
 if (words.length < 4 || !hasEnoughOptions(mode)) {
@@ -127,43 +194,17 @@ alert("You need at least 4 unique answers for this mode.");
 return;
 }
 
-quiz = shuffle([...words]);
-quizData = buildQuizData(quiz, mode);
+let preparedQuiz = shuffle([...words]);
+let preparedData = buildQuizData(preparedQuiz, mode);
 
-if (!quizData) {
+if (!preparedData) {
 alert("Not enough unique answer choices for this mode.");
 return;
 }
-
-index = 0;
-answers = [];
-answered = [];
-correctCount = 0;
-combo = 0;
-maxCombo = 0;
-quizInputLocked = false;
-quizFinishing = false;
-
-isPracticeMode = Boolean(options.practice);
-isChallengeMode = Boolean(options.challenge);
-window.currentQuizKind = options.kind || (options.challenge ? "challenge" : "quiz");
-
-if (options.challenge) {
-questionTime = options.time || 15;
-document.getElementById("timer").hidden = false;
-} else {
-document.getElementById("timer").hidden = true;
+return beginPreparedQuiz(preparedQuiz, preparedData, options);
 }
 
-document.getElementById("comboDisplay").innerText = "Combo x0";
-
-hideAllScreens();
-quizScreen.classList.remove("hidden");
-
-loadQuestion();
-}
-
-function startQuiz() {
+async function startQuiz() {
 clearInterval(questionTimer);
 
 progress.style.width = "0%";
@@ -204,28 +245,17 @@ num = vocab.length;
 num = Number(num);
 }
 
-quiz = shuffle([...vocab]).slice(0, num);
-quizData = buildQuizData(quiz, mode);
+let preparedQuiz = shuffle([...vocab]).slice(0, num);
+let preparedData = buildQuizData(preparedQuiz, mode);
 
-if (!quizData) {
+if (!preparedData) {
 alert("Not enough unique answer choices for this mode.");
 return;
 }
-
-index = 0;
-answers = [];
-answered = [];
-correctCount = 0;
-quizInputLocked = false;
-quizFinishing = false;
-
-hideAllScreens();
-quizScreen.classList.remove("hidden");
-
-loadQuestion();
+return beginPreparedQuiz(preparedQuiz, preparedData, { kind: "quiz" });
 }
 
-function practiceWrong() {
+async function practiceWrong() {
 clearInterval(questionTimer);
 
 document.getElementById("timer").hidden = true;
@@ -244,25 +274,14 @@ alert("You need at least 4 unique English and Vietnamese answers to practice wro
 return;
 }
 
-quiz = shuffle([...wrongWords]);
-quizData = buildQuizData(quiz, "mixed");
+let preparedQuiz = shuffle([...wrongWords]);
+let preparedData = buildQuizData(preparedQuiz, "mixed");
 
-if (!quizData) {
+if (!preparedData) {
 alert("Not enough unique answer choices for wrong-word practice.");
 return;
 }
-
-index = 0;
-answers = [];
-answered = [];
-correctCount = 0;
-quizInputLocked = false;
-quizFinishing = false;
-
-hideAllScreens();
-quizScreen.classList.remove("hidden");
-
-loadQuestion();
+return beginPreparedQuiz(preparedQuiz, preparedData, { practice: true, kind: "wrong-practice" });
 }
 
 function practiceFavorites() {
@@ -304,8 +323,9 @@ return;
 startWordSetQuiz(dailyWords, "mixed", { challenge: true, time: 15, kind: "daily" });
 }
 
-function renderQuestionText(questionEl, q, currentIndex, total) {
+function renderQuestionText(questionEl, item, currentIndex, total) {
 questionEl.innerHTML = "";
+let prompt = item.prompt;
 
 let modeBadge = document.createElement("div");
 modeBadge.className = "questionModeBadge";
@@ -323,12 +343,12 @@ keyword.className = "keyword";
 
 if (currentMode === "eng") {
 line.append('What does "');
-keyword.textContent = q.eng;
-keyword.addEventListener("click", () => speak(q.eng));
+keyword.textContent = prompt;
+keyword.addEventListener("click", () => speak(prompt));
 line.append(keyword, '" mean?');
 } else {
 line.append('What is the English word for "');
-keyword.textContent = q.vie;
+keyword.textContent = prompt;
 line.append(keyword, '" ?');
 }
 
@@ -355,13 +375,13 @@ let q = data.word;
 currentMode = data.mode;
 
 let opts = data.options;
-let correctAnswer = currentMode === "eng" ? q.vie : q.eng;
+let correctAnswer = data.correctAnswer;
 
 let questionEl = document.getElementById("question");
 let answersDiv = document.getElementById("answers");
 let feedbackEl = document.getElementById("questionFeedback");
 
-renderQuestionText(questionEl, q, index, quizData.length);
+renderQuestionText(questionEl, data, index, quizData.length);
 
 answersDiv.innerHTML = "";
 if (feedbackEl) {
@@ -436,16 +456,18 @@ if (isChallengeMode) clearInterval(questionTimer);
 
 let q = quizData[index].word;
 let selectedAnswer = answers[index];
-let correct = currentMode === "eng" ? q.vie : q.eng;
+let correct = quizData[index].correctAnswer;
 let isCorrect = selectedAnswer === correct;
 
+if (!quizUsesIssuedAttempt()) {
 recordWordResult(q, isCorrect);
+}
 
 if (isCorrect) {
 correctCount++;
 updateCombo(true);
 
-if (isPracticeMode) {
+if (isPracticeMode && !quizUsesIssuedAttempt()) {
 let word = wrongWords.find(w => typeof sameWordIdentity === "function" ? sameWordIdentity(w, q) : w.eng === q.eng);
 if (word) {
 word.mastered = true;
@@ -454,11 +476,18 @@ word.mastered = true;
 } else {
 updateCombo(false);
 
+if (!quizUsesIssuedAttempt()) {
 wrongWords = wrongWords.filter(w => typeof sameWordIdentity === "function" ? !sameWordIdentity(w, q) : w.eng !== q.eng);
 wrongWords.push({
 ...q,
 mastered: false
 });
+}
+}
+
+if (quizUsesIssuedAttempt()) {
+answered[index] = true;
+return;
 }
 
 save();
@@ -501,13 +530,15 @@ quizScreen.classList.add("hidden");
 resultScreen.classList.remove("hidden");
 
 let wrong = quizData.length - correctCount;
-
-document.getElementById("rTotal").innerText = quizData.length;
-document.getElementById("rCorrect").innerText = correctCount + "/" + quizData.length;
-document.getElementById("rWrong").innerText = wrong;
-
 let score10 = correctCount / quizData.length * 10;
 score10 = Number(score10.toFixed(2));
+renderQuizOutcome(quizData.length, correctCount, wrong, score10);
+}
+
+function renderQuizOutcome(total, correct, wrong, score10) {
+document.getElementById("rTotal").innerText = total;
+document.getElementById("rCorrect").innerText = correct + "/" + total;
+document.getElementById("rWrong").innerText = wrong;
 
 let scoreEl = document.getElementById("score");
 let gradeEl = document.getElementById("grade");
@@ -553,6 +584,20 @@ commentEl.dataset.grade = gradeText;
 commentEl.classList.add("resultComment");
 }
 
+function applyAuthoritativeQuizOutcome(outcome) {
+if (!outcome) return false;
+let total = Number(outcome.totalQuestions);
+let correct = Number(outcome.correctAnswers);
+let wrong = Number(outcome.wrongAnswers);
+let score = Number(outcome.score);
+let authoritativeCombo = Number(outcome.maxCombo);
+if (![total, correct, wrong, score, authoritativeCombo].every(Number.isFinite)) return false;
+correctCount = correct;
+maxCombo = authoritativeCombo;
+renderQuizOutcome(total, correct, wrong, score);
+return true;
+}
+
 function renderReviewList() {
 let list = document.getElementById("reviewList");
 if (!list) return;
@@ -561,7 +606,7 @@ list.innerHTML = "";
 
 quizData.forEach((item, i) => {
 let word = normalizeWord(item.word);
-let correct = item.mode === "eng" ? word.vie : word.eng;
+let correct = item.correctAnswer;
 let picked = answers[i] || "No answer";
 let isCorrect = picked === correct;
 

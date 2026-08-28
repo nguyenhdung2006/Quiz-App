@@ -1,6 +1,6 @@
 # Frontend Dependency Map
 
-Last updated: 2026-08-25 +07
+Last updated: 2026-08-28 +07
 
 This document is the AUD-008 incremental extraction inventory for the current static
 script-global frontend. It records the load order, known globals, and safe
@@ -30,26 +30,27 @@ sync semantics.
 | Order | Script | Confirmed responsibilities and globals |
 | --- | --- | --- |
 | 1 | `js/config.js` | Backend origin detection, `window.quizApiFetch`, CSRF helper. |
-| 2 | `js/storage.js` | Local persistence facade used by vocabulary and app flows. |
-| 3 | `js/vocab.js` | Vocabulary state, normalization, CRUD helpers, local save/load facade. |
-| 4 | `js/ui.js` | Shared render/status/toast-style UI helpers. |
-| 5 | `js/effects.js` | Effects helpers and UI decoration hooks. |
-| 6 | `js/timer.js` | Quiz timer helpers. |
-| 7 | `js/quiz.js` | Quiz state and answer/review flow. |
-| 8 | `js/ai-explain.js` | Optional wrong-answer explanation helper. |
-| 9 | `js/challenge.js` | Challenge helpers. |
-| 10 | `js/main.js` | Startup normalization and initial UI wiring. |
-| 11 | `js/import-helpers.js` | `window.WordArenaImport` pure import preview/merge helper namespace. |
-| 12 | `js/sync-status.js` | `window.WordArenaSyncStatus` copy/render namespace for cloud sync status. |
-| 13 | `js/session-ui.js` | `window.WordArenaSessionUi` profile display model and DOM rendering namespace. |
-| 14 | `js/ui-actions.js` | `window.WordArenaUiActions` command mapping for delegated `data-ui-action` controls. |
-| 15 | `js/app.js` | Auth, profile persistence, cloud sync, stale recovery, import/export orchestration, app shell actions. |
-| 16 | `js/curated-decks.js` | Curated deck UI/data helpers. |
-| 17 | `js/ai-deck-client.js` | `window.WordArenaAiDeckClient` endpoint request/error facade. |
-| 18 | `js/learning-studio-storage.js` | `window.WordArenaLearningStudioStorage` account-scoped history/flag access facade. |
-| 19 | `js/learning-studio.js` | Learning Studio tabs, modal, deck generation/import UI. |
-| 20 | `js/analytics-dashboard.js` | Analytics dashboard rendering. |
-| 21 | `js/review-today.js` | Spaced repetition review UI. |
+| 2 | `js/quiz-attempt-client.js` | `window.WordArenaQuizAttemptClient` issuance, exact submit/retry payload, and in-memory active-attempt state. |
+| 3 | `js/storage.js` | Local persistence facade used by vocabulary and app flows. |
+| 4 | `js/vocab.js` | Vocabulary state, normalization, CRUD helpers, local save/load facade. |
+| 5 | `js/ui.js` | Shared render/status/toast-style UI helpers. |
+| 6 | `js/effects.js` | Effects helpers and UI decoration hooks. |
+| 7 | `js/timer.js` | Quiz timer helpers. |
+| 8 | `js/quiz.js` | Quiz state and answer/review flow. |
+| 9 | `js/ai-explain.js` | Optional wrong-answer explanation helper. |
+| 10 | `js/challenge.js` | Challenge helpers. |
+| 11 | `js/main.js` | Startup normalization and initial UI wiring. |
+| 12 | `js/import-helpers.js` | `window.WordArenaImport` pure import preview/merge helper namespace. |
+| 13 | `js/sync-status.js` | `window.WordArenaSyncStatus` copy/render namespace for cloud sync status. |
+| 14 | `js/session-ui.js` | `window.WordArenaSessionUi` profile display model and DOM rendering namespace. |
+| 15 | `js/ui-actions.js` | `window.WordArenaUiActions` command mapping for delegated `data-ui-action` controls. |
+| 16 | `js/app.js` | Auth, profile persistence, cloud sync, stale recovery, import/export orchestration, app shell actions. |
+| 17 | `js/curated-decks.js` | Curated deck UI/data helpers. |
+| 18 | `js/ai-deck-client.js` | `window.WordArenaAiDeckClient` endpoint request/error facade. |
+| 19 | `js/learning-studio-storage.js` | `window.WordArenaLearningStudioStorage` account-scoped history/flag access facade. |
+| 20 | `js/learning-studio.js` | Learning Studio tabs, modal, deck generation/import UI. |
+| 21 | `js/analytics-dashboard.js` | Analytics dashboard rendering. |
+| 22 | `js/review-today.js` | Spaced repetition review UI. |
 
 ## Hotspots
 
@@ -65,6 +66,8 @@ sync semantics.
 | Consumer | Depends on | Notes |
 | --- | --- | --- |
 | `app.js` | `config.js` API/CSRF helpers | Backend calls use `window.quizApiFetch`. |
+| `quiz-attempt-client.js` | `config.js` API/CSRF helpers and runtime `window.quizCloud.isReady()` | Owns only the attempt endpoint boundary; it stores no attempt data in localStorage. |
+| `quiz.js`/`app.js` | `quiz-attempt-client.js` | Quiz start binds issued context; completion applies authoritative outcome/snapshot and monotonic revision handling. |
 | `app.js` | `vocab.js` normalization/state helpers | Import, sync, and stale recovery rely on normalized word shape and local save/load behavior. |
 | `app.js` | `sync-status.js` status facade | Compatibility wrappers delegate sync copy, rendering, ARIA text, and Retry visibility to `window.WordArenaSyncStatus`. |
 | `app.js` | `session-ui.js` profile display facade | `applyProfile` keeps sanitize/cache orchestration and delegates display modeling and DOM writes to `window.WordArenaSessionUi`. |
@@ -86,6 +89,7 @@ Keep these stable until every consumer and regression test is moved:
 - notification/status helpers such as `toast` or `showNotification` where present;
 - render/update helpers such as `renderTable`, `renderMistakeTable`, and `updateStats`;
 - cloud sync facade fields under `window.quizCloud`;
+- online quiz attempt calls through `window.WordArenaQuizAttemptClient`;
 - import wrapper functions in `app.js`, now delegated to `window.WordArenaImport`;
 - sync status wrapper functions in `app.js`, now delegated to `window.WordArenaSyncStatus`;
 - profile application orchestration in `app.js`, with display rendering delegated to `window.WordArenaSessionUi`;
@@ -161,6 +165,31 @@ runtime ordering edge: the client is loaded immediately before Learning Studio.
 `scripts/frontend-ai-deck-client.test.mjs` covers the endpoint contract, while
 Playwright covers CSRF, successful rendering, rate limiting, retry, and malformed
 responses.
+
+## Finding 12 Batch 12B Attempt Boundary
+
+`frontend/js/quiz-attempt-client.js` owns the two rewarded online-quiz routes:
+
+- issue one server attempt before rendering an online round;
+- validate the returned ordinal, word ID, direction, and prompt against the
+  prepared immutable browser question snapshot;
+- retain the active attempt ID and serialized submission only in memory;
+- retry a lost/transient submit with the same URL and byte-identical body;
+- expose pending retry/reset state without adding a localStorage key or schema.
+
+The classic script loads immediately after `config.js`. It resolves
+`window.quizCloud.isReady()` only when a user starts a quiz, after `app.js` has
+initialized the runtime facade. `quiz.js` keeps local presentation and offline
+learning behavior; `app.js` applies authoritative outcome/snapshot data and the
+existing monotonic revision rule. This is a narrow endpoint/state seam, not a
+generic network framework or an ES-module conversion.
+`scripts/frontend-quiz-attempt-client.test.mjs` characterizes request binding,
+lost-response exact retry, invalid/unsynced local-only fallback, retained
+pending state, and manual retry recovery.
+Request-local attempt references and reset generations discard late results;
+`app.js` additionally checks the original account/result context before applying
+an outcome. Retry survives transient failures only within the active in-memory
+lifecycle, not Home/reset, logout, a new quiz, or a full browser reload.
 
 ## Candidate Later Batches
 

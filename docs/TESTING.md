@@ -84,7 +84,7 @@ cd backend
 under `backend/target/site/jacoco/`, and enforces the current bundle line
 coverage threshold of 80%.
 
-## Finding 12 Batch 12A Quiz-Attempt Verification
+## Finding 12 Batch 12B Quiz-Attempt Verification
 
 `Finding12QuizAttemptTests` uses deterministic injected attempt time and covers
 owned/bounded issuance, foreign/nonexistent/duplicate words, unsupported mode,
@@ -100,10 +100,42 @@ cd backend
 .\mvnw.cmd "-Dtest=Finding12QuizAttemptTests,DatabaseSchemaTests,BackendHardeningTests" test
 ```
 
-The legacy replay proof is not part of normal CI while
-`POST /api/quiz-results` remains available. Normal regression tests cover only
-the green additive attempt API; Batch 12B must migrate the frontend and close or
-harden the legacy reward route.
+Permanent backend regression coverage also proves authenticated first/repeated
+malicious calls to `POST /api/quiz-results` return the stable retirement error
+with identical persisted XP, revision, history, word stats, and wrong-bank
+state. The temporary `Finding12ReplayProof.java` analysis file is not part of
+the suite.
+
+Playwright covers one issuance per online round, issued prompt/item binding,
+authoritative result rendering, lost-response retry with the same attempt and
+payload, local-only create failure, retained submit failure, monotonic revision
+handling for stale exact replay, and zero production-frontend references to the
+legacy route.
+It also holds a submit response until a replacement quiz starts or the account
+changes, then verifies that the old response cannot mutate the new lifecycle.
+The attempt-client helper suite covers reset during issuance, submit, response
+parsing and manual retry, plus mismatched response identities.
+
+Local Batch 12B evidence (2026-08-28, uncommitted):
+
+- Focused backend security/schema/reward suites: 53 tests passed, including 11
+  attempt tests and both concurrent-submit cases.
+- Clean Maven `verify`: 134 tests in 26 suites, zero failures/errors/skips;
+  JaCoCo line 2604/2948 (88.33%), branch 723/1167 (61.95%), line gate 80% passed.
+- Maven package with tests skipped after verification: passed.
+- Focused quiz Chromium: 11 passed; full Chromium: 86 passed. The 2 late-response
+  cases also passed after the final test-only global-name qualification.
+- Syntax: 24 JavaScript files; CSS assets: 10 files; inline-style guard: 27
+  allowlisted usages across 9 files; ESLint, static build, all 7 helper suites,
+  docs drift and secret scan passed.
+- PostgreSQL rehearsal on 2026-08-27 used only disposable local PostgreSQL
+  16.14 at loopback port 55432: fresh V1-V6 applied all 6 migrations, then repeat
+  startup reported schema version 6 with no migration necessary. Each startup
+  passed `QuizApplicationTests` (1/1) with prod profile/Flyway and Hibernate
+  `ddl-auto=validate`. History had 6 successful rows; V6 checksum was
+  `-1273792706`. The initial host timezone alias `Asia/Saigon` was rejected
+  before connection; process-scoped UTC resolved the local rehearsal issue.
+  The temporary container was removed; no cloud/production DB was accessed.
 
 Production database safety guard:
 
@@ -126,6 +158,7 @@ npm run check:frontend
 npm run lint
 npm run test:assets
 npm run test:frontend-inline-styles
+npm run test:frontend-quiz-attempt-client
 npm run test:frontend-learning-studio-storage
 npm run test:frontend-ui-actions
 npm run test:frontend-import-helpers
@@ -180,7 +213,7 @@ Frontend:
 PostgreSQL:
 
 - CI starts PostgreSQL 16 and runs `SPRING_PROFILES_ACTIVE=prod ./mvnw -B -Dtest=QuizApplicationTests test` with Flyway enabled and Hibernate `ddl-auto=validate`.
-- This verifies ordered V1 -> V5 migrations against PostgreSQL in CI. The latest migration at this commit is `V5__add_quiz_attempts.sql`. It does not execute a production or staging migration.
+- This verifies ordered V1 -> V6 migrations against PostgreSQL in CI. The latest migration at this commit is `V6__capture_quiz_attempt_achievement_xp.sql`. It does not execute a production or staging migration.
 
 Docs drift:
 
@@ -273,6 +306,7 @@ Run the endpoint-client characterization suite from the repository root:
 
 ```powershell
 npm run test:frontend-ai-deck-client
+npm run test:frontend-quiz-attempt-client
 npx playwright test tests/smoke.spec.js --project=chromium --grep "api client|AI deck"
 ```
 

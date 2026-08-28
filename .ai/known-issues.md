@@ -82,20 +82,23 @@ Workaround: keep production status `NOT_READY`; do not add speculative JVM, pool
 
 Next action: verify the exact Render commit/image/Dockerfile/service root and obtain platform memory/OOM event evidence. Root cause remains unconfirmed and separate from Finding 10.
 
-## Finding 12 Legacy Reward Replay
+## Finding 12 Remaining Replay Boundaries
 
 Severity: High
 
-Impact: the additive quiz-attempt API is replay-safe, but the current frontend
-still uses legacy `POST /api/quiz-results`, which has no server-issued attempt
-identity and can still be used for same-user reward farming. Review is
-self-rated without replay identity; Mark Known/Hard retry semantics are also
-unchanged.
+Impact: supported online quizzes are replay-safe and the legacy
+`POST /api/quiz-results` reward path is retired with non-mutating `410 Gone`.
+Review Today is still self-rated without replay identity; Mark Known/Hard retry
+semantics are also unchanged. Consumed attempts are not yet physically deleted
+after the approved seven-day retention period.
 
-Workaround: do not claim Finding 12 fixed or production-ready. Treat the new
-attempt API as a backend foundation only.
+Workaround: do not claim the overall Finding 12 fixed. Treat only the supported
+online quiz replay/manufactured-reward path as fixed.
 
-Next action: Batch 12B must migrate online frontend quiz flows to attempts and
-close/harden the legacy reward path. Later bounded Finding 12 work must address
-review and Mark Known/Hard replay semantics and implement the approved
-seven-day consumed-attempt cleanup lifecycle.
+Next action: later bounded Finding 12 work must address Review Today and Mark
+Known/Hard replay semantics and implement the approved seven-day
+consumed-attempt cleanup lifecycle. Do not start that work as part of Batch 12B.
+
+Attempt retries are memory-only: leaving/resetting the quiz, logout, or a full
+reload discards retry state. No persistent offline reward queue or reload
+recovery was added; an already accepted server result remains in cloud history.

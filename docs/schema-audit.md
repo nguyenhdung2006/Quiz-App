@@ -12,8 +12,8 @@ This is a read-only audit packet for WordArena production schema verification. D
 | `vocabulary` | `VocabularyWord` | `backend/src/main/java/com/quizapp/vocab/VocabularyWord.java` | `/api/vocab`, `/api/snapshot`, `/api/sync`, review, analytics | Pending Supabase SELECT |
 | `word_stats` | `WordStats` | `backend/src/main/java/com/quizapp/vocab/WordStats.java` | `/api/snapshot`, `/api/review/*`, `/api/analytics/*` | Pending Supabase SELECT |
 | `wrong_bank` | `WrongBankEntry` | `backend/src/main/java/com/quizapp/vocab/WrongBankEntry.java` | `/api/wrong-words`, `/api/snapshot`, `/api/sync` | Pending Supabase SELECT |
-| `quiz_history` | `QuizHistory` | `backend/src/main/java/com/quizapp/vocab/QuizHistory.java` | `/api/quiz-results`, `/api/quiz-history`, `/api/analytics/*` | Pending Supabase SELECT |
-| `quiz_history_answers` | `QuizHistoryAnswer` | `backend/src/main/java/com/quizapp/vocab/QuizHistoryAnswer.java` | `/api/quiz-results`, `/api/snapshot`, analytics context | Pending Supabase SELECT |
+| `quiz_history` | `QuizHistory` | `backend/src/main/java/com/quizapp/vocab/QuizHistory.java` | `/api/quiz/attempts/{attemptId}/submit`, `/api/quiz-history`, `/api/analytics/*` | Pending Supabase SELECT |
+| `quiz_history_answers` | `QuizHistoryAnswer` | `backend/src/main/java/com/quizapp/vocab/QuizHistoryAnswer.java` | `/api/quiz/attempts/{attemptId}/submit`, `/api/snapshot`, analytics context | Pending Supabase SELECT |
 | `achievements` | `Achievement` | `backend/src/main/java/com/quizapp/vocab/Achievement.java` | `/api/achievements`, `/api/snapshot`, quiz XP awards | Pending Supabase SELECT |
 | `user_achievements` | `UserAchievement` | `backend/src/main/java/com/quizapp/vocab/UserAchievement.java` | `/api/achievements`, `/api/snapshot` | Pending Supabase SELECT |
 

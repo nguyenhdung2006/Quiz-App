@@ -17,16 +17,22 @@ Current migrations:
 | V3 | `V3__add_word_uid_and_word_tombstones.sql` | Adds stable `vocabulary.word_uid`, backfills it deterministically, enforces unique `(user_id, word_uid)`, and creates `word_tombstones`. |
 | V4 | `V4__add_legacy_word_id_to_word_tombstones.sql` | Adds nullable `word_tombstones.legacy_word_id` and an index for legacy-device anti-resurrection matching. |
 | V5 | `V5__add_quiz_attempts.sql` | Adds owned, UUID-addressed quiz attempts and bounded issued items/outcome metadata for transactional at-most-once submit and idempotent retry. |
+| V6 | `V6__capture_quiz_attempt_achievement_xp.sql` | Adds immutable awarded-achievement XP to consumed attempt outcomes so exact replay preserves the complete original reward result. |
 
-Do not edit an already-applied migration. Future schema changes must use a new `V6__...sql` or later migration.
+Do not edit an already-applied migration. Future schema changes must use a new `V7__...sql` or later migration.
 
 ## Quiz Attempt Persistence
 
 `learning_attempt` stores an unpredictable UUID, owning user, `QUIZ` type,
 issued/consumed status, quiz configuration, creation/24-hour expiry/consumption
 timestamps, a SHA-256 canonical submission fingerprint, original resulting
-sync revision, quiz-history reference, and bounded immutable score/XP metadata.
+sync revision, quiz-history reference, and bounded immutable quiz/achievement
+XP metadata.
 It does not store a snapshot or JSON response blob.
+V6 backfills the newly introduced achievement-XP breakdown as zero for attempts
+already consumed under V5, which did not capture that breakdown. This is a
+compatibility default, not a reconstruction of historical achievement XP or a
+new reward grant. Attempts consumed under V6 capture the actual awarded value.
 
 `learning_attempt_item` stores the owned vocabulary reference, ordinal,
 `eng`/`vie` direction, and the immutable prompt/correct-answer context captured
@@ -36,7 +42,7 @@ ordinals and duplicate words within one attempt. A word deleted before submit
 leaves the captured context but clears the word reference, causing submit to
 fail closed rather than mutating a deleted/different word.
 
-Consumed-attempt retention has an approved target of seven days. Batch 12A
+Consumed-attempt retention has an approved target of seven days. Batch 12B
 records the required timestamps but does not yet run physical cleanup; no
 scheduler or implicit lazy deletion is claimed. Cleanup remains a later bounded
 Finding 12 lifecycle task.

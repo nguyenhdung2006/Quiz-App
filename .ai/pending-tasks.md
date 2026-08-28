@@ -10,7 +10,6 @@
 
 ## Product/Engineering Follow-Up
 
-- Migrate online frontend quizzes to the server-issued attempt API, then close or harden legacy `POST /api/quiz-results` (Finding 12 Batch 12B).
 - Address self-rated review replay and define idempotent Mark Known/Hard retry semantics in later Finding 12 batches.
 - Implement bounded physical cleanup for consumed attempts older than the approved seven-day target; do not add a scheduler framework without evidence.
 - Add generated OpenAPI or checked API contract documentation.

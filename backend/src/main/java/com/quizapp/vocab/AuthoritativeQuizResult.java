@@ -9,6 +9,7 @@ public record AuthoritativeQuizResult(
         double score,
         int maxCombo,
         int awardedQuizXp,
+        int awardedAchievementXp,
         long resultingRevision
 ) {
 }

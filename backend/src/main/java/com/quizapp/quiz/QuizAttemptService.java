@@ -180,6 +180,7 @@ public class QuizAttemptService {
                 result.resultingRevision(),
                 result.history(),
                 result.awardedQuizXp(),
+                result.awardedAchievementXp(),
                 result.totalQuestions(),
                 result.correctAnswers(),
                 result.wrongAnswers(),
@@ -283,6 +284,7 @@ public class QuizAttemptService {
                 attempt.getResultScore(),
                 attempt.getResultMaxCombo(),
                 attempt.getAwardedQuizXp(),
+                attempt.getAwardedAchievementXp(),
                 attempt.getResultingSyncRevision()
         );
         return new QuizAttemptSubmitResponse(attempt.getId(), replayed, outcome, snapshot);
