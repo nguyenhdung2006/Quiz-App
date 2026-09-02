@@ -1,5 +1,21 @@
 # Completed Tasks
 
+## 2026-08-28 Audit Finding 12 Batch 12C — approved 2026-09-02
+
+Base `52c39322deb109810496ac090b1508ddc085648c`; commit/push approved separately,
+with no deploy or cloud/production database action.
+See `docs/FINDING12C.md` for the before/after flow matrix, API, ownership,
+concurrency, local-first retry, migration and exact verification evidence.
+
+- Closed Review Today replay with required operation IDs and server due-state
+  consumption; preserved self-rating and existing Known/Hard command semantics.
+- Added V7 bounded immutable review-operation ledger and exact retry recovery;
+  V1-V6 unchanged. Current word/revision are distinct from original outcome.
+- Focused backend 50/50, clean verify 158/158, Chromium 105/105 (focused 13/13),
+  helpers 8/8, local PostgreSQL 16.14 fresh V1→V7 and restart/validation PASS.
+- Status: PARTIALLY FIXED — SECURITY REPLAY PATHS FIXED, RETENTION CLEANUP REMAINS.
+  Age-based physical cleanup for quiz/review ledgers is not implemented.
+
 ## 2026-08-28 Audit Finding 12 Batch 12B
 
 Committed and pushed as `adc66a9f6ad89e9c24b454d5c8076d62442a876c`. No deployment occurred; only the three intentional audit artifacts remained untouched/untracked at that boundary.
@@ -11,7 +27,7 @@ Committed and pushed as `adc66a9f6ad89e9c24b454d5c8076d62442a876c`. No deploymen
 - Added V6 immutable achievement-XP outcome storage and browser regressions for happy path, lost response, create/submit failure, monotonic replay revision, and zero frontend legacy calls.
 - Isolated late async responses from replacement quizzes and different accounts; reset/logout cancels only browser delivery, never reverses an already accepted server outcome.
 
-Limitation:
+Limitation at the Batch 12B boundary (review replay superseded by 12C above):
 
 - Finding 12 remains `PARTIALLY FIXED`: Review Today, Mark Known/Hard retry semantics, and seven-day consumed-attempt physical cleanup are deferred. Backend-first deployment sequencing is required because old frontend/new backend intentionally fails closed.
 

@@ -125,6 +125,7 @@ function switchAccountStorage(profile) {
 let nextProfile = sanitizeProfile(profile || {});
 let nextAccountId = accountIdFromEmail(nextProfile.email);
 let previousAccountId = getCurrentAccountId();
+if (previousAccountId !== nextAccountId) window.WordArenaReviewOperationClient?.reset?.();
 
 if (previousAccountId !== nextAccountId && typeof save === "function") {
 save();

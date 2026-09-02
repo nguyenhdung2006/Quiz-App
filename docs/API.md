@@ -190,10 +190,44 @@ Attempt/retry state is memory-only. Home/reset, logout, or a full reload ends
 that retry lifecycle; reload-resilient delivery is not implemented. Late
 responses cannot overwrite a replacement quiz or another account's state.
 
-Finding 12 remains partially fixed after Batch 12B because Review Today remains
-self-rated without attempt identity, Mark Known/Hard retry semantics are
-unchanged, and seven-day consumed-attempt cleanup is documented but not
-physically implemented.
+Batch 12C adds the review-operation boundary below. Finding 12 remains partially
+fixed pending physical retention cleanup; self-rating is an intentional product
+choice, not a claim of server-verifiable answers. See [12C evidence](FINDING12C.md).
+
+## Review operation contract (Batch 12C)
+
+Both mutation routes require a UUID `operationId`. Missing/malformed IDs fail
+closed with `400`; no legacy mutation branch exists. `/api/review/answer`
+requires `wordId`, boolean `correct`, and `mode`. Mode is trimmed/lowercased
+with ROOT locale, then must be `review` or `mark-hard`; `mark-hard` requires
+`correct=false`. `/api/review/known` requires only `operationId` and `wordId`.
+
+`review` is self-rating: Good/Easy submit true; Again submits false. A new
+operation requires the same server due predicate as the queue: non-null
+`nextReview <= server now`. An accepted review schedules a future date;
+another ID against the stale state returns `409 REVIEW_NOT_DUE`, with no write.
+Known/Hard new commands retain their existing algorithms without a due check.
+
+An owner-bound operation ID and identical logical payload replay successfully;
+a different owner, word, correctness, or action returns
+`409 REVIEW_OPERATION_CONFLICT` without disclosing an original result. The
+SHA-256 canonical input is `review-operation-v1|action|wordId|correct` (Known
+uses fixed true). JSON property order is irrelevant. Client stats/revisions
+are not consumed as input.
+
+Successful responses separate `outcome` (original `operationId`, `wordId`,
+`action`, `mastery`, `streak`, `nextReview`, `message`, `resultingRevision`)
+from `word`, `inWrongBank`, and `revision` (current read models), plus
+`replayed`. `X-Sync-Revision` matches current `revision`, never a replay
+increment. Deleted words have `word: null`; the original outcome survives.
+
+Frontend retries use the same UUID and serialized body, including Retry Review,
+Retry Sync and reconnect. Pending memory-only state is discarded on account
+switch/logout/reload, not on a transient failure. A click on a pending word
+resolves that operation before a new command can be created. Local fallback
+is applied once and current server learning replaces it, without cloud reward
+or revision fabrication. A definite conflict triggers a read-only refresh,
+not another local review. Offline-only study is not retroactively submitted.
 
 ## Sync Contract V2
 
@@ -272,8 +306,8 @@ old local words that have numeric `id` but never adopted the server `wordUid`.
 | --- | --- | --- | --- | --- | --- | --- |
 | GET | `/api/review/today` | Auth | `ReviewController` | none | due review items | `SpacedRepetitionTests` |
 | GET | `/api/review/queue` | Auth | `ReviewController` | optional query `limit`, `tag`, `level` | filtered review queue | `SpacedRepetitionTests`, `Audit005CapacityTests` |
-| POST | `/api/review/answer` | Auth + CSRF | `ReviewController` | `ReviewAnswerRequest`: `wordId`, `correct`, optional `mode` | summary plus authoritative updated `word`; `X-Sync-Revision` header | `SpacedRepetitionTests`, `AuditFindingsFiveToNineTests` |
-| POST | `/api/review/known` | Auth + CSRF | `ReviewController` | `MarkKnownRequest`: `wordId` | server-authoritative minimum streak/mastery state plus updated `word`; `X-Sync-Revision` header | `AuditFindingsFiveToNineTests` |
+| POST | `/api/review/answer` | Auth + CSRF | `ReviewController` | Required `operationId`, `wordId`, `correct`, validated `mode` | Immutable `outcome`, `replayed`, current `word`, `inWrongBank`, `revision`; `X-Sync-Revision` | `Finding12ReviewOperationTests`, `SpacedRepetitionTests` |
+| POST | `/api/review/known` | Auth + CSRF | `ReviewController` | Required `operationId`, `wordId` | Same operation response; original Known algorithm for each new command | `Finding12ReviewOperationTests`, `AuditFindingsFiveToNineTests` |
 
 Successful authenticated mutations that advance cloud state return the new
 revision in `X-Sync-Revision`. Browser CORS exposes this header so the frontend
@@ -372,4 +406,5 @@ latest migration at this commit is:
 
 ```text
 V6__capture_quiz_attempt_achievement_xp.sql
+V7__add_review_operations.sql
 ```

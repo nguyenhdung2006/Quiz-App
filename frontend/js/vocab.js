@@ -811,7 +811,15 @@ syncWordUpdate(i);
 }
 
 function applyAuthoritativeLearningWord(originalWord, response, action) {
-if (!response?.word) return;
+if (!response) return;
+if (!response.word) {
+vocab = vocab.filter(item => !sameWordIdentity(item, originalWord));
+wrongWords = wrongWords.filter(item => !sameWordIdentity(item, originalWord));
+saveReviewLocal();
+renderTable();
+renderMistakeTable();
+return;
+}
 let serverWord = normalizeWord(response.word);
 let index = vocab.findIndex(item => sameWordIdentity(item, originalWord));
 if (index >= 0) vocab[index] = serverWord;
@@ -822,15 +830,31 @@ if (!sameWordIdentity(item, originalWord)) return item;
 foundWrong = true;
 return normalizeWord({ ...item, ...serverWord, mastered: serverWord.mastered });
 });
-if (action === "hard" && !foundWrong) {
-wrongWords.push(normalizeWord({ ...serverWord, mastered: false }));
+if (response.inWrongBank === false) {
+wrongWords = wrongWords.filter(item => !sameWordIdentity(item, originalWord));
+} else if ((response.inWrongBank === true || action === "hard") && !foundWrong) {
+wrongWords.push(normalizeWord(serverWord));
 }
-save();
+saveReviewLocal();
 renderTable();
 renderMistakeTable();
 }
 
 function markWordKnown(i) {
+if (!vocab[i]) return;
+let original = normalizeWord(vocab[i]);
+return window.quizCloud?.markKnown?.(original, {
+local: () => applyLocalMarkKnown(vocab.findIndex(item => sameWordIdentity(item, original))),
+accept: response => applyAuthoritativeLearningWord(original, response, "known")
+});
+}
+
+function saveReviewLocal() {
+if (window.quizCloud?.saveLocalReview) window.quizCloud.saveLocalReview();
+else save();
+}
+
+function applyLocalMarkKnown(i) {
 if (!vocab[i]) return;
 
 let word = normalizeWord(vocab[i]);
@@ -848,16 +872,21 @@ stampWordUpdatedAt(word);
 wrongWords = wrongWords.map(item => sameWordIdentity(item, word)
 ? normalizeWord({ ...item, ...word, mastered: word.mastered })
 : item);
-save();
+saveReviewLocal();
 renderTable();
 renderMistakeTable();
-
-Promise.resolve(window.quizCloud?.markKnown?.(word)).then(response => {
-applyAuthoritativeLearningWord(word, response, "known");
-});
 }
 
 function markWordHard(i) {
+if (!vocab[i]) return;
+let original = normalizeWord(vocab[i]);
+return window.quizCloud?.markHard?.(original, {
+local: () => applyLocalMarkHard(vocab.findIndex(item => sameWordIdentity(item, original))),
+accept: response => applyAuthoritativeLearningWord(original, response, "hard")
+});
+}
+
+function applyLocalMarkHard(i) {
 if (!vocab[i]) return;
 
 let word = normalizeWord(vocab[i]);
@@ -882,13 +911,9 @@ if (!existingWrong) {
 wrongWords.push(normalizeWord(word));
 }
 
-save();
+saveReviewLocal();
 renderTable();
 renderMistakeTable();
-
-Promise.resolve(window.quizCloud?.markHard?.(word)).then(response => {
-applyAuthoritativeLearningWord(word, response, "hard");
-});
 }
 
 function deleteWord(i) {

@@ -137,6 +137,27 @@ Local Batch 12B evidence (2026-08-28; committed/pushed as `adc66a9f6ad89e9c24b45
   before connection; process-scoped UTC resolved the local rehearsal issue.
   The temporary container was removed; no cloud/production DB was accessed.
 
+### Batch 12C review-operation replay protection
+
+Approved Batch 12C evidence and full before/after matrix:
+[FINDING12C.md](FINDING12C.md). Required migration is
+`V7__add_review_operations.sql`; V1-V6 are unchanged.
+
+- Focused backend: 50/50 (23 review-operation, 8 spaced repetition, 3 Findings
+  5-9, 11 quiz-attempt, 5 schema tests). Characterization first reproduced all
+  four replay vulnerabilities on unchanged production code, then became passing
+  secure assertions; no temporary exploit test is committed.
+- Clean Maven verify: 158/158 in 27 suites; zero failures/errors/skips. Package
+  passed. JaCoCo lines 2634/2980 (88.39%), branches 768/1211 (63.42%).
+- Chromium: focused 13/13, full 105/105. Helper suites 8/8, including 12 review
+  helper cases. Syntax 25 files; lint/static build PASS; assets 10 stylesheets;
+  inline ratchet 27 usages / 9 files; docs drift 31 routes / 32 env keys / V7.
+- Disposable local PostgreSQL 16.14 fresh V1→V7 and actual restart/app schema
+  validation each passed 1/1; seven successful history rows, V7 checksum
+  -1088142411. Portable runtime at loopback port 55436, stopped afterwards.
+- Secret scan and diff whitespace check PASS. No deploy/cloud or production DB
+  action. Commit/push was separately approved on 2026-09-02.
+
 ### Batch 12B.1 local-progress resilience
 
 Before changing production code, the pending-submit characterization failed:
@@ -247,7 +268,7 @@ Frontend:
 PostgreSQL:
 
 - CI starts PostgreSQL 16 and runs `SPRING_PROFILES_ACTIVE=prod ./mvnw -B -Dtest=QuizApplicationTests test` with Flyway enabled and Hibernate `ddl-auto=validate`.
-- This verifies ordered V1 -> V6 migrations against PostgreSQL in CI. The latest migration at this commit is `V6__capture_quiz_attempt_achievement_xp.sql`. It does not execute a production or staging migration.
+- This verifies ordered V1 -> V7 migrations against PostgreSQL in CI. The latest migration in the Batch 12C working tree is `V7__add_review_operations.sql`. It does not execute a production or staging migration.
 
 Docs drift:
 

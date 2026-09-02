@@ -166,7 +166,9 @@ function initSyncRetry() {
   btn.addEventListener("click", () => {
     if (typeof window.quizCloud?.syncNow === "function") {
       btn.disabled = true;
-      Promise.resolve(retryPendingQuizAttempt()).then(() => window.quizCloud.syncNow()).finally(() => {
+      Promise.resolve(retryPendingQuizAttempt())
+      .then(() => window.WordArenaReviewOperationClient?.retryPending?.())
+      .then(() => window.quizCloud.syncNow()).finally(() => {
         btn.disabled = false;
       });
     }
@@ -1253,25 +1255,10 @@ body: JSON.stringify(clean)
 return updated ? fromServerWord(updated) : null;
 }
 
-async function submitReviewAction(word, action) {
+function submitReviewAction(word, action, callbacks = {}) {
 let clean = normalizeWord(word || {});
-if (!clean.id || !cloudSyncReady) return null;
-let path = action === "known" ? "/api/review/known" : "/api/review/answer";
-let body = action === "known"
-? { wordId: clean.id }
-: { wordId: clean.id, correct: false, mode: "mark-hard" };
-try {
-let response = await API_FETCH(`${AUTH_API_ORIGIN}${path}`, {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify(body)
-});
-if (!response.ok) return null;
-rememberResponseRevision(response);
-return await response.json();
-} catch (_error) {
-return null;
-}
+return window.WordArenaReviewOperationClient.run({ wordId: clean.id,
+action: action === "known" ? "known" : "mark-hard", ...callbacks });
 }
 
 async function clearMasteredWrongWords(words) {
@@ -1307,8 +1294,9 @@ window.quizCloud = {
 createWord: createCloudWord,
 updateWord: updateCloudWord,
 deleteWord: deleteCloudWord,
-markKnown: word => submitReviewAction(word, "known"),
-markHard: word => submitReviewAction(word, "hard"),
+markKnown: (word, callbacks) => submitReviewAction(word, "known", callbacks),
+markHard: (word, callbacks) => submitReviewAction(word, "hard", callbacks),
+saveLocalReview: () => originalSave(),
 clearMasteredWrongWords,
 rememberResponseRevision,
 importSamples: importCloudSamples,
@@ -2145,6 +2133,7 @@ button.addEventListener("click", async () => {
 button.disabled = true;
 closeMenu();
 window.WordArenaQuizAttemptClient?.reset?.();
+window.WordArenaReviewOperationClient?.reset?.();
 pendingQuizResultContext = null;
 try {
 await API_FETCH(`${AUTH_API_ORIGIN}/logout`, { method: "POST" });

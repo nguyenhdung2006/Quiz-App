@@ -51,6 +51,16 @@ function word(eng, vie, tag, index) {
   };
 }
 
+function reviewResponse(payload, result, revision) {
+  return {
+    outcome: { operationId: payload.operationId, wordId: payload.wordId,
+      action: payload.mode || "known", mastery: result.mastery, streak: result.streak,
+      nextReview: result.nextReview, message: result.message, resultingRevision: revision },
+    replayed: false, word: result.word || null,
+    inWrongBank: payload.correct === false, revision
+  };
+}
+
 test("frontend html has no inline event handlers or javascript urls", async () => {
   const htmlFiles = ["index.html", "login.html"];
   const findings = [];
@@ -385,38 +395,34 @@ async function preparePage(page, options = {}) {
     if (url.endsWith("/api/review/known")) {
       knownBodies.push(route.request().postDataJSON());
       await route.fulfill({
-        headers: options.knownRevision == null
-          ? {}
-          : {
-              "X-Sync-Revision": String(options.knownRevision),
+        headers: {
+              "X-Sync-Revision": String(options.knownRevision ?? 1),
               "Access-Control-Expose-Headers": "X-Sync-Revision"
             },
-        json: options.knownResponse || {
+        json: reviewResponse(route.request().postDataJSON(), options.knownResponse || {
           wordId: 1,
           mastery: 60,
           streak: 2,
           nextReview: new Date(Date.now() + 3 * 86400000).toISOString(),
           message: "Known state saved."
-        }
+        }, options.knownRevision ?? 1)
       });
       return;
     }
     if (url.endsWith("/api/review/answer")) {
       reviewBodies.push(route.request().postDataJSON());
       await route.fulfill({
-        headers: options.reviewRevision == null
-          ? {}
-          : {
-              "X-Sync-Revision": String(options.reviewRevision),
+        headers: {
+              "X-Sync-Revision": String(options.reviewRevision ?? 1),
               "Access-Control-Expose-Headers": "X-Sync-Revision"
             },
-        json: options.reviewResponse || {
+        json: reviewResponse(route.request().postDataJSON(), options.reviewResponse || {
           wordId: 1,
           mastery: 40,
           streak: 2,
           nextReview: new Date(Date.now() + 86400000).toISOString(),
           message: "Smoke review saved."
-        }
+        }, options.reviewRevision ?? 1)
       });
       return;
     }
@@ -1579,14 +1585,14 @@ test("Mark known and Mark hard send intent only and apply server-authoritative l
 
   await page.evaluate(() => markWordKnown(0));
   await expect.poll(() => fatalConsole.knownBodies.length).toBe(1);
-  expect(fatalConsole.knownBodies[0]).toEqual({ wordId: 1 });
+  expect(fatalConsole.knownBodies[0]).toEqual({ operationId: expect.any(String), wordId: 1 });
   let state = await readImportStorage(page, fatalConsole.accountId);
   expect(state.vocab[0].stats.streak).toBe(2);
   expect(state.vocab[0].stats.masteryLevel).toBe(3);
 
   await page.evaluate(() => markWordHard(0));
   await expect.poll(() => fatalConsole.reviewBodies.length).toBe(1);
-  expect(fatalConsole.reviewBodies[0]).toEqual({ wordId: 1, correct: false, mode: "mark-hard" });
+  expect(fatalConsole.reviewBodies[0]).toEqual({ operationId: expect.any(String), wordId: 1, correct: false, mode: "mark-hard" });
   state = await readImportStorage(page, fatalConsole.accountId);
   expect(state.vocab[0].stats.wrong).toBe(1);
   expect(state.wrongWords).toHaveLength(1);
@@ -3003,6 +3009,197 @@ test("production frontend contains no legacy quiz-result submission", async () =
   const references = files.filter(file => fs.readFileSync(path.join(frontendDir, "js", file), "utf8")
     .includes("/api/quiz-results"));
   expect(references).toEqual([]);
+});
+
+function reviewServer() {
+  const due = { ...word("review security", "on tap", "review", 0),
+    wordUid: "00000000-0000-4000-8000-000000001299" };
+  due.stats.nextReview = new Date(Date.now() - 86400000).toISOString();
+  return { word: due, revision: 10, ledger: new Map(), requests: [], mutations: 0, losses: 0, inWrongBank: false };
+}
+
+async function prepareReviewPage(page, server) {
+  const profile = { name: "Review Security", email: "review-security@example.com", avatar: "images/icon.png" };
+  const snapshot = () => ({ revision: server.revision, profile, vocab: [server.word],
+    wrongWords: server.inWrongBank ? [server.word] : [], quizHistory: [], achievements: [], progress: {} });
+  const dueQueue = () => Date.parse(server.word.stats.nextReview) <= Date.now()
+    ? [{ ...server.word, wordId: server.word.id, nextReview: server.word.stats.nextReview }] : [];
+  const errors = await preparePage(page, { authenticated: true, profile, vocab: [server.word],
+    cloudSnapshot: snapshot(), syncResponse: snapshot(), cloudReviewQueue: dueQueue() });
+  await expect.poll(() => page.evaluate(() => window.quizCloud.isReady())).toBe(true);
+  await expect.poll(() => errors.syncBodies.length).toBeGreaterThan(0);
+  await page.route("**/api/snapshot", route => route.fulfill({ json: snapshot(),
+    headers: { "X-Sync-Revision": String(server.revision), "Access-Control-Expose-Headers": "X-Sync-Revision" } }));
+  await page.route("**/api/sync", route => route.fulfill({ json: snapshot() }));
+  await page.route("**/api/review/queue?*", route => route.fulfill({ json: dueQueue() }));
+  await page.route(/\/api\/review\/(answer|known)$/, async route => {
+    const payload = route.request().postDataJSON();
+    server.requests.push({ raw: route.request().postData(), payload });
+    const original = server.ledger.get(payload.operationId);
+    if (!original && payload.mode === "review" && !dueQueue().length) {
+      await route.fulfill({ status: 409, json: { error: "REVIEW_NOT_DUE" } });
+      return;
+    }
+    if (!original) {
+      const stats = server.word.stats;
+      const known = !payload.mode;
+      stats.seen++;
+      if (known || payload.correct) {
+        stats.correct++;
+        stats.streak = Math.max(known ? 2 : 1, stats.streak + 1);
+        stats.masteryLevel = Math.min(5, Math.max(known ? 3 : 1, stats.masteryLevel + 1));
+      } else {
+        stats.wrong++; stats.streak = 0;
+        stats.masteryLevel = Math.max(0, stats.masteryLevel - 1);
+        server.inWrongBank = true;
+      }
+      stats.bestStreak = Math.max(stats.bestStreak, stats.streak);
+      stats.nextReview = new Date(Date.now() + 86400000).toISOString();
+      server.revision++; server.mutations++;
+      server.ledger.set(payload.operationId, reviewResponse(payload, { word: server.word,
+        mastery: stats.masteryLevel * 20, streak: stats.streak, nextReview: stats.nextReview,
+        message: "Original operation accepted." }, server.revision).outcome);
+    }
+    if (server.hold) await server.hold;
+    if (server.losses > 0) { server.losses--; await route.abort("connectionreset"); return; }
+    await route.fulfill({ headers: { "X-Sync-Revision": String(server.revision),
+      "Access-Control-Expose-Headers": "X-Sync-Revision" }, json: {
+      outcome: server.ledger.get(payload.operationId), replayed: Boolean(original),
+      revision: server.revision, word: server.word, inWrongBank: server.inWrongBank
+    } });
+  });
+  return errors;
+}
+
+async function rateReview(page, rating = "Good") {
+  await page.getByRole("button", { name: "Review", exact: true }).click();
+  await page.locator("#reviewTodayBody").getByRole("button", { name: "Reveal Answer" }).first().click();
+  await page.locator("#reviewTodayBody").getByRole("button", { name: new RegExp(rating) }).first().click();
+}
+
+for (const rating of ["Good", "Again"]) {
+  test(`12C Review ${rating} lost response retries exact operation and reconciles local once`, async ({ page }) => {
+    const server = reviewServer(); server.losses = 1;
+    const errors = await prepareReviewPage(page, server);
+    await rateReview(page, rating);
+    await expect.poll(() => server.requests.length).toBe(2);
+    await expect.poll(() => page.evaluate(() => window.WordArenaReviewOperationClient.pendingCount())).toBe(0);
+    const state = await readImportStorage(page, errors.accountId);
+    expect(state.vocab[0].stats.seen).toBe(1);
+    expect(state.vocab[0].stats[rating === "Good" ? "correct" : "wrong"]).toBe(1);
+    expect(server.mutations).toBe(1);
+    expect(server.requests[0].raw).toBe(server.requests[1].raw);
+    expect(await page.evaluate(() => window.quizCloud.state().lastKnownRevision)).toBe(11);
+  });
+}
+
+test("12C Review unknown outcome retains UUID across manual Retry Review without second local learning", async ({ page }) => {
+  const server = reviewServer(); server.losses = 2;
+  const errors = await prepareReviewPage(page, server);
+  await rateReview(page);
+  await expect(page.getByRole("button", { name: "Retry Review", exact: true })).toBeVisible();
+  expect((await readImportStorage(page, errors.accountId)).vocab[0].stats.seen).toBe(1);
+  await page.getByRole("button", { name: "Retry Review", exact: true }).click();
+  await expect.poll(() => server.requests.length).toBe(3);
+  await expect.poll(() => page.evaluate(() => window.WordArenaReviewOperationClient.pendingCount())).toBe(0);
+  expect(new Set(server.requests.map(request => request.raw)).size).toBe(1);
+  expect((await readImportStorage(page, errors.accountId)).vocab[0].stats.seen).toBe(1);
+  expect(server.mutations).toBe(1);
+});
+
+for (const action of ["known", "hard"]) {
+  test(`12C Mark ${action} lost response and explicit retry reuse one command`, async ({ page }) => {
+    const server = reviewServer(); server.losses = 2;
+    const errors = await prepareReviewPage(page, server);
+    await page.evaluate(action => action === "known" ? markWordKnown(0) : markWordHard(0), action);
+    expect((await readImportStorage(page, errors.accountId)).vocab[0].stats.seen).toBe(1);
+    expect(server.requests).toHaveLength(2);
+    await page.evaluate(action => action === "known" ? markWordKnown(0) : markWordHard(0), action);
+    expect(server.requests).toHaveLength(3);
+    expect(new Set(server.requests.map(request => request.raw)).size).toBe(1);
+    expect(server.mutations).toBe(1);
+    expect((await readImportStorage(page, errors.accountId)).vocab[0].stats.seen).toBe(1);
+    // A new click AFTER confirmed completion preserves the existing command semantics.
+    await page.evaluate(action => action === "known" ? markWordKnown(0) : markWordHard(0), action);
+    expect(server.mutations).toBe(2);
+    expect(server.requests[3].payload.operationId).not.toBe(server.requests[0].payload.operationId);
+  });
+}
+
+test("12C two stale Review tabs consume one due state and refresh the rejected card", async ({ page, browser }) => {
+  const server = reviewServer();
+  await prepareReviewPage(page, server);
+  const contextB = await browser.newContext();
+  const tabB = await contextB.newPage();
+  try {
+    const errorsB = await prepareReviewPage(tabB, server);
+    await tabB.getByRole("button", { name: "Review", exact: true }).click();
+    await tabB.getByRole("button", { name: "Reveal Answer" }).first().click();
+    await rateReview(page);
+    await expect.poll(() => page.evaluate(() => window.WordArenaReviewOperationClient.pendingCount())).toBe(0);
+    await tabB.locator("#reviewTodayBody").getByRole("button", { name: /Good/ }).first().click();
+    await expect(tabB.locator("#reviewTodayBody")).toContainText("already reviewed");
+    expect(server.mutations).toBe(1);
+    expect(server.revision).toBe(11);
+    expect(server.requests[0].payload.operationId).not.toBe(server.requests[1].payload.operationId);
+    const state = await readImportStorage(tabB, errorsB.accountId);
+    expect(state.vocab[0].stats.seen).toBe(1);
+    await expect(tabB.locator(".reviewQueueItem")).toHaveCount(0);
+  } finally { await contextB.close(); }
+});
+
+for (const action of ["review", "known", "hard"]) {
+  test(`12C late ${action} response cannot mutate a different account`, async ({ page }) => {
+    const server = reviewServer();
+    let release;
+    server.hold = new Promise(resolve => { release = resolve; });
+    await prepareReviewPage(page, server);
+    if (action === "review") await rateReview(page);
+    else await page.evaluate(action => { void (action === "known" ? markWordKnown(0) : markWordHard(0)); }, action);
+    await expect.poll(() => server.requests.length).toBe(1);
+    await page.evaluate(() => {
+      window.switchAccountStorage({ email: "review-b@example.com", name: "Account B" });
+      vocab = [{ id: 1, wordUid: "b-word", eng: "B only", vie: "B", stats: { seen: 30, correct: 20 } }];
+      window.quizCloud.saveLocalReview();
+    });
+    release();
+    await page.waitForTimeout(150);
+    const state = await readImportStorage(page, "review-b@example.com");
+    expect(state.vocab[0].eng).toBe("B only");
+    expect(state.vocab[0].stats.seen).toBe(30);
+    expect(await page.evaluate(() => window.WordArenaReviewOperationClient.pendingCount())).toBe(0);
+  });
+}
+
+test("12C late review queue cannot populate a different account", async ({ page }) => {
+  const server = reviewServer();
+  await prepareReviewPage(page, server);
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  let requested = false;
+  await page.route("**/api/review/queue?*", async route => {
+    requested = true; await held;
+    await route.fulfill({ json: [{ ...server.word, eng: "Private A queue", wordId: 1 }] });
+  });
+  await page.evaluate(() => { void window.reviewToday.refresh(); });
+  await expect.poll(() => requested).toBe(true);
+  await page.evaluate(() => window.switchAccountStorage({ email: "queue-b@example.com", name: "Queue B" }));
+  release();
+  await page.waitForTimeout(150);
+  await expect(page.locator("#reviewTodayBody")).not.toContainText("Private A queue");
+});
+
+test("12C late review completion cannot update a replacement review session", async ({ page }) => {
+  const server = reviewServer(); let release;
+  server.hold = new Promise(resolve => { release = resolve; });
+  await prepareReviewPage(page, server);
+  await rateReview(page);
+  await expect.poll(() => server.requests.length).toBe(1);
+  await page.locator("#reviewTodayStartBtn").click();
+  release();
+  await expect.poll(() => page.evaluate(() => window.WordArenaReviewOperationClient.pendingCount())).toBe(0);
+  await expect(page.locator(".reviewSessionOverview")).toContainText("Progress: 0 / 0");
+  await expect(page.locator("#reviewTodayBody .reviewFeedback")).toHaveCount(0);
 });
 
 test("review queue renders ratings and accepts one local review", async ({ page }) => {

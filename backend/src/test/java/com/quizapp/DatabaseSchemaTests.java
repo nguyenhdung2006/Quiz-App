@@ -8,6 +8,51 @@ import org.junit.jupiter.api.Test;
 
 class DatabaseSchemaTests {
     @Test
+    void reviewOperationV7RunsOnH2AndMatchesReferenceSchema() throws Exception {
+        String migration = Files.readString(Path.of("src/main/resources/db/migration/V7__add_review_operations.sql"));
+        String schema = Files.readString(Path.of("../database/schema.sql"));
+        assertThat(schema.replace("CREATE TABLE IF NOT EXISTS", "CREATE TABLE")
+                .replace("CREATE INDEX IF NOT EXISTS", "CREATE INDEX").replace("\r\n", "\n"))
+                .contains(migration.replace("\r\n", "\n").trim());
+        try (var connection = java.sql.DriverManager.getConnection("jdbc:h2:mem:reviewV7;MODE=PostgreSQL", "sa", "");
+             var statement = connection.createStatement()) {
+            statement.execute("CREATE DOMAIN TIMESTAMPTZ AS TIMESTAMP WITH TIME ZONE");
+            statement.execute("CREATE TABLE app_users (id BIGINT PRIMARY KEY)");
+            statement.execute("CREATE TABLE vocabulary (id BIGINT PRIMARY KEY, user_id BIGINT, UNIQUE(id, user_id))");
+            statement.execute(migration);
+            statement.execute("INSERT INTO app_users VALUES (1), (2)");
+            statement.execute("INSERT INTO vocabulary VALUES (10, 1), (20, 2)");
+            String insert = "INSERT INTO review_operation (id,user_id,word_id,target_word_id,target_user_id,action,"
+                    + "fingerprint,created_at,consumed_at,mastery,streak,next_review,message,resulting_revision) VALUES "
+                    + "('00000000-0000-4000-8000-000000000001',1,10,10,1,'review','" + "a".repeat(64)
+                    + "',NOW(),NOW(),20,1,DATEADD('DAY',1,NOW()),'accepted',1)";
+            statement.execute(insert);
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.execute(insert))
+                    .isInstanceOf(java.sql.SQLException.class); // unique identity
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.execute(
+                    "UPDATE review_operation SET target_user_id = 2"))
+                    .isInstanceOf(java.sql.SQLException.class); // cross-owner binding
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.execute(
+                    "UPDATE review_operation SET consumed_at = NULL"))
+                    .isInstanceOf(java.sql.SQLException.class); // no partial outcome
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> statement.execute(
+                    "UPDATE review_operation SET action = 'arbitrary'"))
+                    .isInstanceOf(java.sql.SQLException.class);
+            statement.execute("DELETE FROM vocabulary WHERE id = 10");
+            try (var rows = statement.executeQuery("SELECT word_id, target_word_id, target_user_id FROM review_operation")) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getLong(1)).isEqualTo(10);
+                assertThat(rows.getObject(2)).isNull();
+                assertThat(rows.getObject(3)).isNull();
+            }
+            statement.execute("DELETE FROM app_users WHERE id = 1");
+            try (var rows = statement.executeQuery("SELECT COUNT(*) FROM review_operation")) {
+                rows.next(); assertThat(rows.getInt(1)).isZero();
+            }
+        }
+    }
+
+    @Test
     void schemaIncludesAdditiveColumnsNeededByCloudReviewEndpoints() throws Exception {
         String schema = Files.readString(Path.of("..", "database", "schema.sql")).toLowerCase();
 

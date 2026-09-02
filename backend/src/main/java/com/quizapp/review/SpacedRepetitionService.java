@@ -15,6 +15,12 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
+import java.util.HexFormat;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +36,7 @@ public class SpacedRepetitionService {
     private final VocabularyRepository words;
     private final AppUserRepository users;
     private final WrongBankRepository wrongBank;
+    private final ReviewOperationRepository operations;
 
     @Autowired(required = false)
     private HealthCounterService healthCounters;
@@ -38,19 +45,21 @@ public class SpacedRepetitionService {
     public SpacedRepetitionService(
             VocabularyRepository words,
             AppUserRepository users,
-            WrongBankRepository wrongBank
+            WrongBankRepository wrongBank,
+            ReviewOperationRepository operations
     ) {
         this.words = words;
         this.users = users;
         this.wrongBank = wrongBank;
+        this.operations = operations;
     }
 
     public SpacedRepetitionService(VocabularyRepository words, AppUserRepository users) {
-        this(words, users, null);
+        this(words, users, null, null);
     }
 
     public SpacedRepetitionService(VocabularyRepository words) {
-        this(words, null, null);
+        this(words, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -88,31 +97,65 @@ public class SpacedRepetitionService {
 
     @Transactional
     public RevisionedResult<ReviewAnswerResponse> answer(AppUser user, ReviewAnswerRequest request) {
-        AppUser syncUser = lockUserForRevision(user);
-        VocabularyWord word = requireWord(syncUser, request.wordId());
-        WordStats stats = applyAnswer(word, request.correct(), Instant.now());
-        words.save(word);
-        synchronizeWrongBank(syncUser, word, request.correct());
-        long revision = syncUser.incrementSyncRevision();
-        log.info("[REVIEW] Answer processed userId={} wordId={} correct={} mastery={}% streak={}",
-                syncUser.getId(), word.getId(), request.correct(),
-                masteryPercent(stats), stats.getCurrentStreak());
-        return new RevisionedResult<>(new ReviewAnswerResponse(
-                word.getId(),
-                masteryPercent(stats),
-                stats.getCurrentStreak(),
-                stats.getNextReview(),
-                message(stats, request.correct()),
-                WordDto.from(word)
-        ), revision);
+        String mode = normalizeFilter(request.mode());
+        if (request.operationId() == null || request.correct() == null
+                || !("review".equals(mode) || "mark-hard".equals(mode))
+                || ("mark-hard".equals(mode) && request.correct())) {
+            throw new IllegalArgumentException("Review requires an operation id and a supported action.");
+        }
+        return process(user, request.operationId(), request.wordId(), mode, request.correct());
     }
 
     @Transactional
     public RevisionedResult<ReviewAnswerResponse> markKnown(AppUser user, MarkKnownRequest request) {
+        if (request.operationId() == null) throw new IllegalArgumentException("Operation id is required.");
+        return process(user, request.operationId(), request.wordId(), "known", true);
+    }
+
+    private RevisionedResult<ReviewAnswerResponse> process(AppUser user, UUID operationId,
+            Long wordId, String action, boolean correct) {
+        // This database lock is held until commit/rollback, including ledger insertion.
         AppUser syncUser = lockUserForRevision(user);
-        VocabularyWord word = requireWord(syncUser, request.wordId());
+        String fingerprint = fingerprint(wordId, action, correct);
+        ReviewOperation existing = operations.findById(operationId).orElse(null);
+        if (existing != null) {
+            if (!syncUser.getId().equals(existing.getUserId())
+                    || !fingerprint.equals(existing.getFingerprint())) {
+                throw conflict();
+            }
+            VocabularyWord current = existing.getTargetWordId() == null ? null
+                    : words.findByIdAndUser(existing.getTargetWordId(), syncUser).orElse(null);
+            return response(syncUser, existing.outcome(), current, true);
+        }
+
+        VocabularyWord word = requireWord(syncUser, wordId);
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        if ("review".equals(action) && (word.getStats() == null
+                || word.getStats().getNextReview() == null || word.getStats().getNextReview().isAfter(now))) {
+            throw new ReviewOperationConflictException("REVIEW_NOT_DUE", "This review is no longer due. Refresh the queue.");
+        }
+        WordStats stats = "known".equals(action) ? applyKnown(word, now) : applyAnswer(word, correct, now);
+        words.save(word);
+        synchronizeWrongBank(syncUser, word, correct);
+        long revision = syncUser.incrementSyncRevision();
+        String resultMessage = "known".equals(action) ? "Known state saved." : message(stats, correct);
+        ReviewOperationOutcome outcome = new ReviewOperationOutcome(operationId, wordId, action,
+                masteryPercent(stats), stats.getCurrentStreak(), stats.getNextReview(), resultMessage, revision);
+        try {
+            operations.insert(operationId, syncUser.getId(), wordId, action, fingerprint, now,
+                    outcome.mastery(), outcome.streak(), outcome.nextReview(), resultMessage, revision);
+        } catch (DataIntegrityViolationException exception) {
+            // Different owners do not share the user lock. A racing global UUID collision
+            // fails closed and rolls back ALL word/wrong-bank/revision writes in this transaction.
+            if (exception.getMostSpecificCause() instanceof java.sql.SQLException sql
+                    && "23505".equals(sql.getSQLState())) throw conflict();
+            throw exception;
+        }
+        return response(syncUser, outcome, word, false);
+    }
+
+    private WordStats applyKnown(VocabularyWord word, Instant reviewedAt) {
         WordStats stats = ensureStats(word);
-        Instant reviewedAt = Instant.now();
         sanitizeStats(stats);
         stats.setSeen(increment(stats.getSeen()));
         stats.setCorrect(increment(stats.getCorrect()));
@@ -122,19 +165,30 @@ public class SpacedRepetitionService {
         stats.setLastReviewed(reviewedAt);
         word.setMastered(stats.getCurrentStreak() >= 5);
         stats.setNextReview(nextReview(stats, true, reviewedAt));
-        words.save(word);
-        synchronizeWrongBank(syncUser, word, true);
-        long revision = syncUser.incrementSyncRevision();
-        log.info("[REVIEW] Mark known processed userId={} wordId={} mastery={}% streak={}",
-                syncUser.getId(), word.getId(), masteryPercent(stats), stats.getCurrentStreak());
-        return new RevisionedResult<>(new ReviewAnswerResponse(
-                word.getId(),
-                masteryPercent(stats),
-                stats.getCurrentStreak(),
-                stats.getNextReview(),
-                "Known state saved.",
-                WordDto.from(word)
-        ), revision);
+        return stats;
+    }
+
+    private RevisionedResult<ReviewAnswerResponse> response(AppUser user, ReviewOperationOutcome outcome,
+            VocabularyWord word, boolean replayed) {
+        long revision = user.getSyncRevision();
+        boolean inWrongBank = word != null && wrongBank.findByUserAndWord(user, word).isPresent();
+        return new RevisionedResult<>(new ReviewAnswerResponse(outcome, replayed,
+                word == null ? null : WordDto.from(word), inWrongBank, revision), revision);
+    }
+
+    private String fingerprint(Long wordId, String action, boolean correct) {
+        // Only validated fixed action names, a positive integer and a boolean; no JSON ordering.
+        String canonical = "review-operation-v1|" + action + "|" + wordId + "|" + correct;
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 unavailable", exception);
+        }
+    }
+
+    private ReviewOperationConflictException conflict() {
+        return new ReviewOperationConflictException("REVIEW_OPERATION_CONFLICT", "Operation id is unavailable for this request.");
     }
 
     public WordStats applyAnswer(VocabularyWord word, boolean correct, Instant reviewedAt) {

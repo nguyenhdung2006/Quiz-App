@@ -1,4 +1,4 @@
-/* global accountStorageKey, normalizeWord, renderMistakeTable, renderTable, sameWordIdentity, save, showAppPage, stampWordUpdatedAt, vocab:writable, wrongWords:writable */
+/* global accountStorageKey, applyAuthoritativeLearningWord, normalizeWord, renderMistakeTable, renderTable, sameWordIdentity, save, saveReviewLocal, showAppPage, stampWordUpdatedAt, vocab:writable, wrongWords:writable */
 (function () {
 const REVIEW_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 const API_FETCH = window.quizApiFetch || fetch.bind(window);
@@ -9,6 +9,9 @@ let reviewApiError = "";
 let revealedReviewItems = new Set();
 let reviewSubmittingItems = new Set();
 let reviewSession = freshSession();
+let refreshGeneration = 0;
+let sessionGeneration = 0;
+const operations = window.WordArenaReviewOperationClient;
 
 function freshSession() {
 return {
@@ -144,30 +147,6 @@ return { items: null, error: "Cloud review queue is unavailable. Showing local q
 }
 }
 
-async function postAnswer(item, correct) {
-if (!item.wordId) return null;
-try {
-let response = await API_FETCH(`${REVIEW_API_ORIGIN}/api/review/answer`, {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({
-wordId: item.wordId,
-correct,
-mode: "review"
-})
-});
-if (!response.ok) {
-reviewApiError = `Cloud review update failed (${response.status}). Saved locally for now.`;
-return null;
-}
-window.quizCloud?.rememberResponseRevision?.(response);
-return response.json();
-} catch (error) {
-reviewApiError = "Cloud review update is unavailable. Saved locally for now.";
-return null;
-}
-}
-
 function nextReviewDate(streak, correct) {
 let due = new Date();
 let days;
@@ -188,39 +167,12 @@ due.setDate(due.getDate() + days);
 return due.toISOString();
 }
 
-function applyLocalAnswer(item, correct, serverResponse = null) {
-let word = item.localWord || getWords().find(candidate =>
-candidate.wordUid === item.wordUid ||
-candidate.id === item.wordId || candidate.eng === item.eng
+function applyLocalAnswer(item, correct) {
+let word = getWords().find(candidate =>
+(item.wordUid && candidate.wordUid === item.wordUid) ||
+(item.wordId && Number(candidate.id) === Number(item.wordId)) || (!item.wordId && candidate.eng === item.eng)
 );
 if (!word) return;
-
-if (serverResponse?.word) {
-let authoritative = normalizeWord(serverResponse.word);
-let index = getWords().findIndex(candidate =>
-(typeof sameWordIdentity === "function" && sameWordIdentity(candidate, word))
-|| candidate.id === word.id
-);
-if (index >= 0) vocab[index] = authoritative;
-let foundWrong = false;
-if (typeof wrongWords !== "undefined" && Array.isArray(wrongWords)) {
-wrongWords = wrongWords.map(candidate => {
-let matches = typeof sameWordIdentity === "function"
-? sameWordIdentity(candidate, word)
-: candidate.id === word.id;
-if (!matches) return candidate;
-foundWrong = true;
-return normalizeWord({ ...candidate, ...authoritative, mastered: authoritative.mastered });
-});
-if (!correct && !foundWrong) wrongWords.push(normalizeWord({ ...authoritative, mastered: false }));
-}
-if (typeof save === "function") save();
-else persistLocalWords();
-renderTable?.();
-renderMistakeTable?.();
-window.analyticsDashboard?.refresh?.();
-return;
-}
 
 let reviewedAt = new Date().toISOString();
 let data = stats(word);
@@ -228,13 +180,13 @@ data.seen = Number(data.seen || 0) + 1;
 data.lastReviewed = reviewedAt;
 if (correct) {
 data.correct = Number(data.correct || 0) + 1;
-data.streak = serverResponse?.streak ?? (Number(data.streak || 0) + 1);
+data.streak = Number(data.streak || 0) + 1;
 data.bestStreak = Math.max(Number(data.bestStreak || 0), Number(data.streak || 0));
-data.masteryLevel = Math.min(5, serverResponse ? Math.round(Number(serverResponse.mastery || 0) / 20) : Number(data.masteryLevel || 0) + 1);
+data.masteryLevel = Math.min(5, Number(data.masteryLevel || 0) + 1);
 } else {
 data.wrong = Number(data.wrong || 0) + 1;
-data.streak = serverResponse?.streak ?? 0;
-data.masteryLevel = Math.max(0, serverResponse ? Math.round(Number(serverResponse.mastery || 0) / 20) : Number(data.masteryLevel || 0) - 1);
+data.streak = 0;
+data.masteryLevel = Math.max(0, Number(data.masteryLevel || 0) - 1);
 word.mastered = false;
 }
 
@@ -256,10 +208,10 @@ return normalizeWord({ ...candidate, ...word, mastered: word.mastered });
 if (!correct && !foundWrong) wrongWords.push(normalizeWord({ ...word, mastered: false }));
 }
 
-data.nextReview = serverResponse?.nextReview || nextReviewDate(Number(data.streak || 0), correct);
+data.nextReview = nextReviewDate(Number(data.streak || 0), correct);
 if (typeof stampWordUpdatedAt === "function") stampWordUpdatedAt(word, reviewedAt);
 else word.updatedAt = reviewedAt;
-if (typeof save === "function") save();
+if (typeof saveReviewLocal === "function") saveReviewLocal();
 else persistLocalWords();
 renderTable?.();
 renderMistakeTable?.();
@@ -476,7 +428,7 @@ feedback.className = "reviewFeedback";
 let title = document.createElement("strong");
 title.textContent = rating === "easy" ? "Easy marked" : correct ? "Good review" : "Again queued";
 let detail = document.createElement("span");
-detail.textContent = fallbackMessage || response?.message || (correct ? "Saved as correct with the existing review API." : "Saved as incorrect with the existing review API.");
+detail.textContent = fallbackMessage || response?.outcome?.message || "Review saved on this device.";
 feedback.append(title, detail);
 host.prepend(feedback);
 if (!fallbackMessage) {
@@ -527,10 +479,10 @@ setText("reviewTodayMeta", total
 : `0 words due today - ${reviewSource}`);
 host.appendChild(renderSessionOverview());
 
-if (reviewApiError) {
-let errorLine = stateLine(reviewApiError, "warn");
+if (reviewApiError || operations.pendingCount()) {
+let errorLine = stateLine(reviewApiError || "Review confirmation pending. Retry uses the same operation.", "warn");
 host.appendChild(errorLine);
-if (!reviewQueue.length) {
+if (!reviewQueue.length || operations.pendingCount()) {
 let retryBtn = document.createElement("button");
 retryBtn.className = "miniBtn";
 retryBtn.type = "button";
@@ -538,6 +490,7 @@ retryBtn.textContent = "Retry Review";
 retryBtn.addEventListener("click", async () => {
 retryBtn.disabled = true;
 retryBtn.textContent = "Retrying...";
+await operations.retryPending();
 await refresh();
 });
 host.appendChild(retryBtn);
@@ -638,27 +591,47 @@ reviewSubmittingItems.add(itemKey);
 renderQueue();
 let response = null;
 let submitError = "";
+let deliveryContext = operations.context();
+let session = sessionGeneration;
 try {
-response = reviewSource === "Cloud" ? await postAnswer(item, correct) : null;
-submitError = reviewApiError;
-applyLocalAnswer(item, correct, response);
+let result = await operations.run({ wordId: Number(item.wordId), action: "review", correct,
+online: reviewSource === "Cloud",
+local: () => applyLocalAnswer(item, correct),
+accept: body => applyAuthoritativeLearningWord(item.localWord || { ...item, id: item.wordId }, body, correct ? "known" : "hard")
+});
+if (!operations.isCurrent(deliveryContext) || sessionGeneration !== session || result.cancelled) return;
+response = result.body;
+if (result.rejected) {
+submitError = result.error === "REVIEW_NOT_DUE"
+? "This card was already reviewed. Queue refreshed; no new review was recorded."
+: "Cloud rejected this operation. Current word state refreshed.";
+} else if (result.pending) {
+submitError = "Saved locally once. Retry Review will confirm the same operation.";
+}
+if (!result.rejected && !result.reused) {
 reviewSession.reviewed += 1;
 if (rating === "again") reviewSession.again += 1;
 else if (rating === "easy") reviewSession.easy += 1;
 else reviewSession.good += 1;
+}
 revealedReviewItems.delete(itemKey);
 await refresh();
 } finally {
+if (operations.isCurrent(deliveryContext) && sessionGeneration === session) {
 reviewSubmittingItems.delete(itemKey);
 renderQueue();
 renderFeedback(response, correct, submitError, rating);
 }
 }
+}
 
 async function refresh() {
+let deliveryContext = operations.context();
+let requestGeneration = ++refreshGeneration;
 renderLoading();
 reviewApiError = "";
 let cloud = await fetchQueue();
+if (!operations.isCurrent(deliveryContext) || requestGeneration !== refreshGeneration) return;
 let cloudQueue = cloud?.items;
 if (cloudQueue) {
 reviewSource = "Cloud";
@@ -668,11 +641,13 @@ reviewSource = "Local";
 reviewApiError = cloud?.error || "";
 reviewQueue = localQueue().map(enrichReviewItem);
 }
+reviewQueue = reviewQueue.filter(item => !operations.hasPending(item.wordId));
 renderQueue();
 }
 
 function init() {
 document.getElementById("reviewTodayStartBtn")?.addEventListener("click", () => {
+sessionGeneration++;
 reviewSession = freshSession();
 revealedReviewItems.clear();
 reviewSubmittingItems.clear();
@@ -681,6 +656,17 @@ refresh();
 refresh();
 }
 
-window.reviewToday = { refresh };
+function reset() {
+refreshGeneration++;
+sessionGeneration++;
+reviewQueue = [];
+reviewSession = freshSession();
+revealedReviewItems.clear();
+reviewSubmittingItems.clear();
+reviewApiError = "";
+renderQueue();
+}
+
+window.reviewToday = { refresh, reset };
 init();
 })();

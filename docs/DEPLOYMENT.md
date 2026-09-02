@@ -20,6 +20,19 @@ production results.
 
 ## Required Pre-Deployment Gate
 
+### Finding 12C version-skew sequencing (future Finding 13 review only)
+
+Apply and validate V7 with the new backend **before** serving the new frontend.
+The new backend requires review `operationId`; cached old clients fail closed
+with 400 until refreshed. Do not deploy the new retrying frontend against an
+old backend, which has no idempotency boundary. Verify backend version/schema,
+then invalidate frontend caches and check the explicit operation contract.
+Do not roll back the backend to the insecure contract while the new frontend
+is served. V1-V6 are immutable; roll-forward is preferred for this additive V7.
+This is documentation only: Batch 12C performs no deployment or production DB
+operation. Its implementation was separately approved for commit/push on
+2026-09-02; that approval does not authorize rollout.
+
 Run the GitHub Actions workflow **Production Release Gate** for the exact commit SHA intended for production. Do not deploy production unless the `production-release-gate-report` conclusion is `GO`.
 
 Do not treat source hardening as a production-ready decision. As of 2026-08-08,

@@ -19,7 +19,33 @@ Current migrations:
 | V5 | `V5__add_quiz_attempts.sql` | Adds owned, UUID-addressed quiz attempts and bounded issued items/outcome metadata for transactional at-most-once submit and idempotent retry. |
 | V6 | `V6__capture_quiz_attempt_achievement_xp.sql` | Adds immutable awarded-achievement XP to consumed attempt outcomes so exact replay preserves the complete original reward result. |
 
-Do not edit an already-applied migration. Future schema changes must use a new `V7__...sql` or later migration.
+| V7 | `V7__add_review_operations.sql` | Bounded insert-only, owned review-operation outcomes and canonical fingerprints; no response snapshots. |
+
+Do not edit an already-applied migration. Future schema changes must use a new `V8__...sql` or later migration. Batch 12C leaves V1-V6 unchanged.
+
+## Review operation persistence
+
+`review_operation` has a global UUID primary key, owner FK, original word ID,
+validated action, 64-character SHA-256 fingerprint, creation/consumption times,
+and original mastery/streak/next-review/message/resulting revision. All outcome
+fields are non-null and bounded; no issued/partial row or JSON blob is stored.
+The application has only lookup/INSERT operations and an immutable entity,
+never merge/upsert/update. The existing user `PESSIMISTIC_WRITE` lock covers
+lookup, due validation, mutation, revision increment and insertion through commit.
+A global UUID insertion collision rolls the losing transaction back entirely.
+
+A nullable composite `(target_word_id,target_user_id)` FK enforces vocabulary
+ownership. Word deletion nulls only that live reference; the immutable original
+word ID/outcome survives for retry. Owner deletion cascades ledger rows. Indexes
+on owner/live word support FK deletion checks; replay reads use the UUID PK.
+TIMESTAMPTZ values follow existing conventions (microsecond server timestamps).
+Flyway runs V7 once; repeat startup validates its recorded checksum, rather
+than re-executing CREATE TABLE. `database/schema.sql` mirrors V7.
+
+Physical age-based cleanup is **not implemented** for review operations.
+Coordinate it with the later Finding 12 retention batch: retain retry identities
+through the approved recovery window, define expiration/retry behavior before
+deletion, and use bounded cleanup. No scheduler or implicit deletion is added.
 
 ## Quiz Attempt Persistence
 

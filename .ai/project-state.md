@@ -8,7 +8,9 @@ Branch: `chore/audit-reconciliation-and-upgrade`.
 
 Production gate: `NOT_READY`.
 
-Current focus: Finding 12 Batch 12B.1 pending-quiz local learning resilience is implemented and verified. Batch 12B was committed and pushed as `adc66a9f6ad89e9c24b454d5c8076d62442a876c`; supported online quizzes use attempts and the legacy reward route is retired. No deployment occurred. Finding 12 remains `PARTIALLY_FIXED` for Review Today, Mark Known/Hard retry semantics, and retention cleanup.
+Current focus: Finding 12 Batch 12C was approved for commit/push on 2026-09-02. Base is approved Batch 12B.1 `52c39322deb109810496ac090b1508ddc085648c`. Finding 12 is **PARTIALLY FIXED — SECURITY REPLAY PATHS FIXED, RETENTION CLEANUP REMAINS**. Review stays self-rating; Known/Hard retain new-command semantics. No deployment or cloud/production DB access occurred. Do not begin retention cleanup or Finding 13.
+
+Batch 12C evidence: `docs/FINDING12C.md`. V7 adds the bounded owned review-operation ledger; V1-V6 unchanged. Focused backend 50/50; clean verify 158/158 in 27 suites; package PASS; JaCoCo lines 88.39%, branches 63.42%. Focused Chromium 13/13, full 105/105; helpers 8/8 (review helper 12/12); syntax 25; assets 10; inline 27/9; lint/build/docs/secret/diff gates PASS. Disposable loopback PostgreSQL 16.14 fresh V1→V7 and actual restart/Hibernate validation passed 1/1 each; seven successful migration rows; V7 checksum -1088142411. Test database stopped. Three audit artifacts remain untouched/untracked. Physical age-based cleanup is not implemented for either quiz attempts or review operations.
 
 Implemented and verified locally:
 

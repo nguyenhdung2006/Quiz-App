@@ -5,6 +5,8 @@ import com.quizapp.ai.AiRateLimitExceededException;
 import com.quizapp.health.HealthCounterService;
 import com.quizapp.quiz.QuizAttemptConflictException;
 import com.quizapp.quiz.QuizAttemptConflictResponse;
+import com.quizapp.review.ReviewOperationConflictException;
+import java.util.Map;
 import com.quizapp.vocab.SyncConflictResponse;
 import com.quizapp.vocab.SyncClientUpgradeRequiredException;
 import com.quizapp.vocab.SyncClientUpgradeResponse;
@@ -95,6 +97,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(new QuizAttemptConflictResponse(exception.getError(), exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReviewOperationConflictException.class)
+    ResponseEntity<Map<String, String>> handleReviewOperationConflict(ReviewOperationConflictException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", exception.getError(), "message", exception.getMessage()));
     }
 
     @ExceptionHandler(SyncClientUpgradeRequiredException.class)

@@ -32,6 +32,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 })
 @AutoConfigureMockMvc
 class AuditFindingsFiveToNineTests {
+    @Autowired private javax.sql.DataSource dataSource;
     private static final String REVISION_HEADER = "X-Sync-Revision";
 
     @Autowired
@@ -57,7 +58,7 @@ class AuditFindingsFiveToNineTests {
                         .with(oauthUser(email))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "wordId", wordId,
+                                "operationId", java.util.UUID.randomUUID(), "wordId", wordId,
                                 "correct", false,
                                 "mode", "mark-hard"
                         ))))
@@ -100,11 +101,11 @@ class AuditFindingsFiveToNineTests {
         mockMvc.perform(post("/api/review/known")
                         .with(oauthUser(email))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("wordId", created.path("id").asLong()))))
+                        .content(objectMapper.writeValueAsString(Map.of("operationId", java.util.UUID.randomUUID(), "wordId", created.path("id").asLong()))))
                 .andExpect(status().isOk())
                 .andExpect(header().string(REVISION_HEADER, "2"))
-                .andExpect(jsonPath("$.streak", is(2)))
-                .andExpect(jsonPath("$.mastery", is(60)))
+                .andExpect(jsonPath("$.outcome.streak", is(2)))
+                .andExpect(jsonPath("$.outcome.mastery", is(60)))
                 .andExpect(jsonPath("$.word.stats.seen", is(1)))
                 .andExpect(jsonPath("$.word.stats.correct", is(1)))
                 .andExpect(jsonPath("$.word.stats.masteryLevel", is(3)))
@@ -124,7 +125,7 @@ class AuditFindingsFiveToNineTests {
         mockMvc.perform(post("/api/review/known")
                         .with(oauthUser("audit-mark-known-attacker@example.com"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("wordId", created.path("id").asLong()))))
+                        .content(objectMapper.writeValueAsString(Map.of("operationId", java.util.UUID.randomUUID(), "wordId", created.path("id").asLong()))))
                 .andExpect(status().isBadRequest());
 
         JsonNode afterUnauthorizedAttempt = snapshot(email);
@@ -201,11 +202,18 @@ class AuditFindingsFiveToNineTests {
     }
 
     private void review(String email, long wordId, boolean correct, long expectedRevision) throws Exception {
+        // Each historical fixture represents a genuinely new due review day.
+        try (var connection = dataSource.getConnection();
+             var statement = connection.prepareStatement("UPDATE word_stats SET next_review = ? WHERE word_id = ?")) {
+            statement.setTimestamp(1, java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(86400)));
+            statement.setLong(2, wordId);
+            statement.executeUpdate();
+        }
         mockMvc.perform(post("/api/review/answer")
                         .with(oauthUser(email))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "wordId", wordId,
+                                "operationId", java.util.UUID.randomUUID(), "wordId", wordId,
                                 "correct", correct,
                                 "mode", "review"
                         ))))
@@ -217,7 +225,7 @@ class AuditFindingsFiveToNineTests {
         mockMvc.perform(post("/api/review/known")
                         .with(oauthUser(email))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("wordId", wordId))))
+                        .content(objectMapper.writeValueAsString(Map.of("operationId", java.util.UUID.randomUUID(), "wordId", wordId))))
                 .andExpect(status().isOk())
                 .andExpect(header().string(REVISION_HEADER, String.valueOf(expectedRevision)));
     }
