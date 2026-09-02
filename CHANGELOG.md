@@ -1,11 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Finding 12 Batch 12D: added bounded physical cleanup for consumed quiz attempts, expired abandoned attempts after a seven-day grace, and accepted review operations. Cleanup runs after committed ledger traffic at most hourly per process, deletes oldest eligible UUIDs in 500-row category batches, and cannot mutate learning/rewards/revisions or quiz history.
+- Added V8 portable retention indexes and deterministic strict-cutoff, cascade, replay-after-delete, failure-isolation, throttle, concurrency, H2, and PostgreSQL migration coverage. Human review approved Batch 12D and **Finding 12 — FIXED**; no deployment is included.
+
 ## 2026-08-28
 
 - Finding 12 Batch 12B: migrated supported online quizzes to server-issued attempts, bound each question to its issued context, and made submit/lost-response retries reuse the same attempt and payload. Offline or failed-issuance rounds stay local-only without retroactive cloud rewards.
 - Retired `POST /api/quiz-results` with deterministic, non-mutating `410 Gone` and permanent exploit regression coverage; no automatic create-and-submit compatibility shim remains.
 - Added V6 immutable achievement-XP outcome metadata alongside quiz XP, score, combo, and original revision; exact replay does not award again. Late responses are isolated from replacement quizzes and other accounts.
-- Finding 12 remains partially fixed: Review Today replay protection, Mark Known/Hard retry semantics, and seven-day physical attempt cleanup remain deferred. Deployment version skew requires backend-first sequencing; this batch has not been deployed.
+- At the Batch 12B boundary Finding 12 was partially fixed; Review Today,
+  Mark Known/Hard, and seven-day physical cleanup were subsequently completed
+  by approved Batches 12C/12D. Deployment version skew still requires
+  backend-first sequencing; these batches have not been deployed.
 
 ## 2026-08-25
 

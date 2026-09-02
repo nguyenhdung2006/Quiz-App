@@ -232,11 +232,26 @@ falls back to the legacy route. Old frontend with new backend receives the
 retirement response. Deployment therefore requires backend-first sequencing;
 no insecure compatibility shim is provided.
 
-Finding 12 remains `PARTIALLY FIXED`: Review Today still lacks attempt/replay
-identity, Mark Known/Hard retry semantics are unchanged, and physical cleanup
-of consumed attempts after the approved seven-day retention period is not yet
-implemented. Fully offline quiz learning remains local-only and cannot later
-claim cloud XP without a server-issued attempt.
+Batch 12C gives Review Today and Mark Known/Hard owner-bound UUID operation
+identities and immutable accepted outcomes. Exact retry is mutation-free while
+the ledger row is retained. Review Today additionally consumes an authoritative
+due state, so a new ID cannot repeat a stale review. Known/Hard retain their
+approved genuinely-new-command semantics. Fully offline quiz learning remains
+local-only and cannot later claim cloud XP without a server-issued attempt.
+
+Batch 12D bounds replay bookkeeping retention. Consumed attempts and accepted
+review operations are eligible strictly after seven days from `consumed_at`;
+expired unconsumed attempts are eligible strictly after a seven-day grace from
+their existing 24-hour `expires_at`. Exact retry recovery is not promised after
+physical deletion. A deleted quiz attempt cannot be recreated by submit. A
+deleted Review Today operation remains protected by the word's due state;
+Known/Hard cleanup grants no capability beyond an already-permitted fresh
+explicit command.
+
+Cleanup is opportunistic after committed ledger writes, throttled to at most
+once per hour per process, and capped at 500 rows per category per pass. It runs
+in a separate transaction and failures are contained. It deletes no quiz
+history and performs no reward, learning, wrong-bank, or revision mutation.
 
 ## Logging Safety
 

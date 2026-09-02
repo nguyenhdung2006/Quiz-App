@@ -1,5 +1,40 @@
 # Testing
 
+## Finding 12 Batch 12D Retention Verification (2026-09-03)
+
+The Batch 12D candidate was verified before commit without deployment or
+access to cloud/production databases:
+
+- focused retention, quiz/review replay, spaced-repetition, Findings 5–9, and
+  H2 schema suites: **61/61 PASS**;
+- `cd backend; .\mvnw.cmd clean verify`: **169/169 PASS** in 29 suites, with
+  zero failures, errors, or skips;
+- `cd backend; .\mvnw.cmd -DskipTests package`: **PASS**;
+- JaCoCo: **88.57% lines** (2704/3053), **63.34% branches** (781/1233);
+- focused Finding 12 Chromium: **13/13 PASS**; no production frontend file was
+  changed by 12D;
+- disposable local PostgreSQL 16.14 fresh Flyway V1→V8 plus Hibernate
+  validation: **PASS**; restart at V8, eight-migration Flyway validation, and
+  Hibernate validation: **PASS**;
+- docs drift, secret scan, and `git diff --check`: **PASS**.
+
+Deterministic retention tests use an injected clock and prove the strict-old
+boundary: equality at seven days is retained and only an older timestamp is
+eligible. They also cover the 24-hour issued-attempt lifetime plus seven-day
+expiry grace, oldest-first bounded batches, attempt-item cascade, quiz-history
+retention, cross-owner maintenance, cleanup failure isolation, concurrent
+normal review, and post-cleanup fail-closed quiz/Review Today behavior.
+
+The PostgreSQL sanity fixture used 501 rows per ledger category. A single pass
+selected/deleted 500 IDs per category, cascaded 1,000 attempt items, retained
+all 501 quiz histories, and left one eligible row per category for a later
+pass. Deletion statements completed in 0.940–3.068 ms and the bounded consumed
+ID selection in 0.297 ms on that local fixture. These timings are diagnostic,
+not a production capacity claim.
+
+The latest migration exercised by these checks is
+`V8__add_retention_cleanup_indexes.sql`.
+
 ## Audit Findings 5-9 Verification (2026-08-24)
 
 Verified against the uncommitted bounded findings 5-9 working tree:
@@ -268,7 +303,7 @@ Frontend:
 PostgreSQL:
 
 - CI starts PostgreSQL 16 and runs `SPRING_PROFILES_ACTIVE=prod ./mvnw -B -Dtest=QuizApplicationTests test` with Flyway enabled and Hibernate `ddl-auto=validate`.
-- This verifies ordered V1 -> V7 migrations against PostgreSQL in CI. The latest migration in the Batch 12C working tree is `V7__add_review_operations.sql`. It does not execute a production or staging migration.
+- This verifies ordered V1 -> V8 migrations against PostgreSQL in CI. The latest migration is `V8__add_retention_cleanup_indexes.sql`. It does not execute a production or staging migration.
 
 Docs drift:
 

@@ -10,8 +10,6 @@
 
 ## Product/Engineering Follow-Up
 
-- Implement bounded physical cleanup for consumed attempts older than the approved seven-day target; do not add a scheduler framework without evidence.
-- Include review-operation ledger retention in that same lifecycle batch; no physical age-based cleanup currently runs.
 - Add generated OpenAPI or checked API contract documentation.
 - Add explicit security header tests after hosting/header policy is finalized.
 - Continue small backend service extraction beyond `SyncService`.

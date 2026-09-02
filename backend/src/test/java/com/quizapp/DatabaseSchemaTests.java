@@ -8,12 +8,48 @@ import org.junit.jupiter.api.Test;
 
 class DatabaseSchemaTests {
     @Test
+    void retentionV8AddsOnlyPortableCleanupIndexesAndMatchesReferenceSchema() throws Exception {
+        String migration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V8__add_retention_cleanup_indexes.sql"));
+        String schema = Files.readString(Path.of("../database/schema.sql"));
+        String normalizedSchema = schema.replace("CREATE INDEX IF NOT EXISTS", "CREATE INDEX")
+                .replace("\r\n", "\n");
+        assertThat(normalizedSchema).contains(migration.replace("\r\n", "\n").trim());
+        assertThat(migration).contains("ON learning_attempt(status, consumed_at, id)");
+        assertThat(migration).contains("ON learning_attempt(status, expires_at, id)");
+        assertThat(migration).contains("ON review_operation(consumed_at, id)");
+        assertThat(migration.toLowerCase()).doesNotContain("where status");
+        assertThat(migration.toLowerCase()).doesNotContain("delete from");
+        assertThat(migration.toLowerCase()).doesNotContain("drop ");
+
+        try (var connection = java.sql.DriverManager.getConnection(
+                "jdbc:h2:mem:retentionV8;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE", "sa", "");
+             var statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE learning_attempt (id UUID PRIMARY KEY, status VARCHAR(20), "
+                    + "consumed_at TIMESTAMP WITH TIME ZONE, expires_at TIMESTAMP WITH TIME ZONE)");
+            statement.execute("CREATE TABLE review_operation (id UUID PRIMARY KEY, "
+                    + "consumed_at TIMESTAMP WITH TIME ZONE)");
+            statement.execute(migration);
+            try (var rows = statement.executeQuery("""
+                    SELECT COUNT(*) FROM information_schema.indexes
+                    WHERE index_name IN ('ix_learning_attempt_retention_consumed',
+                        'ix_learning_attempt_retention_expired', 'ix_review_operation_retention_consumed')
+                    """)) {
+                assertThat(rows.next()).isTrue();
+                assertThat(rows.getInt(1)).isEqualTo(3);
+            }
+        }
+    }
+
+    @Test
     void reviewOperationV7RunsOnH2AndMatchesReferenceSchema() throws Exception {
         String migration = Files.readString(Path.of("src/main/resources/db/migration/V7__add_review_operations.sql"));
         String schema = Files.readString(Path.of("../database/schema.sql"));
+        String v7Ddl = migration.replace(
+                "-- Physical retention cleanup is deferred to Finding 12's lifecycle batch.", "").trim();
         assertThat(schema.replace("CREATE TABLE IF NOT EXISTS", "CREATE TABLE")
                 .replace("CREATE INDEX IF NOT EXISTS", "CREATE INDEX").replace("\r\n", "\n"))
-                .contains(migration.replace("\r\n", "\n").trim());
+                .contains(v7Ddl.replace("\r\n", "\n"));
         try (var connection = java.sql.DriverManager.getConnection("jdbc:h2:mem:reviewV7;MODE=PostgreSQL", "sa", "");
              var statement = connection.createStatement()) {
             statement.execute("CREATE DOMAIN TIMESTAMPTZ AS TIMESTAMP WITH TIME ZONE");

@@ -1,5 +1,29 @@
 # Completed Tasks
 
+## 2026-09-03 Audit Finding 12 Batch 12D — approved
+
+Implemented bounded physical cleanup for `learning_attempt` and
+`review_operation` security/idempotency ledgers without deploying or accessing
+a cloud/production database.
+
+- V8 adds only the three portable cleanup indexes; V1–V7 remain unchanged.
+- Strict seven-day retention, the extra seven-day grace after issued-attempt
+  expiry, 500-row/category oldest-first batches, FK item cascade, and retained
+  quiz history are covered by deterministic tests.
+- Cleanup runs after a successful ledger-write commit, through a separate
+  `REQUIRES_NEW` service, with a one-hour per-process throttle and failure
+  isolation from accepted user mutations.
+- Focused backend 61/61, clean verify 169/169 in 29 suites, focused Chromium
+  13/13, package, docs drift, secret scan, and diff check pass. JaCoCo is 88.57%
+  line / 63.34% branch.
+- Disposable local PostgreSQL 16.14 fresh V1→V8 and restart/Flyway/Hibernate
+  validation pass; a 501-row/category sanity run confirmed the 500-row bound,
+  cascade deletion, and quiz-history retention.
+
+Human review approved **Finding 12 — FIXED**. Replay-result recovery is bounded
+by the seven-day retained-ledger window; this is not infinite idempotency
+storage. No deployment or cloud/production database action occurred.
+
 ## 2026-08-28 Audit Finding 12 Batch 12C — approved 2026-09-02
 
 Base `52c39322deb109810496ac090b1508ddc085648c`; commit/push approved separately,
@@ -13,8 +37,9 @@ concurrency, local-first retry, migration and exact verification evidence.
   V1-V6 unchanged. Current word/revision are distinct from original outcome.
 - Focused backend 50/50, clean verify 158/158, Chromium 105/105 (focused 13/13),
   helpers 8/8, local PostgreSQL 16.14 fresh V1→V7 and restart/validation PASS.
-- Status: PARTIALLY FIXED — SECURITY REPLAY PATHS FIXED, RETENTION CLEANUP REMAINS.
-  Age-based physical cleanup for quiz/review ledgers is not implemented.
+- Status at the Batch 12C boundary was PARTIALLY FIXED because physical
+  retention was outside that batch; approved Batch 12D subsequently completed
+  it and records **Finding 12 — FIXED**.
 
 ## 2026-08-28 Audit Finding 12 Batch 12B
 
@@ -29,7 +54,10 @@ Committed and pushed as `adc66a9f6ad89e9c24b454d5c8076d62442a876c`. No deploymen
 
 Limitation at the Batch 12B boundary (review replay superseded by 12C above):
 
-- Finding 12 remains `PARTIALLY FIXED`: Review Today, Mark Known/Hard retry semantics, and seven-day consumed-attempt physical cleanup are deferred. Backend-first deployment sequencing is required because old frontend/new backend intentionally fails closed.
+- At the Batch 12B boundary Finding 12 was `PARTIALLY FIXED`; approved Batches
+  12C/12D subsequently completed the review and retention work. Backend-first
+  deployment sequencing is required because old frontend/new backend
+  intentionally fails closed.
 
 ## 2026-08-25 Audit Finding 12 Batch 12A
 

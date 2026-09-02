@@ -190,9 +190,10 @@ Attempt/retry state is memory-only. Home/reset, logout, or a full reload ends
 that retry lifecycle; reload-resilient delivery is not implemented. Late
 responses cannot overwrite a replacement quiz or another account's state.
 
-Batch 12C adds the review-operation boundary below. Finding 12 remains partially
-fixed pending physical retention cleanup; self-rating is an intentional product
-choice, not a claim of server-verifiable answers. See [12C evidence](FINDING12C.md).
+Batch 12C adds the review-operation boundary below. Self-rating is an intentional
+product choice, not a claim of server-verifiable answers. Batch 12D retains an
+accepted operation for seven days after `consumed_at`; exact replay recovery is
+bounded by that physical lifetime. See [12C evidence](FINDING12C.md).
 
 ## Review operation contract (Batch 12C)
 
@@ -228,6 +229,12 @@ resolves that operation before a new command can be created. Local fallback
 is applied once and current server learning replaces it, without cloud reward
 or revision fabrication. A definite conflict triggers a read-only refresh,
 not another local review. Offline-only study is not retroactively submitted.
+
+Quiz-attempt replay is likewise bounded: consumed attempts remain for seven
+days after `consumed_at`; expired `ISSUED` attempts remain seven days after the
+24-hour `expires_at`. Eligibility is strictly older than the cutoff, not equal.
+After deletion, submit returns fail-closed not-found and never recreates or
+rewards an attempt. Quiz history is retained independently.
 
 ## Sync Contract V2
 
@@ -407,4 +414,5 @@ latest migration at this commit is:
 ```text
 V6__capture_quiz_attempt_achievement_xp.sql
 V7__add_review_operations.sql
+V8__add_retention_cleanup_indexes.sql
 ```

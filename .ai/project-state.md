@@ -1,6 +1,6 @@
 # Project State
 
-Date: 2026-08-28
+Date: 2026-09-03
 
 Version: `0.0.1-SNAPSHOT`.
 
@@ -8,9 +8,9 @@ Branch: `chore/audit-reconciliation-and-upgrade`.
 
 Production gate: `NOT_READY`.
 
-Current focus: Finding 12 Batch 12C was approved for commit/push on 2026-09-02. Base is approved Batch 12B.1 `52c39322deb109810496ac090b1508ddc085648c`. Finding 12 is **PARTIALLY FIXED — SECURITY REPLAY PATHS FIXED, RETENTION CLEANUP REMAINS**. Review stays self-rating; Known/Hard retain new-command semantics. No deployment or cloud/production DB access occurred. Do not begin retention cleanup or Finding 13.
+Current focus: Finding 12 Batch 12D is approved from Batch 12C base `6fc9c0c4dd001f11cc2b7a97c222bc61263f2411`. It adds bounded physical cleanup for quiz/review security ledgers. Human review records **Finding 12 — FIXED**. No deployment or cloud/production DB access occurred. Do not begin Finding 13.
 
-Batch 12C evidence: `docs/FINDING12C.md`. V7 adds the bounded owned review-operation ledger; V1-V6 unchanged. Focused backend 50/50; clean verify 158/158 in 27 suites; package PASS; JaCoCo lines 88.39%, branches 63.42%. Focused Chromium 13/13, full 105/105; helpers 8/8 (review helper 12/12); syntax 25; assets 10; inline 27/9; lint/build/docs/secret/diff gates PASS. Disposable loopback PostgreSQL 16.14 fresh V1→V7 and actual restart/Hibernate validation passed 1/1 each; seven successful migration rows; V7 checksum -1088142411. Test database stopped. Three audit artifacts remain untouched/untracked. Physical age-based cleanup is not implemented for either quiz attempts or review operations.
+Batch 12D evidence: `docs/FINDING12D.md`. V8 adds only three cleanup-query indexes; V1-V7 are unchanged. Strict seven-day cutoffs, 500-row category bounds, oldest-first UUID selection, attempt-item cascade, quiz-history retention, post-delete fail-closed behavior, after-commit `REQUIRES_NEW` isolation, hourly throttle, and concurrent maintenance are covered. Focused backend passes 61/61; clean verify passes 169/169 in 29 suites; focused Chromium passes 13/13; JaCoCo is 88.57% line / 63.34% branch; disposable PostgreSQL 16.14 fresh V1→V8 and restart validation pass.
 
 Implemented and verified locally:
 
@@ -68,12 +68,11 @@ Remaining limitations for next Codex session:
 - Production env vars are not loaded in this workspace.
 - Restore rehearsal evidence is missing.
 - Staging smoke URLs/test identity are missing.
-- The three intentional audit artifacts must remain untracked and visible; Batch 12B no longer awaits commit.
+- The three intentional audit artifacts must remain untracked and visible; Batch 12D has not been deployed.
 - Full snapshot pagination/delta sync, analytics database aggregation, and tombstone/quiz-history retention policy remain future work.
 - The Render exit-137 incident remains a separate unresolved operational issue; the current branch did not reproduce it under a hard 512 MiB limit.
 - Frontend global-script risk remains partially fixed; account storage/state and broader app/vocabulary boundaries remain future bounded batches.
 - Old frontend/new backend version skew fails legacy cloud submission closed; deploy backend before the new frontend. New frontend/old backend remains local-only without legacy fallback.
-- Review Today and Mark Known/Hard replay semantics remain open.
-- Consumed-attempt cleanup has an approved seven-day target but is not implemented in Batch 12B.
+- Finding 12 is **FIXED** through approved Batches 12A–12D. Replay-result recovery remains intentionally bounded by the seven-day retained-ledger window rather than infinite storage.
 - Attempt retry state is memory-only; Home/reset, a new quiz, logout, or full reload discards retry delivery state without undoing an already accepted server result.
 - OpenAPI, full service split, deployed OAuth E2E, and static frontend removal of inline handlers remain future work.

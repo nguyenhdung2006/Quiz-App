@@ -169,10 +169,11 @@ Audit artifact hashes match the original baseline and all three remain untracked
 
 ## Remaining debt and review gate
 
-Finding 12 status: **PARTIALLY FIXED — SECURITY REPLAY PATHS FIXED, RETENTION CLEANUP REMAINS**.
-It must not be marked fully FIXED. Seven-day consumed-quiz-attempt
-physical cleanup is still **not implemented**. Review-operation physical
-age-based cleanup is also deferred to that same Finding 12 lifecycle batch;
+Finding 12 status at the Batch 12C boundary was **PARTIALLY FIXED — SECURITY
+REPLAY PATHS FIXED, RETENTION CLEANUP REMAINS**. Approved Batch 12D subsequently
+completed retention and records **Finding 12 — FIXED**. Seven-day
+consumed-quiz-attempt physical cleanup was not implemented in Batch 12C.
+Review-operation physical age-based cleanup was also deferred to that same Finding 12 lifecycle batch;
 its expiration/recovery window must be reviewed before deleting identities.
 No scheduler or implicit age-based deletion exists in 12C.
 

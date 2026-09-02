@@ -358,7 +358,16 @@ CREATE TABLE IF NOT EXISTS review_operation (
 -- FK parent deletion checks; normal replay lookup uses the UUID primary key.
 CREATE INDEX IF NOT EXISTS ix_review_operation_user ON review_operation(user_id);
 CREATE INDEX IF NOT EXISTS ix_review_operation_word ON review_operation(target_word_id, target_user_id);
--- Physical retention cleanup is deferred to Finding 12's lifecycle batch.
+
+CREATE INDEX IF NOT EXISTS ix_learning_attempt_retention_consumed
+    ON learning_attempt(status, consumed_at, id);
+
+CREATE INDEX IF NOT EXISTS ix_learning_attempt_retention_expired
+    ON learning_attempt(status, expires_at, id);
+
+CREATE INDEX IF NOT EXISTS ix_review_operation_retention_consumed
+    ON review_operation(consumed_at, id);
+-- Application cleanup removes only strictly older bookkeeping rows in bounded batches.
 
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$

@@ -1,6 +1,7 @@
 package com.quizapp.quiz;
 
 import com.quizapp.user.AppUser;
+import com.quizapp.retention.LearningRetentionCleanupTrigger;
 import com.quizapp.vocab.AuthoritativeQuizAnswer;
 import com.quizapp.vocab.AuthoritativeQuizResult;
 import com.quizapp.vocab.SyncResponse;
@@ -40,19 +41,22 @@ public class QuizAttemptService {
     private final VocabularyRepository words;
     private final VocabularyService vocabulary;
     private final QuizAttemptClock clock;
+    private final LearningRetentionCleanupTrigger retentionCleanup;
 
     public QuizAttemptService(
             LearningAttemptRepository attempts,
             LearningAttemptItemRepository items,
             VocabularyRepository words,
             VocabularyService vocabulary,
-            QuizAttemptClock clock
+            QuizAttemptClock clock,
+            LearningRetentionCleanupTrigger retentionCleanup
     ) {
         this.attempts = attempts;
         this.items = items;
         this.words = words;
         this.vocabulary = vocabulary;
         this.clock = clock;
+        this.retentionCleanup = retentionCleanup;
     }
 
     @Transactional
@@ -107,6 +111,7 @@ public class QuizAttemptService {
             issuedItems.add(item);
         }
         items.saveAll(issuedItems);
+        retentionCleanup.afterLedgerWrite();
 
         return issuedResponse(attempt, issuedItems);
     }
@@ -188,6 +193,7 @@ public class QuizAttemptService {
                 result.maxCombo()
         );
         attempts.save(attempt);
+        retentionCleanup.afterLedgerWrite();
 
         return submitResponse(attempt, false, result.snapshot());
     }

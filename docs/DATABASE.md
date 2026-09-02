@@ -20,8 +20,10 @@ Current migrations:
 | V6 | `V6__capture_quiz_attempt_achievement_xp.sql` | Adds immutable awarded-achievement XP to consumed attempt outcomes so exact replay preserves the complete original reward result. |
 
 | V7 | `V7__add_review_operations.sql` | Bounded insert-only, owned review-operation outcomes and canonical fingerprints; no response snapshots. |
+| V8 | `V8__add_retention_cleanup_indexes.sql` | Portable indexes for bounded age-ordered quiz-attempt and review-operation cleanup. |
 
-Do not edit an already-applied migration. Future schema changes must use a new `V8__...sql` or later migration. Batch 12C leaves V1-V6 unchanged.
+Do not edit an already-applied migration. Future schema changes must use a new
+`V9__...sql` or later migration. Batch 12D leaves V1-V7 unchanged.
 
 ## Review operation persistence
 
@@ -42,10 +44,12 @@ TIMESTAMPTZ values follow existing conventions (microsecond server timestamps).
 Flyway runs V7 once; repeat startup validates its recorded checksum, rather
 than re-executing CREATE TABLE. `database/schema.sql` mirrors V7.
 
-Physical age-based cleanup is **not implemented** for review operations.
-Coordinate it with the later Finding 12 retention batch: retain retry identities
-through the approved recovery window, define expiration/retry behavior before
-deletion, and use bounded cleanup. No scheduler or implicit deletion is added.
+Review operations are retained for seven days after `consumed_at`. Exact retry
+recovery is guaranteed only while that immutable row remains retained. Rows
+with `consumed_at < now - 7 days` are eligible; equality is retained until time
+advances. Review Today is still protected by the authoritative due predicate
+after cleanup. Known/Hard already permit genuinely new explicit commands, so
+removing an expired identity grants no authority unavailable to a fresh ID.
 
 ## Quiz Attempt Persistence
 
@@ -68,10 +72,33 @@ ordinals and duplicate words within one attempt. A word deleted before submit
 leaves the captured context but clears the word reference, causing submit to
 fail closed rather than mutating a deleted/different word.
 
-Consumed-attempt retention has an approved target of seven days. Batch 12B
-records the required timestamps but does not yet run physical cleanup; no
-scheduler or implicit lazy deletion is claimed. Cleanup remains a later bounded
-Finding 12 lifecycle task.
+Consumed attempts are retained for seven days after `consumed_at`. Unconsumed
+`ISSUED` attempts expire after 24 hours and then remain for a further seven-day
+grace period after `expires_at`. Eligibility is strictly older than the cutoff;
+rows exactly at either seven-day boundary remain. Parent attempt deletion uses
+the V5 FK cascade for items. Referenced `quiz_history` rows are never cleanup
+targets and remain intact.
+
+## Finding 12 retention cleanup
+
+`LearningRetentionCleanupService` selects only UUIDs, oldest first with UUID as
+a deterministic tie-breaker, then rechecks status/timestamp in bulk deletes.
+Each pass is independently capped at 500 consumed attempts, 500 expired issued
+attempts, and 500 review operations. V8 indexes exactly those order/filter
+shapes: `(status, consumed_at, id)`, `(status, expires_at, id)`, and
+`(consumed_at, id)`. There are no partial indexes or entity/snapshot loads.
+
+The first successful quiz-attempt or review-operation write after the in-process
+one-hour throttle registers cleanup for `afterCommit`. The cleanup bean runs in
+a separate `REQUIRES_NEW` transaction. Failure is logged and contained after
+the user transaction has committed; it cannot roll back a reward/review action.
+No scheduler or distributed lock was introduced. Multiple processes may each
+perform a bounded pass. Concurrent deletion rechecks eligibility, so a race can
+reduce a pass's deleted count but cannot widen its scope.
+
+Cleanup deletes only `learning_attempt` and `review_operation` bookkeeping.
+It never awards XP, changes vocabulary statistics/mastery/streak/wrong-bank,
+creates or deletes quiz history, or increments sync revision.
 
 ## Stable Word Identity And Tombstones
 

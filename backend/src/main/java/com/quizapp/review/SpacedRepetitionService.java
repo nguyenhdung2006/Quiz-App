@@ -1,6 +1,7 @@
 package com.quizapp.review;
 
 import com.quizapp.health.HealthCounterService;
+import com.quizapp.retention.LearningRetentionCleanupTrigger;
 import com.quizapp.shared.RevisionedResult;
 import com.quizapp.user.AppUser;
 import com.quizapp.user.AppUserRepository;
@@ -37,6 +38,7 @@ public class SpacedRepetitionService {
     private final AppUserRepository users;
     private final WrongBankRepository wrongBank;
     private final ReviewOperationRepository operations;
+    private final LearningRetentionCleanupTrigger retentionCleanup;
 
     @Autowired(required = false)
     private HealthCounterService healthCounters;
@@ -46,20 +48,22 @@ public class SpacedRepetitionService {
             VocabularyRepository words,
             AppUserRepository users,
             WrongBankRepository wrongBank,
-            ReviewOperationRepository operations
+            ReviewOperationRepository operations,
+            LearningRetentionCleanupTrigger retentionCleanup
     ) {
         this.words = words;
         this.users = users;
         this.wrongBank = wrongBank;
         this.operations = operations;
+        this.retentionCleanup = retentionCleanup;
     }
 
     public SpacedRepetitionService(VocabularyRepository words, AppUserRepository users) {
-        this(words, users, null, null);
+        this(words, users, null, null, null);
     }
 
     public SpacedRepetitionService(VocabularyRepository words) {
-        this(words, null, null, null);
+        this(words, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -144,6 +148,7 @@ public class SpacedRepetitionService {
         try {
             operations.insert(operationId, syncUser.getId(), wordId, action, fingerprint, now,
                     outcome.mastery(), outcome.streak(), outcome.nextReview(), resultMessage, revision);
+            retentionCleanup.afterLedgerWrite();
         } catch (DataIntegrityViolationException exception) {
             // Different owners do not share the user lock. A racing global UUID collision
             // fails closed and rolls back ALL word/wrong-bank/revision writes in this transaction.
