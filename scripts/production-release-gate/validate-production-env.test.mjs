@@ -17,6 +17,7 @@ function safeFixtureEnv(overrides = {}) {
     GOOGLE_CLIENT_ID: "release-gate-client-id.apps.googleusercontent.com",
     GOOGLE_CLIENT_SECRET: "release-gate-oauth-secret-value",
     FRONTEND_URL: "https://quiz-app-rust-iota-39.vercel.app",
+    OAUTH_SUCCESS_REDIRECT_URI: "https://quiz-app-rust-iota-39.vercel.app/index.html",
     CORS_ALLOWED_ORIGINS: "https://quiz-app-rust-iota-39.vercel.app",
     SESSION_COOKIE_SECURE: "true",
     SESSION_COOKIE_SAME_SITE: "none",
@@ -94,6 +95,19 @@ test("placeholder or unsafe values fail even with deployment evidence", () => {
   assert.equal(result.status, "FAIL");
   assert.ok(result.details.findings.some((finding) => finding.variable === "DATABASE_URL"));
   assert.ok(result.details.findings.some((finding) => finding.variable === "CORS_ALLOWED_ORIGINS"));
+});
+
+test("cross-site session and OAuth redirect contract fails closed", () => {
+  const result = evaluateProductionEnv(productionEnv({
+    OAUTH_SUCCESS_REDIRECT_URI: "https://attacker.invalid/index.html",
+    SESSION_COOKIE_SAME_SITE: "lax",
+    SESSION_COOKIE_PATH: "/app"
+  }));
+
+  assert.equal(result.status, "FAIL");
+  assert.ok(result.details.findings.some((finding) => finding.variable === "OAUTH_SUCCESS_REDIRECT_URI"));
+  assert.ok(result.details.findings.some((finding) => finding.variable === "SESSION_COOKIE_SAME_SITE"));
+  assert.ok(result.details.findings.some((finding) => finding.variable === "SESSION_COOKIE_PATH"));
 });
 
 test("invalid fixture mode passes only when the validator finds problems", () => {

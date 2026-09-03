@@ -117,12 +117,17 @@ URLs, wildcard CORS, weak/default secrets, disabled Flyway, mutating
 `ddl-auto`, or fixture-like values are `FAIL`. Secret values must never be
 printed in artifacts.
 
+For the current cross-site frontend/backend architecture the validator also
+requires `OAUTH_SUCCESS_REDIRECT_URI=${FRONTEND_URL}/index.html`,
+`SESSION_COOKIE_SECURE=true`, `SESSION_COOKIE_SAME_SITE=none`, and
+`SESSION_COOKIE_PATH=/`.
+
 ## Required Restore Rehearsal Evidence
 
-Backup/rollback readiness is `BLOCKED` until one of these exists:
-
-- `docs/restore-rehearsal-evidence.md`, containing non-production restore rehearsal evidence; or
-- CI env `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`, used only when the release record links to equivalent external evidence.
+Backup/rollback readiness is `BLOCKED` until the file at
+`RELEASE_RESTORE_REHEARSAL_EVIDENCE_FILE` (default:
+`docs/restore-rehearsal-evidence.md`) contains complete non-production restore
+rehearsal evidence. A boolean attestation is not accepted by the gate.
 
 The evidence must not include raw data or secret values. A complete `PASS`
 requires a real backup/dump reference, backup verification, restore into

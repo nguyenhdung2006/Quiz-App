@@ -11,7 +11,7 @@
 - Re-run production release-gate secret scan on a clean tree and confirm the
   empty env key false positive is gone.
 - Load real production/staging env vars and pass `npm run gate:validate-env`.
-- Provide restore rehearsal evidence at `docs/restore-rehearsal-evidence.md` or via `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`.
+- Provide complete restore rehearsal evidence at `docs/restore-rehearsal-evidence.md` or point `RELEASE_RESTORE_REHEARSAL_EVIDENCE_FILE` to an equivalent reviewed evidence file.
 - Run staging smoke with `STAGING_BACKEND_URL`, `STAGING_FRONTEND_URL`, and `STAGING_TEST_USER_HINT`.
 - Re-run source integrity from a clean committed release candidate.
 

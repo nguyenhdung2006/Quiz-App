@@ -45,16 +45,16 @@ secrets or raw output.
 # After real non-production restore rehearsal evidence exists:
 npm run gate:backup-rollback
 
-# Alternative only when the release record links to equivalent external evidence:
-$env:RELEASE_RESTORE_REHEARSAL_EVIDENCE="true"
+# Alternative evidence file containing the same complete table:
+$env:RELEASE_RESTORE_REHEARSAL_EVIDENCE_FILE="path/to/reviewed-evidence.md"
 npm run gate:backup-rollback
 ```
 
 ## Conditions To Move From BLOCKED To PASS
 
 - `docs/restore-rehearsal-evidence.md` exists and contains real non-production
-  restore rehearsal evidence, or `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true` is
-  set only when equivalent external evidence is linked from the release record.
+  restore rehearsal evidence, or `RELEASE_RESTORE_REHEARSAL_EVIDENCE_FILE`
+  points to a reviewed file containing the same complete evidence table.
 - Required runbook docs exist:
   `docs/DEPLOYMENT.md`, `docs/PRODUCTION_RELEASE_GATE.md`,
   `docs/flyway-baseline-rehearsal.md`, and `docs/deploy.md`.

@@ -6,7 +6,7 @@ Severity: High
 
 Impact: production release remains `NOT_READY`.
 
-Issue: production env validation, staging smoke, and restore rehearsal evidence cannot be completed from this workspace because secrets, staging URLs, test identity metadata, and non-production restore proof are not present.
+Issue: production env validation and staging smoke cannot be completed from this workspace because redacted deployed-config provenance, staging URLs, and test identity metadata are not present. The existing restore file is explicitly partial: it has no real backup reference/verification and no restored-target `/api/health` smoke.
 
 Workaround: treat the current repository as staging-candidate code, not a production release.
 

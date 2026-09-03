@@ -4,7 +4,7 @@
 
 - `source-integrity=FAIL`: check `git status --short`. The release candidate must be clean and generated report folders must remain ignored.
 - `production-env-validation=FAIL`: load real production env vars. Placeholders, localhost URLs, wildcard CORS, Flyway disabled, or `ddl-auto` other than `validate` fail the gate.
-- `backup-rollback-readiness=BLOCKED`: add restore rehearsal evidence or set `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true` only after a real non-production restore rehearsal.
+- `backup-rollback-readiness=BLOCKED`: add complete non-production restore rehearsal evidence at `docs/restore-rehearsal-evidence.md` or set `RELEASE_RESTORE_REHEARSAL_EVIDENCE_FILE` to an equivalent reviewed evidence file.
 - `staging-smoke=BLOCKED`: set `STAGING_BACKEND_URL`, `STAGING_FRONTEND_URL`, and `STAGING_TEST_USER_HINT`.
 
 ## Sync Conflicts

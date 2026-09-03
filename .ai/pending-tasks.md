@@ -4,9 +4,12 @@
 
 - Re-run source integrity from a clean committed release candidate.
 - Load real production environment variables and pass `npm run gate:validate-env`.
-- Provide restore rehearsal evidence at `docs/restore-rehearsal-evidence.md` or set `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true` only after a real non-production restore rehearsal.
+- Provide complete restore rehearsal evidence at `docs/restore-rehearsal-evidence.md` or point `RELEASE_RESTORE_REHEARSAL_EVIDENCE_FILE` to an equivalent reviewed evidence file.
 - Run staging smoke with `STAGING_BACKEND_URL`, `STAGING_FRONTEND_URL`, and `STAGING_TEST_USER_HINT`.
 - Run a real browser Google OAuth2 login/logout E2E against deployed frontend/backend cookies.
+- Collect exact Render service/deployment/commit/Dockerfile/runtime-user and memory-event evidence.
+- Collect exact Vercel project/root/deployment/commit/routing/header evidence.
+- Run the non-deploying Production Release Gate on the eventual post-Findings-14–16 candidate SHA.
 
 ## Product/Engineering Follow-Up
 

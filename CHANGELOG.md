@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Finding 13A: added an evidence-based production readiness matrix and corrected
+  stale Render Docker, V8 sequencing, and restore-evidence instructions. The
+  production environment gate now requires the exact OAuth success redirect and
+  cross-site cookie contract. This is gate/documentation work only; production
+  remains NO-GO and no deployment or cloud access occurred.
 - Finding 12 Batch 12D: added bounded physical cleanup for consumed quiz attempts, expired abandoned attempts after a seven-day grace, and accepted review operations. Cleanup runs after committed ledger traffic at most hourly per process, deletes oldest eligible UUIDs in 500-row category batches, and cannot mutate learning/rewards/revisions or quiz history.
 - Added V8 portable retention indexes and deterministic strict-cutoff, cascade, replay-after-delete, failure-isolation, throttle, concurrency, H2, and PostgreSQL migration coverage. Human review approved Batch 12D and **Finding 12 — FIXED**; no deployment is included.
 

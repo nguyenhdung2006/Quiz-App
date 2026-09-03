@@ -8,7 +8,11 @@ Branch: `chore/audit-reconciliation-and-upgrade`.
 
 Production gate: `NOT_READY`.
 
-Current focus: Finding 12 Batch 12D is approved from Batch 12C base `6fc9c0c4dd001f11cc2b7a97c222bc61263f2411`. It adds bounded physical cleanup for quiz/review security ledgers. Human review records **Finding 12 — FIXED**. No deployment or cloud/production DB access occurred. Do not begin Finding 13.
+Current focus: Finding 13A release-readiness discovery on evidence candidate
+`a7259fe48d2ab364408a5912c7dafec5bf318d92`. Finding 12 is **FIXED**, but the
+production decision remains **OPEN / NO-GO — EXTERNAL RELEASE EVIDENCE
+REQUIRED**. See `docs/FINDING13-READINESS.md`. No deployment or
+cloud/production access occurred; do not begin Finding 14.
 
 Batch 12D evidence: `docs/FINDING12D.md`. V8 adds only three cleanup-query indexes; V1-V7 are unchanged. Strict seven-day cutoffs, 500-row category bounds, oldest-first UUID selection, attempt-item cascade, quiz-history retention, post-delete fail-closed behavior, after-commit `REQUIRES_NEW` isolation, hourly throttle, and concurrent maintenance are covered. Focused backend passes 61/61; clean verify passes 169/169 in 29 suites; focused Chromium passes 13/13; JaCoCo is 88.57% line / 63.34% branch; disposable PostgreSQL 16.14 fresh V1→V8 and restart validation pass.
 
@@ -66,7 +70,7 @@ Verified Batch 12B.1 follow-up (2026-08-28):
 Remaining limitations for next Codex session:
 
 - Production env vars are not loaded in this workspace.
-- Restore rehearsal evidence is missing.
+- Restore rehearsal evidence is incomplete (the tracked file proves only an old V4 schema/app-start rehearsal, not backup restore or restored-target health).
 - Staging smoke URLs/test identity are missing.
 - The three intentional audit artifacts must remain untracked and visible; Batch 12D has not been deployed.
 - Full snapshot pagination/delta sync, analytics database aggregation, and tombstone/quiz-history retention policy remain future work.

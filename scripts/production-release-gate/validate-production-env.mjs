@@ -10,6 +10,7 @@ const required = [
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
   "FRONTEND_URL",
+  "OAUTH_SUCCESS_REDIRECT_URI",
   "CORS_ALLOWED_ORIGINS",
   "SESSION_COOKIE_SECURE",
   "SESSION_COOKIE_SAME_SITE",
@@ -91,10 +92,22 @@ function looksLikeFixture(value) {
 
 function addConfigFindings(env, findings, options) {
   requireHttpsUrl(env, findings, "FRONTEND_URL");
+  requireHttpsUrl(env, findings, "OAUTH_SUCCESS_REDIRECT_URI");
   requireExact(env, findings, "JPA_DDL_AUTO", "validate");
   requireExact(env, findings, "FLYWAY_ENABLED", "true");
   requireExact(env, findings, "FLYWAY_BASELINE_ON_MIGRATE", "false");
   requireExact(env, findings, "SESSION_COOKIE_SECURE", "true");
+  requireExact(env, findings, "SESSION_COOKIE_SAME_SITE", "none");
+  requireExact(env, findings, "SESSION_COOKIE_PATH", "/");
+
+  const frontendUrl = value(env, "FRONTEND_URL").replace(/\/$/, "");
+  const oauthSuccessRedirectUri = value(env, "OAUTH_SUCCESS_REDIRECT_URI");
+  if (frontendUrl && oauthSuccessRedirectUri && oauthSuccessRedirectUri !== `${frontendUrl}/index.html`) {
+    findings.invalid.push({
+      variable: "OAUTH_SUCCESS_REDIRECT_URI",
+      message: "Must target the production FRONTEND_URL /index.html entry point."
+    });
+  }
 
   const profile = value(env, "SPRING_PROFILES_ACTIVE").toLowerCase();
   if (profile && !["prod", "production"].includes(profile)) {
@@ -102,9 +115,6 @@ function addConfigFindings(env, findings, options) {
   }
 
   const sameSite = value(env, "SESSION_COOKIE_SAME_SITE").toLowerCase();
-  if (sameSite && !["none", "lax", "strict"].includes(sameSite)) {
-    findings.invalid.push({ variable: "SESSION_COOKIE_SAME_SITE", message: "Must be one of none/lax/strict." });
-  }
   if (sameSite === "none" && value(env, "SESSION_COOKIE_SECURE").toLowerCase() !== "true") {
     findings.invalid.push({ variable: "SESSION_COOKIE_SECURE", message: "SameSite=None requires Secure cookies." });
   }
