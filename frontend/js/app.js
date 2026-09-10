@@ -473,7 +473,7 @@ localStorage.setItem(cloudSyncMetaKey(), JSON.stringify(cloneJson(state.syncMeta
 return false;
 }
 restoreCloudSyncMeta();
-save();
+if (save() === false) return false;
 refreshAccountData();
 return true;
 }
@@ -715,7 +715,7 @@ lastPullAt: cloudSyncState.lastPullAt,
 lastSuccessfulSyncAt: cloudSyncState.lastSuccessfulSyncAt,
 cloudSnapshotUpdatedAt: cloudSyncState.cloudSnapshotUpdatedAt
 });
-save();
+if (save() === false) throw new Error("Cloud recovery could not commit local state.");
 refreshAccountData();
 }
 
@@ -1189,6 +1189,12 @@ setSyncStatus("Please refresh the app before syncing.", "warn");
 return;
 }
 setSyncStatus("Sync validation failed", "warn");
+return;
+}
+
+if (response.status === 413) {
+await readJsonSafely(response);
+setSyncStatus("Sync failed: payload too large. Your local data is still saved.", "warn");
 return;
 }
 
@@ -2332,47 +2338,16 @@ window.setTimeout(() => document.getElementById("importCancelBtn")?.focus(), 0);
 return true;
 }
 
-function restoreStorageValue(key, rawValue) {
-if (rawValue === null) localStorage.removeItem(key);
-else localStorage.setItem(key, rawValue);
-}
-
 function persistImportedData(nextVocab, nextWrongWords) {
-let accountId = currentAccountId();
-let vocabKey = typeof accountStorageKey === "function" ? accountStorageKey("vocab", accountId) : "vocab";
-let wrongKey = typeof accountStorageKey === "function" ? accountStorageKey("wrongWords", accountId) : "wrongWords";
-let probeKey = typeof accountStorageKey === "function" ? accountStorageKey("importCapacityProbe", accountId) : "importCapacityProbe";
-let previousVocabRaw = localStorage.getItem(vocabKey);
-let previousWrongRaw = localStorage.getItem(wrongKey);
-let serializedVocab;
-let serializedWrong;
-let serializedProbe;
-let wroteVocab = false;
-let wroteWrong = false;
-
-try {
-serializedVocab = JSON.stringify(nextVocab);
-serializedWrong = JSON.stringify(nextWrongWords);
-serializedProbe = JSON.stringify({ vocab: nextVocab, wrongWords: nextWrongWords });
-localStorage.setItem(probeKey, serializedProbe);
-localStorage.removeItem(probeKey);
-localStorage.setItem(vocabKey, serializedVocab);
-wroteVocab = true;
-localStorage.setItem(wrongKey, serializedWrong);
-wroteWrong = true;
-} catch (error) {
-try {
-localStorage.removeItem(probeKey);
-if (wroteVocab) restoreStorageValue(vocabKey, previousVocabRaw);
-if (wroteWrong) restoreStorageValue(wrongKey, previousWrongRaw);
-} catch (rollbackError) {
-return { ok: false, error, rollbackError };
-}
-return { ok: false, error };
-}
-
+let previousVocab = cloneJson(getVocab(), []);
+let previousWrongWords = cloneJson(getWrongWords(), []);
 vocab = nextVocab;
 wrongWords = nextWrongWords;
+if (save() === false) {
+vocab = previousVocab;
+wrongWords = previousWrongWords;
+return { ok: false, error: new Error(window.__wordArenaStorageError || "Browser storage is unavailable.") };
+}
 renderTable();
 renderMistakeTable();
 updateStats();
@@ -2584,6 +2559,12 @@ initProfileEditor();
 initProfileMenu();
 ensureSyncStatus();
 initSyncRetry();
+window.addEventListener("wordarena-storage-error", event => {
+toast(`Local save failed: ${event.detail?.message || "browser storage is unavailable."}`, "err", 5000);
+});
+if (window.__wordArenaStorageError) {
+toast(`Local save failed: ${window.__wordArenaStorageError}`, "err", 5000);
+}
 loadAuthenticatedProfile();
 updateStats();
 

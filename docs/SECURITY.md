@@ -268,11 +268,14 @@ explicit destructive action and requires a successful downloadable backup
 first. Merge keeps local fields on duplicate English keys. Imported sync
 metadata and pending deletion data are not trusted or applied.
 
-Import persistence uses a capacity probe and restores prior vocabulary and
-wrong-bank storage values if a write fails, including quota failures. The UI
-surfaces the failure without logging raw vocabulary content. Browser site-data
-clearing and the inherent capacity limits of `localStorage` remain platform
-risks; this remediation does not migrate data to IndexedDB.
+Import persistence uses the same account-scoped atomic `localStateTxn` save as
+normal vocabulary changes. If that authoritative write fails, the import
+candidate is discarded from working memory, the previously committed local
+state remains unchanged, and the UI reports the failure without logging raw
+vocabulary content. Ordinary edits that fail the same write remain in the
+active tab's working memory for retry. Browser site-data clearing and the
+inherent capacity limits of `localStorage` remain platform risks; this
+remediation does not migrate data to IndexedDB.
 
 ## Rate Limit Policy
 

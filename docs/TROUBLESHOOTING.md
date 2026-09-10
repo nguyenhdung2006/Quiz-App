@@ -18,6 +18,26 @@ frontend should store that value before its next sync; do not disable genuine
 
 400 with `SYNC_CLIENT_UPGRADE_REQUIRED` means the client did not send `syncContractVersion: 2`.
 
+## Local Save Or Cloud Sync Fails
+
+When the browser cannot write the authoritative local transaction, the app keeps
+the current account's working vocabulary and wrong-bank edits in memory, leaves
+the last committed snapshot unchanged, and reports the storage failure. Retry the
+save before closing or reloading the tab; in-memory edits cannot survive a reload
+while browser storage itself remains unavailable.
+
+A backend/cloud failure does not clear the account-local committed data. Use the
+visible Retry action after connectivity returns. If a reload still shows another
+account's words, inspect `quizUserProfile` and the matching
+`quizAccount:<normalized-email>:*` keys; do not merge or copy data between account
+namespaces as a recovery shortcut.
+
+`413 Payload Too Large` means the full cloud-sync request exceeded the configured
+backend limit. The frontend keeps the account-local data unchanged, reports that
+the payload is too large and that local data is still saved, and leaves Retry
+available. A retry resends the current payload; do not delete local words as an
+automatic recovery shortcut.
+
 ## Deleted Word Reappears Locally
 
 Verify the client applied `tombstones` from snapshot before merging live `vocab`. Legacy records should also be removed when tombstone `legacyWordId` matches local numeric `id`.

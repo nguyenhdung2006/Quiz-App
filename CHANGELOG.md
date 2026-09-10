@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Classified cloud-sync `413 Payload Too Large` separately from generic cloud
+  availability failures. The frontend now tells users that the sync payload is
+  too large while their local data remains saved, keeps Retry available, and has
+  browser regression coverage for local transaction safety and a successful retry.
+- Preserved the current account's in-memory vocabulary and wrong-bank edits when
+  the authoritative local transaction write fails. The last committed snapshot
+  remains unchanged, the failure stays visible, and the same working changes can
+  be retried without rolling back to stale data; cloud-sync failure/retry/reload
+  plus same-account logout/relogin and A/B/A isolation are covered by browser
+  regressions. Automatic `localStateTxn` cleanup remains deferred until a safe
+  checkpoint for unsynced mutations is proven.
 - Finding 13A: added an evidence-based production readiness matrix and corrected
   stale Render Docker, V8 sequencing, and restore-evidence instructions. The
   production environment gate now requires the exact OAuth success redirect and

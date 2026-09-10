@@ -32,6 +32,21 @@ Workaround: keep the exact inline-style ratchet and compatible style policy whil
 
 Next action: migrate the remaining allowlisted style writes, validate report-only evidence, then remove style `unsafe-inline`.
 
+## Local Transaction Cleanup Deferred
+
+Severity: Medium
+
+Impact: account-scoped `localStateTxn` records are retained because they remain
+part of the authoritative local merge history. Long-lived use across many tabs
+can increase localStorage consumption.
+
+Workaround: keep the transactions intact; the existing account namespace and
+compatibility mirrors remain usable. Do not delete transactions based only on
+age, tab ID, or the presence of mirror keys.
+
+Next action: define and prove a commit/checkpoint or acknowledgement boundary
+that preserves unsynced local mutations before implementing bounded cleanup.
+
 ## Frontend Global Coupling
 
 Severity: Medium

@@ -1,5 +1,19 @@
 # Completed Tasks
 
+## 2026-09-08 Local save/sync failure data preservation
+
+- Removed the generic local save failure rollback that replaced the active
+  account's in-memory vocabulary and wrong bank with an older committed snapshot.
+- Kept the last committed local transaction unchanged on failure and retained the
+  current working state so the same change can be retried when storage recovers.
+- Added regression coverage for successful save, failed save without in-memory
+  loss, no stale rollback, retry, cloud `503`, reload, same-account
+  logout/relogin, and A/B/A vocabulary isolation.
+- No API, authentication, database schema, or sync contract changed. Account
+  namespace keys remain unchanged; vocabulary and wrong-bank saves now use a
+  per-tab `localStateTxn` key as the authoritative atomic write while retaining
+  the existing account-scoped array keys as compatibility mirrors.
+
 ## 2026-09-03 Audit Finding 12 Batch 12D — approved
 
 Implemented bounded physical cleanup for `learning_attempt` and

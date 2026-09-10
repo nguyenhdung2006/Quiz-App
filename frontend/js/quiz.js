@@ -53,9 +53,7 @@ let quizStarting = false;
 let quizAccountId = null;
 
 function quizUsesIssuedAttempt() {
-let clientState = window.WordArenaQuizAttemptClient?.state?.();
-return Boolean(clientState?.attemptId
-&& Array.isArray(quizData)
+return Boolean(Array.isArray(quizData)
 && quizData.length > 0
 && quizData.every(item => Number.isInteger(item.attemptOrdinal)));
 }

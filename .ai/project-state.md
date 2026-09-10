@@ -1,6 +1,6 @@
 # Project State
 
-Date: 2026-09-03
+Date: 2026-09-08
 
 Version: `0.0.1-SNAPSHOT`.
 
@@ -8,16 +8,19 @@ Branch: `chore/audit-reconciliation-and-upgrade`.
 
 Production gate: `NOT_READY`.
 
-Current focus: Finding 13A release-readiness discovery on evidence candidate
-`a7259fe48d2ab364408a5912c7dafec5bf318d92`. Finding 12 is **FIXED**, but the
-production decision remains **OPEN / NO-GO — EXTERNAL RELEASE EVIDENCE
-REQUIRED**. See `docs/FINDING13-READINESS.md`. No deployment or
-cloud/production access occurred; do not begin Finding 14.
+Current focus: Task 6 account-isolation/local-persistence release baseline.
+Finding 12 is **FIXED**, but the production decision remains **OPEN / NO-GO —
+EXTERNAL RELEASE EVIDENCE REQUIRED**. See `docs/FINDING13-READINESS.md`. No
+deployment or cloud/production access occurred; do not begin Finding 14.
 
 Batch 12D evidence: `docs/FINDING12D.md`. V8 adds only three cleanup-query indexes; V1-V7 are unchanged. Strict seven-day cutoffs, 500-row category bounds, oldest-first UUID selection, attempt-item cascade, quiz-history retention, post-delete fail-closed behavior, after-commit `REQUIRES_NEW` isolation, hourly throttle, and concurrent maintenance are covered. Focused backend passes 61/61; clean verify passes 169/169 in 29 suites; focused Chromium passes 13/13; JaCoCo is 88.57% line / 63.34% branch; disposable PostgreSQL 16.14 fresh V1→V8 and restart validation pass.
 
 Implemented and verified locally:
 
+- Failed local transaction writes preserve the active account's working
+  vocabulary/wrong-bank state in memory while leaving the prior committed
+  snapshot intact for safe retry. Cloud failure, retry/reload, same-account
+  logout/relogin, and A/B/A account isolation have focused regression coverage.
 - Server-authoritative quiz results and official progress.
 - Sync payload lockout for server-managed stats/mastery.
 - CSRF for OAuth2 session auth with central frontend API helper.

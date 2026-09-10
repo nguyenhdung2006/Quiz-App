@@ -252,6 +252,7 @@ npm run test:frontend-quiz-attempt-client
 npm run test:frontend-learning-studio-storage
 npm run test:frontend-ui-actions
 npm run test:frontend-import-helpers
+npm run test:frontend-account-persistence
 npm run test:frontend
 npm run test:docs-drift
 npm run coverage:backend
@@ -276,6 +277,11 @@ production release gate.
 duplicate-aware merge stats, summary counts, and Merge/Replace candidate state.
 Run it whenever `frontend/js/import-helpers.js` or the `app.js` import wrappers
 change.
+
+`npm run test:frontend-account-persistence` verifies successful atomic local
+saves, preservation of in-memory edits when the authoritative transaction write
+fails, retry after storage recovery, and account A/B isolation without a real
+backend.
 
 `npm run test:frontend-learning-studio-storage` runs the focused facade suite
 for exact account-key resolution, history JSON fallback, raw achievement-flag

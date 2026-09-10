@@ -240,6 +240,27 @@ async function preparePage(page, options = {}) {
     }
     if (url.endsWith("/api/sync")) {
       syncBodies.push(route.request().postDataJSON());
+      const queuedSyncResponse = Array.isArray(options.syncResponses)
+        ? options.syncResponses[syncBodies.length - 1]
+        : null;
+      if (queuedSyncResponse) {
+        await route.fulfill({
+          status: queuedSyncResponse.status || 200,
+          contentType: queuedSyncResponse.contentType || "application/json",
+          body: queuedSyncResponse.body !== undefined
+            ? queuedSyncResponse.body
+            : JSON.stringify(queuedSyncResponse.json || {})
+        });
+        return;
+      }
+      if (options.syncFails || (options.syncFailsAfter && syncBodies.length > options.syncFailsAfter)) {
+        await route.fulfill({
+          status: options.syncStatus || 503,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Sync unavailable." })
+        });
+        return;
+      }
       if (options.syncConflict) {
         await route.fulfill({
           status: 409,
@@ -270,6 +291,17 @@ async function preparePage(page, options = {}) {
           achievements: [],
           quizHistory: []
         }
+      });
+      return;
+    }
+    if (options.vocabMutationFails && (
+      (method === "POST" && url.endsWith("/api/vocab"))
+      || (method === "PUT" && url.includes("/api/vocab/"))
+    )) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Vocabulary mutation unavailable." })
       });
       return;
     }
@@ -1294,7 +1326,7 @@ test("replace quota failure rolls storage back and surfaces a visible error", as
     const originalSetItem = Storage.prototype.setItem;
     let thrown = false;
     Storage.prototype.setItem = function (key, value) {
-      if (!thrown && String(key).endsWith(":wrongWords")) {
+      if (!thrown && String(key).includes(":localStateTxn:")) {
         thrown = true;
         const error = new DOMException("Storage quota exceeded", "QuotaExceededError");
         throw error;
@@ -1673,6 +1705,106 @@ test("retry sync button is hidden when sync is healthy", async ({ page }) => {
 
   await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
   await expect(page.locator("#syncRetryBtn")).toBeHidden();
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("HTTP 413 explains the payload limit, preserves local data, and retries successfully", async ({ page }) => {
+  const profile = { name: "Payload Keeper", email: "payload-keeper@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    vocabMutationFails: true,
+    syncResponses: [
+      null,
+      {
+        status: 413,
+        json: {
+          message: "Payload too large.",
+          errors: ["/api/sync request body exceeds the configured limit of 1048576 bytes."]
+        }
+      },
+      null
+    ]
+  });
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect.poll(() => fatalConsole.syncBodies.length).toBe(1);
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await page.locator("#engInput").fill("safe-large-payload-word");
+  await page.locator("#vieInput").fill("du lieu local van an toan");
+  await page.locator(".addBtn").click();
+
+  const expectedWarning = "Sync failed: payload too large. Your local data is still saved.";
+  await expect(page.locator("#cloudSyncStatus")).toHaveText(expectedWarning);
+  await expect(page.locator("#cloudSyncStatus")).toHaveAttribute("aria-label", expectedWarning);
+  await expect(page.locator("#cloudSyncStatus")).not.toContainText("Synced");
+  await expect(page.locator("#syncRetryBtn")).toBeVisible();
+  await expect(page.locator("#tableBody")).toContainText("safe-large-payload-word");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("#cloudSyncStatus")).toHaveText(expectedWarning);
+  const mobileStatusMetrics = await statusDoesNotClipText(page);
+  expect(mobileStatusMetrics.clippedInline).toBe(false);
+  expect(mobileStatusMetrics.clippedBlock).toBe(false);
+  expect(mobileStatusMetrics.whiteSpace).not.toBe("nowrap");
+  expect(mobileStatusMetrics.ariaLabel).toBe(expectedWarning);
+  expect(mobileStatusMetrics.title).toBe(expectedWarning);
+  await expectNoDocumentHorizontalOverflow(page);
+  await expect.poll(() => page.evaluate((accountId) => {
+    const mirror = JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]");
+    const transactionPrefix = `quizAccount:${accountId}:localStateTxn:`;
+    const transactionKeys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+      .filter(key => key?.startsWith(transactionPrefix));
+    const transactionHasWord = transactionKeys.some(key => {
+      const transaction = JSON.parse(localStorage.getItem(key) || "{}");
+      return (transaction.vocab || []).some(mutation => mutation.word?.eng === "safe-large-payload-word");
+    });
+    return {
+      mirrorHasWord: mirror.some(item => item.eng === "safe-large-payload-word"),
+      transactionHasWord
+    };
+  }, fatalConsole.accountId)).toEqual({ mirrorHasWord: true, transactionHasWord: true });
+  expect(fatalConsole.syncBodies[1].vocab.map(item => item.eng)).toContain("safe-large-payload-word");
+
+  await page.locator("#syncRetryBtn").click();
+  await expect.poll(() => fatalConsole.syncBodies.length).toBe(3);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect(page.locator("#syncRetryBtn")).toBeHidden();
+  await expect(page.locator("#tableBody")).toContainText("safe-large-payload-word");
+  expect(fatalConsole.syncBodies[2].vocab.map(item => item.eng)).toContain("safe-large-payload-word");
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("failed cloud sync keeps the account-local edit through retry and reload", async ({ page }) => {
+  const profile = { name: "Local Keeper", email: "local-keeper@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    preserveStorageOnNavigation: true,
+    vocabMutationFails: true,
+    syncFailsAfter: 1
+  });
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await page.locator("#engInput").fill("kept-after-cloud-failure");
+  await page.locator("#vieInput").fill("giu sau loi cloud");
+  await page.locator(".addBtn").click();
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Cloud unavailable");
+  await expect(page.locator("#tableBody")).toContainText("kept-after-cloud-failure");
+  await expect.poll(() => page.evaluate((accountId) => {
+    const words = JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]");
+    return words.some(item => item.eng === "kept-after-cloud-failure");
+  }, fatalConsole.accountId)).toBe(true);
+
+  await page.locator("#syncRetryBtn").click();
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Cloud unavailable");
+  await expect(page.locator("#tableBody")).toContainText("kept-after-cloud-failure");
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await expect(page.locator("#tableBody")).toContainText("kept-after-cloud-failure");
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
@@ -2252,7 +2384,7 @@ test("stale recovery persistence failure keeps local state", async ({ page }) =>
     const originalSetItem = Storage.prototype.setItem;
     let thrown = false;
     Storage.prototype.setItem = function (key, value) {
-      if (!thrown && String(key).includes(":vocab")) {
+      if (!thrown && String(key).includes(":localStateTxn:")) {
         thrown = true;
         throw new Error("forced persistence failure");
       }
@@ -2996,7 +3128,7 @@ test("late quiz outcome cannot write into a different account", async ({ page })
   await page.evaluate(() => window.switchAccountStorage({ email: "other-account@example.com", name: "Other Account" }));
   const before = await page.evaluate(() => JSON.stringify(localStorage));
   releaseSubmit();
-  await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("consumed");
+  await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state())).toBeNull();
   expect(await page.evaluate(() => JSON.stringify(localStorage))).toBe(before);
   expect(await page.evaluate(() => window.getCurrentAccountId())).toBe("other-account@example.com");
   expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
@@ -3224,6 +3356,100 @@ test("review queue renders ratings and accepts one local review", async ({ page 
   await expect(page.locator(".reviewCompletionStats")).toContainText("Good");
 
   expect(fatalConsole).toEqual([]);
+});
+
+test("account-local vocabulary survives logout and relogin to the same account", async ({ page }) => {
+  const profileA = {
+    name: "Persistence User A",
+    email: "persistence.a@example.com",
+    avatar: "images/icon.png"
+  };
+  const accountA = "persistence.a@example.com";
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    mutableSession: true,
+    preserveStorageOnNavigation: true,
+    snapshotFails: true,
+    vocabMutationFails: true,
+    profile: profileA
+  });
+
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await page.locator("#engInput").fill("account-a-persisted-word");
+  await page.locator("#vieInput").fill("du lieu tai khoan a");
+  await page.locator(".addBtn").click();
+  await expect(page.locator("#tableBody")).toContainText("account-a-persisted-word");
+  const beforeLogout = await page.evaluate((accountId) =>
+    localStorage.getItem(`quizAccount:${accountId}:vocab`), accountA);
+  expect(JSON.parse(beforeLogout || "[]").map(item => item.eng)).toContain("account-a-persisted-word");
+
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true$/);
+
+  fatalConsole.setSession(profileA);
+  await page.goto("index.html");
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await expect(page.locator("#tableBody")).toContainText("account-a-persisted-word");
+  expect(await page.evaluate((accountId) =>
+    localStorage.getItem(`quizAccount:${accountId}:vocab`), accountA)).toBe(beforeLogout);
+
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("account A vocabulary remains isolated from account B across A-B-A sessions", async ({ page }) => {
+  const profileA = { name: "Isolation User A", email: "isolation.a@example.com", avatar: "images/icon.png" };
+  const profileB = { name: "Isolation User B", email: "isolation.b@example.com", avatar: "images/icon.png" };
+  const accountA = "isolation.a@example.com";
+  const accountB = "isolation.b@example.com";
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    mutableSession: true,
+    preserveStorageOnNavigation: true,
+    snapshotFails: true,
+    vocabMutationFails: true,
+    profile: profileA
+  });
+
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await page.locator("#engInput").fill("only-account-a");
+  await page.locator("#vieInput").fill("chi tai khoan a");
+  await page.locator(".addBtn").click();
+  await expect(page.locator("#tableBody")).toContainText("only-account-a");
+
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true$/);
+  fatalConsole.setSession(profileB);
+  await page.goto("index.html");
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await expect(page.locator("#tableBody")).not.toContainText("only-account-a");
+  await page.locator("#engInput").fill("only-account-b");
+  await page.locator("#vieInput").fill("chi tai khoan b");
+  await page.locator(".addBtn").click();
+  await expect(page.locator("#tableBody")).toContainText("only-account-b");
+
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true$/);
+  fatalConsole.setSession(profileA);
+  await page.goto("index.html");
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await expect(page.locator("#tableBody")).toContainText("only-account-a");
+  await expect(page.locator("#tableBody")).not.toContainText("only-account-b");
+
+  const stored = await page.evaluate(({ accountAId, accountBId }) => ({
+    a: JSON.parse(localStorage.getItem(`quizAccount:${accountAId}:vocab`) || "[]").map(item => item.eng),
+    b: JSON.parse(localStorage.getItem(`quizAccount:${accountBId}:vocab`) || "[]").map(item => item.eng)
+  }), { accountAId: accountA, accountBId: accountB });
+  expect(stored.a).toContain("only-account-a");
+  expect(stored.a).not.toContain("only-account-b");
+  expect(stored.b).toContain("only-account-b");
+  expect(stored.b).not.toContain("only-account-a");
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
 test("learning studio storage remains isolated across account logout and relogin", async ({ page }) => {
