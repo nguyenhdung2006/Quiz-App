@@ -1,3 +1,4 @@
+/* global renderMistakeTable, save, vocab:writable, wrongWords:writable */
 let editingWordIndex = null;
 
 const POS_OPTIONS = ["interjection", "n", "v", "adj", "adv", "proverb", "idiom"];
@@ -809,10 +810,55 @@ vocab[i].favorite = !vocab[i].favorite;
 syncWordUpdate(i);
 }
 
+function applyAuthoritativeLearningWord(originalWord, response, action) {
+if (!response) return;
+if (!response.word) {
+vocab = vocab.filter(item => !sameWordIdentity(item, originalWord));
+wrongWords = wrongWords.filter(item => !sameWordIdentity(item, originalWord));
+saveReviewLocal();
+renderTable();
+renderMistakeTable();
+return;
+}
+let serverWord = normalizeWord(response.word);
+let index = vocab.findIndex(item => sameWordIdentity(item, originalWord));
+if (index >= 0) vocab[index] = serverWord;
+
+let foundWrong = false;
+wrongWords = wrongWords.map(item => {
+if (!sameWordIdentity(item, originalWord)) return item;
+foundWrong = true;
+return normalizeWord({ ...item, ...serverWord, mastered: serverWord.mastered });
+});
+if (response.inWrongBank === false) {
+wrongWords = wrongWords.filter(item => !sameWordIdentity(item, originalWord));
+} else if ((response.inWrongBank === true || action === "hard") && !foundWrong) {
+wrongWords.push(normalizeWord(serverWord));
+}
+saveReviewLocal();
+renderTable();
+renderMistakeTable();
+}
+
 function markWordKnown(i) {
 if (!vocab[i]) return;
+let original = normalizeWord(vocab[i]);
+return window.quizCloud?.markKnown?.(original, {
+local: () => applyLocalMarkKnown(vocab.findIndex(item => sameWordIdentity(item, original))),
+accept: response => applyAuthoritativeLearningWord(original, response, "known")
+});
+}
 
-let word = vocab[i];
+function saveReviewLocal() {
+if (window.quizCloud?.saveLocalReview) window.quizCloud.saveLocalReview();
+else save();
+}
+
+function applyLocalMarkKnown(i) {
+if (!vocab[i]) return;
+
+let word = normalizeWord(vocab[i]);
+vocab[i] = word;
 word.stats = word.stats || {};
 word.stats.seen = Number(word.stats.seen || 0) + 1;
 word.stats.correct = Number(word.stats.correct || 0) + 1;
@@ -821,15 +867,30 @@ word.stats.bestStreak = Math.max(Number(word.stats.bestStreak || 0), word.stats.
 word.stats.masteryLevel = Math.max(3, Number(word.stats.masteryLevel || 0) + 1);
 word.stats.lastReviewed = new Date().toISOString();
 word.stats.nextReview = nextReviewDate(word.stats, true);
-word.mastered = word.stats.masteryLevel >= 5;
-wrongWords = wrongWords.filter(item => !sameWordIdentity(item, word));
-syncWordUpdate(i);
+word.mastered = Number(word.stats.streak || 0) >= 5;
+stampWordUpdatedAt(word);
+wrongWords = wrongWords.map(item => sameWordIdentity(item, word)
+? normalizeWord({ ...item, ...word, mastered: word.mastered })
+: item);
+saveReviewLocal();
+renderTable();
+renderMistakeTable();
 }
 
 function markWordHard(i) {
 if (!vocab[i]) return;
+let original = normalizeWord(vocab[i]);
+return window.quizCloud?.markHard?.(original, {
+local: () => applyLocalMarkHard(vocab.findIndex(item => sameWordIdentity(item, original))),
+accept: response => applyAuthoritativeLearningWord(original, response, "hard")
+});
+}
 
-let word = vocab[i];
+function applyLocalMarkHard(i) {
+if (!vocab[i]) return;
+
+let word = normalizeWord(vocab[i]);
+vocab[i] = word;
 word.stats = word.stats || {};
 word.stats.seen = Number(word.stats.seen || 0) + 1;
 word.stats.wrong = Number(word.stats.wrong || 0) + 1;
@@ -838,12 +899,21 @@ word.stats.masteryLevel = Math.max(0, Number(word.stats.masteryLevel || 0) - 1);
 word.stats.lastReviewed = new Date().toISOString();
 word.stats.nextReview = nextReviewDate(word.stats, false);
 word.mastered = false;
+stampWordUpdatedAt(word);
 
-if (!wrongWords.some(item => sameWordIdentity(item, word))) {
+let existingWrong = false;
+wrongWords = wrongWords.map(item => {
+if (!sameWordIdentity(item, word)) return item;
+existingWrong = true;
+return normalizeWord({ ...item, ...word, mastered: false });
+});
+if (!existingWrong) {
 wrongWords.push(normalizeWord(word));
 }
 
-syncWordUpdate(i);
+saveReviewLocal();
+renderTable();
+renderMistakeTable();
 }
 
 function deleteWord(i) {
@@ -866,7 +936,8 @@ Promise.resolve(window.quizCloud?.deleteWord(word)).catch((error) => {
 }
 
 function clearMastered() {
-let count = wrongWords.filter(w => w.mastered).length;
+let masteredWords = wrongWords.filter(w => w.mastered);
+let count = masteredWords.length;
 
 if (count === 0) {
 alert("No mastered words to clear!");
@@ -879,6 +950,11 @@ wrongWords = wrongWords.filter(w => !w.mastered);
 
 save();
 renderMistakeTable();
+Promise.resolve(window.quizCloud?.clearMasteredWrongWords?.(masteredWords)).then(cleared => {
+if (cleared === false && window.quizCloud?.isReady?.()) {
+console.warn("[SYNC] Mastered wrong-bank cleanup is still pending cloud reconciliation.");
+}
+});
 }
 
 function shuffle(array) {

@@ -20,6 +20,17 @@ production results.
 
 ## Required Pre-Deployment Gate
 
+### Finding 12 version-skew sequencing
+
+Apply and validate V8 with the new backend **before** serving the new frontend.
+The new backend requires review `operationId`; cached old clients fail closed
+with 400 until refreshed. Do not deploy the new retrying frontend against an
+old backend, which has no idempotency boundary. Verify backend version/schema,
+then invalidate frontend caches and check the explicit operation contract.
+Do not roll back the backend to the insecure contract while the new frontend
+is served. V1-V7 are immutable; roll-forward is preferred after applying V8.
+This documentation does not authorize deployment or production database work.
+
 Run the GitHub Actions workflow **Production Release Gate** for the exact commit SHA intended for production. Do not deploy production unless the `production-release-gate-report` conclusion is `GO`.
 
 Do not treat source hardening as a production-ready decision. As of 2026-08-08,
@@ -41,6 +52,7 @@ FLYWAY_BASELINE_VERSION=1
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAME_SITE=none
 SESSION_COOKIE_PATH=/
+OAUTH_SUCCESS_REDIRECT_URI=https://<production-frontend>/index.html
 ```
 
 Required secret/environment variable names:
@@ -95,7 +107,7 @@ Complete backend env inventory read by the current application config:
 | `GOOGLE_CLIENT_SECRET` | OAuth secret | Google OAuth client secret. |
 | `FRONTEND_URL` | browser/OAuth | Frontend base URL and default redirect base. |
 | `CORS_ALLOWED_ORIGINS` | browser/OAuth | Exact comma-separated allowed browser origins. |
-| `OAUTH_SUCCESS_REDIRECT_URI` | browser/OAuth | Optional explicit post-login redirect. |
+| `OAUTH_SUCCESS_REDIRECT_URI` | browser/OAuth | Required release evidence; must equal `${FRONTEND_URL}/index.html`. |
 | `SESSION_COOKIE_SAME_SITE` | session | Use `none` for cross-site production frontend/backend. |
 | `SESSION_COOKIE_SECURE` | session | Use `true` in production. |
 | `SESSION_COOKIE_PATH` | session | Usually `/`. |
@@ -221,6 +233,13 @@ Rollback app procedure:
 3. Keep `SPRING_PROFILES_ACTIVE=prod`, `JPA_DDL_AUTO=validate`, and `FLYWAY_ENABLED=true`.
 4. Check `/api/health` and `/actuator/info`.
 5. Run frontend login/session and vocabulary smoke.
+
+Do not roll the backend back to a pre-V7 contract while the operation-ID
+frontend is served. Such a rollback removes the review idempotency boundary and
+is not an approved recovery path. After V8 is applied, use a schema-compatible
+application rollback only; otherwise ship a reviewed forward-fix migration and
+application build. Never edit an applied migration or use Flyway clean in
+production.
 
 ## Database Rollback Or Forward-Fix
 

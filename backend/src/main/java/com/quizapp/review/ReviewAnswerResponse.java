@@ -1,12 +1,12 @@
 package com.quizapp.review;
 
-import java.time.Instant;
+import com.quizapp.vocab.WordDto;
 
 public record ReviewAnswerResponse(
-        Long wordId,
-        int mastery,
-        int streak,
-        Instant nextReview,
-        String message
+        ReviewOperationOutcome outcome,
+        boolean replayed,
+        WordDto word,
+        boolean inWrongBank,
+        long revision
 ) {
 }

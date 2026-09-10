@@ -6,7 +6,7 @@ Measured on 2026-08-15 in local Spring Boot `MockMvc` tests with H2 and syntheti
 
 - Measured full snapshot payload growth at 100, 1,000, and 5,000 words.
 - Measured `/api/sync` request/response size for 100 submitted words against a 1,000-word account.
-- Measured quiz result submission with 100 answers against a 1,000-word account.
+- Measured server-issued quiz-attempt submission with 100 answers against a 1,000-word account.
 - Measured review queue and analytics query counts against a 1,000-word account.
 - Counted tombstone payload growth with synthetic tombstones only; no tombstone deletion or compaction was performed.
 
@@ -18,7 +18,7 @@ Measured on 2026-08-15 in local Spring Boot `MockMvc` tests with H2 and syntheti
 | `/api/snapshot` | 1,000 words / 50 tombstones | 1,010 | 10 | 0 | 515,360 | 110 |
 | `/api/snapshot` | 5,000 words / 250 tombstones | 5,010 | 10 | 0 | 2,583,853 | 351 |
 | `/api/sync` submit 100 words | 1,000 words / 20 tombstones | not separately captured before; code path had per-word lookup/full duplicate scan | 113 | 14,637 | 508,492 | 798 |
-| `/api/quiz-results` submit 100 answers | 1,000 words / 20 tombstones | 1,456 | 258 | 11,556 | 533,039 | 401 |
+| `/api/quiz/attempts/{attemptId}/submit` submit 100 answers | 1,000 words / 20 tombstones | 1,456 | 263 | 4,505 | 533,397 | 446 |
 | `/api/review/queue?limit=20` | 1,000 words / 20 tombstones | 1,003 | 3 | 0 | 4,288 | 57 |
 | `/api/analytics/overview` | 1,000 words / 20 tombstones | 1,008 | 4 | 0 | 339 | 63 |
 | `/api/analytics/tag-performance` | 1,000 words / 20 tombstones | 1,003 | 3 | 0 | 297 | 38 |

@@ -55,6 +55,9 @@ public class SecurityConfig {
     @Value("${app.oauth2.success-redirect-uri}")
     private String successRedirectUri;
 
+    @Value("${app.oauth2.failure-redirect-uri}")
+    private String failureRedirectUri;
+
     @Value("${app.frontend.origin}")
     private String frontendOrigin;
 
@@ -182,7 +185,7 @@ public class SecurityConfig {
                                 )
                         )
                         .defaultSuccessUrl(successRedirectUri, true)
-                        .failureUrl(GOOGLE_AUTHORIZATION_PATH)
+                        .failureUrl(failureRedirectUri)
                 )
                 .logout(logout -> logout
                         .logoutUrl("/logout")
@@ -210,7 +213,10 @@ public class SecurityConfig {
                 "X-XSRF-TOKEN",
                 RequestCorrelationFilter.REQUEST_ID_HEADER
         ));
-        configuration.setExposedHeaders(List.of(RequestCorrelationFilter.REQUEST_ID_HEADER));
+        configuration.setExposedHeaders(List.of(
+                RequestCorrelationFilter.REQUEST_ID_HEADER,
+                "X-Sync-Revision"
+        ));
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

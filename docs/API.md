@@ -55,7 +55,8 @@ Important status codes:
 - `200`: normal JSON response, including direct deletes with an empty body.
 - `400`: validation error, malformed JSON, invalid avatar, or Sync V2 upgrade required.
 - `403`: invalid/missing CSRF token or authenticated user lacks required role.
-- `409`: Sync V2 revision conflict.
+- `409`: Sync V2 revision conflict, expired quiz attempt, or conflicting quiz-attempt replay.
+- `410`: authenticated use of the retired legacy quiz-result mutation route.
 - `413`: `/api/sync` body exceeded `app.sync.max-request-body-bytes`.
 - `429`: AI per-user rate limit exceeded.
 - `500`: unexpected server error.
@@ -98,7 +99,10 @@ Unsafe documented routes:
 - `DELETE /api/vocab/uid/{wordUid}`
 - `POST /api/sync`
 - `POST /api/quiz-results`
+- `POST /api/quiz/attempts`
+- `POST /api/quiz/attempts/{attemptId}/submit`
 - `POST /api/review/answer`
+- `POST /api/review/known`
 - `POST /api/admin/sample-words`
 - `POST /api/ai/explain-wrong-answer`
 - `POST /api/ai/generate-deck`
@@ -129,25 +133,108 @@ goal 160, bio 2000, and birthday must not be in the future.
 | Method | Path | Auth | Controller | Request | Response | Main tests |
 | --- | --- | --- | --- | --- | --- | --- |
 | GET | `/api/vocab` | Auth | `VocabularyController` | none | list of `WordDto` | `SpacedRepetitionTests`, `BackendHardeningTests` |
-| POST | `/api/vocab` | Auth + CSRF | `VocabularyController` | `WordRequest` | created `WordDto` | `SyncContractV2Tests`, `LearningAnalyticsTests` |
-| PUT | `/api/vocab/{id}` | Auth + CSRF | `VocabularyController` | path `id`; `WordRequest` | updated `WordDto`; changing existing `wordUid` is rejected | `SyncContractV2Tests` |
-| DELETE | `/api/vocab/{id}` | Auth + CSRF | `VocabularyController` | path `id` | empty `200`; creates tombstone and hard-deletes live row | `SyncContractV2Tests` |
-| DELETE | `/api/vocab/uid/{wordUid}` | Auth + CSRF | `VocabularyController` | path UUID `wordUid` | empty `200`; delete by stable identity | `SyncContractV2Tests` |
+| POST | `/api/vocab` | Auth + CSRF | `VocabularyController` | `WordRequest` | created `WordDto`; `X-Sync-Revision` header | `SyncContractV2Tests`, `LearningAnalyticsTests` |
+| PUT | `/api/vocab/{id}` | Auth + CSRF | `VocabularyController` | path `id`; `WordRequest` | updated `WordDto`; `X-Sync-Revision` header; changing existing `wordUid` is rejected | `SyncContractV2Tests` |
+| DELETE | `/api/vocab/{id}` | Auth + CSRF | `VocabularyController` | path `id` | empty `200` plus `X-Sync-Revision`; creates tombstone and hard-deletes live row | `SyncContractV2Tests` |
+| DELETE | `/api/vocab/uid/{wordUid}` | Auth + CSRF | `VocabularyController` | path UUID `wordUid` | empty `200` plus `X-Sync-Revision`; delete by stable identity | `SyncContractV2Tests` |
 | GET | `/api/wrong-words` | Auth | `VocabularyController` | none | list of wrong-bank `WordDto` | sync/backend hardening tests |
 | GET | `/api/snapshot` | Auth | `VocabularyController` | none | full `SyncResponse` snapshot | `SyncContractV2Tests`, `Audit005CapacityTests` |
 | POST | `/api/sync` | Auth + CSRF | `VocabularyController` | `SyncRequest` | `SyncResponse` with revision, vocab, tombstones, progress, achievements, history | `SyncContractV2Tests`, `SyncRequestBodyLimitTests`, `Audit005CapacityTests` |
 | GET | `/api/progress` | Auth | `VocabularyController` | none | `ProgressSummaryDto` | backend smoke/hardening tests |
 | GET | `/api/achievements` | Auth | `VocabularyController` | none | list of `AchievementDto` | backend smoke/hardening tests |
 | GET | `/api/quiz-history` | Auth | `VocabularyController` | none | list of `QuizHistoryDto` | backend smoke/hardening tests |
-| POST | `/api/quiz-results` | Auth + CSRF | `VocabularyController` | `QuizResultRequest` | full `SyncResponse` after stats/history/achievement updates | `LearningAnalyticsTests`, `BackendHardeningTests` |
+| POST | `/api/quiz-results` | Auth + CSRF | `VocabularyController` | body ignored | deterministic `410 Gone`, `QUIZ_RESULT_ENDPOINT_RETIRED`; no mutation | `Finding12QuizAttemptTests`, `BackendHardeningTests` |
+| POST | `/api/quiz/attempts` | Auth + CSRF | `QuizAttemptController` | quiz mode, optional challenge seconds, and 1-500 unique owned word IDs with `eng`/`vie` direction | UUID attempt, 24-hour expiry, and issued ordinal/prompt context | `Finding12QuizAttemptTests` |
+| POST | `/api/quiz/attempts/{attemptId}/submit` | Auth + CSRF | `QuizAttemptController` | complete unique ordinal/selected-answer list | immutable scored outcome, quiz/achievement XP, and current `SyncResponse`; `X-Sync-Revision` header | `Finding12QuizAttemptTests` |
 | POST | `/api/admin/sample-words` | Auth + CSRF + admin role | `VocabularyController` | none | `SyncResponse` after starter import | auth/admin path covered by backend tests |
 
 `WordRequest` requires `eng` and `vie` and accepts optional `id`, `wordUid`,
 POS, tag, IPA, CEFR/level, context, example, example meaning, collocation,
 synonyms, antonyms, common mistake, note, favorite/mastered flags, and stats.
 
-`QuizResultRequest` stores quiz history and answers. It requires `answers` and
-clamps aggregate numeric values to safe ranges; answers are limited to 500.
+`POST /api/quiz-results` is retained only as an authenticated retirement stub.
+It does not deserialize or normalize the legacy body and cannot create an
+attempt. Every authenticated call returns `410 Gone` with stable error code
+`QUIZ_RESULT_ENDPOINT_RETIRED` and performs no reward, stats, history,
+wrong-bank, achievement, or revision mutation.
+
+`POST /api/quiz/attempts` is the additive server-issued online-attempt contract.
+The server validates ownership, rejects duplicate words, captures the answer
+context at issuance, and expires unconsumed attempts after 24 hours. The submit
+contract accepts only each issued ordinal and its selected answer; it has no
+client-authoritative XP, score, correctness, mastery, streak, combo, or revision
+fields. Submission order and JSON property order do not affect the canonical
+fingerprint.
+
+Quiz modes are exact, case-sensitive identifiers: `quiz`, `challenge`,
+`wrong-practice`, `favorites`, `daily`, `mixed`, `eng`, `vie`, `quick-add`,
+`focus`, and `weak-words`. Whitespace/case variants are rejected rather than
+normalized. Issued ordinals are server-assigned, contiguous from zero, and a
+submit may send them in any order but must include each ordinal exactly once.
+
+The first valid submit locks the owned attempt, recomputes correctness, and runs
+the existing quiz reward/history path once. A retry with the same logical
+payload returns `200` with `replayed: true`, the original immutable outcome, and
+a freshly built current snapshot without another mutation. A different payload
+for the consumed attempt returns `409` with
+`QUIZ_ATTEMPT_REPLAY_CONFLICT`; an expired unconsumed attempt returns `409` with
+`QUIZ_ATTEMPT_EXPIRED`. An attempt belonging to another user uses the same
+non-disclosing `400` not-found behavior as an unknown attempt.
+
+The online frontend uses only the attempt routes. It binds the issued attempt,
+ordinals, word identity, direction, and prompt before rendering; submit retries
+reuse the same attempt ID and byte-identical logical payload. If issuance is not
+available, the round remains local-only and never falls back to the retired
+route or claims cloud reward retroactively.
+Attempt/retry state is memory-only. Home/reset, logout, or a full reload ends
+that retry lifecycle; reload-resilient delivery is not implemented. Late
+responses cannot overwrite a replacement quiz or another account's state.
+
+Batch 12C adds the review-operation boundary below. Self-rating is an intentional
+product choice, not a claim of server-verifiable answers. Batch 12D retains an
+accepted operation for seven days after `consumed_at`; exact replay recovery is
+bounded by that physical lifetime. See [12C evidence](FINDING12C.md).
+
+## Review operation contract (Batch 12C)
+
+Both mutation routes require a UUID `operationId`. Missing/malformed IDs fail
+closed with `400`; no legacy mutation branch exists. `/api/review/answer`
+requires `wordId`, boolean `correct`, and `mode`. Mode is trimmed/lowercased
+with ROOT locale, then must be `review` or `mark-hard`; `mark-hard` requires
+`correct=false`. `/api/review/known` requires only `operationId` and `wordId`.
+
+`review` is self-rating: Good/Easy submit true; Again submits false. A new
+operation requires the same server due predicate as the queue: non-null
+`nextReview <= server now`. An accepted review schedules a future date;
+another ID against the stale state returns `409 REVIEW_NOT_DUE`, with no write.
+Known/Hard new commands retain their existing algorithms without a due check.
+
+An owner-bound operation ID and identical logical payload replay successfully;
+a different owner, word, correctness, or action returns
+`409 REVIEW_OPERATION_CONFLICT` without disclosing an original result. The
+SHA-256 canonical input is `review-operation-v1|action|wordId|correct` (Known
+uses fixed true). JSON property order is irrelevant. Client stats/revisions
+are not consumed as input.
+
+Successful responses separate `outcome` (original `operationId`, `wordId`,
+`action`, `mastery`, `streak`, `nextReview`, `message`, `resultingRevision`)
+from `word`, `inWrongBank`, and `revision` (current read models), plus
+`replayed`. `X-Sync-Revision` matches current `revision`, never a replay
+increment. Deleted words have `word: null`; the original outcome survives.
+
+Frontend retries use the same UUID and serialized body, including Retry Review,
+Retry Sync and reconnect. Pending memory-only state is discarded on account
+switch/logout/reload, not on a transient failure. A click on a pending word
+resolves that operation before a new command can be created. Local fallback
+is applied once and current server learning replaces it, without cloud reward
+or revision fabrication. A definite conflict triggers a read-only refresh,
+not another local review. Offline-only study is not retroactively submitted.
+
+Quiz-attempt replay is likewise bounded: consumed attempts remain for seven
+days after `consumed_at`; expired `ISSUED` attempts remain seven days after the
+24-hour `expires_at`. Eligibility is strictly older than the cutoff, not equal.
+After deletion, submit returns fail-closed not-found and never recreates or
+rewards an attempt. Quiz history is retained independently.
 
 ## Sync Contract V2
 
@@ -187,9 +274,20 @@ Request shape:
       "wordUid": "2a13ee3f-30f3-40e2-a47a-502688fd0f3a"
     }
   ],
-  "wrongWords": []
+  "wrongWords": [],
+  "wrongWordDeletions": [
+    {
+      "wordUid": "7b8f0d4a-0c87-4e44-9f53-1455f67c4a30"
+    }
+  ]
 }
 ```
+
+`wrongWordDeletions` is an optional intent list. The server deletes only the
+authenticated user's matching wrong-bank entries whose canonical vocabulary
+word has already reached mastered state (`streak >= 5`). The operation is part
+of the same revision-protected sync transaction; stale revisions still return
+`409` without partial deletion.
 
 Response includes `syncContractVersion`, `revision`, `profile`, live `vocab`,
 `tombstones`, `wrongWords`, `progress`, `achievements`, and `quizHistory`.
@@ -215,7 +313,14 @@ old local words that have numeric `id` but never adopted the server `wordUid`.
 | --- | --- | --- | --- | --- | --- | --- |
 | GET | `/api/review/today` | Auth | `ReviewController` | none | due review items | `SpacedRepetitionTests` |
 | GET | `/api/review/queue` | Auth | `ReviewController` | optional query `limit`, `tag`, `level` | filtered review queue | `SpacedRepetitionTests`, `Audit005CapacityTests` |
-| POST | `/api/review/answer` | Auth + CSRF | `ReviewController` | `ReviewAnswerRequest`: `wordId`, `correct`, optional `mode` | updated streak/mastery/nextReview summary | `SpacedRepetitionTests` |
+| POST | `/api/review/answer` | Auth + CSRF | `ReviewController` | Required `operationId`, `wordId`, `correct`, validated `mode` | Immutable `outcome`, `replayed`, current `word`, `inWrongBank`, `revision`; `X-Sync-Revision` | `Finding12ReviewOperationTests`, `SpacedRepetitionTests` |
+| POST | `/api/review/known` | Auth + CSRF | `ReviewController` | Required `operationId`, `wordId` | Same operation response; original Known algorithm for each new command | `Finding12ReviewOperationTests`, `AuditFindingsFiveToNineTests` |
+
+Successful authenticated mutations that advance cloud state return the new
+revision in `X-Sync-Revision`. Browser CORS exposes this header so the frontend
+can use the revision on its next sync instead of manufacturing an avoidable
+conflict. The header is additive; existing JSON response bodies remain
+compatible.
 
 ## Analytics
 
@@ -307,5 +412,7 @@ Flyway migrations live under `backend/src/main/resources/db/migration`. The
 latest migration at this commit is:
 
 ```text
-V4__add_legacy_word_id_to_word_tombstones.sql
+V6__capture_quiz_attempt_achievement_xp.sql
+V7__add_review_operations.sql
+V8__add_retention_cleanup_indexes.sql
 ```

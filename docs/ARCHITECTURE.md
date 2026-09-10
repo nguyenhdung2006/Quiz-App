@@ -39,6 +39,20 @@ semantics.
 
 Production database lifecycle is separated from business logic. Flyway migrations are the schema source of truth, `application-prod.yml` pins safe production values, and `ProductionDatabaseSafetyGuard` fails startup if the effective production configuration is unsafe.
 
+## Account-Local Persistence
+
+Vocabulary and wrong-bank state remains scoped under the normalized account ID.
+Each browser tab writes one atomic transaction at
+`quizAccount:<accountId>:localStateTxn:<tabId>`; reads merge those transaction
+mutations over the existing account-scoped `vocab` and `wrongWords` arrays. The
+array keys remain compatibility mirrors, while the transaction write is the
+authoritative save boundary.
+
+If the transaction write fails, the previous committed state is unchanged and
+the active tab keeps its working state in memory for retry. Transactions are not
+automatically removed: the current model has no proven checkpoint that can
+distinguish disposable history from unsynced local mutations.
+
 ## Sync V2 Architecture
 
 Vocabulary sync uses stable client/server UUID identity:

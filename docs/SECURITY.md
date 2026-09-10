@@ -55,6 +55,8 @@ Missing or invalid CSRF tokens return JSON, not HTML redirects:
 CORS is configured once in Spring Security before authorization. It allows credentials and never uses wildcard origins with credentials. Allowed origins are read from `app.frontend.origin`. Allowed methods are `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, and `OPTIONS`. Allowed request headers are `Accept`, `Content-Type`, and `X-XSRF-TOKEN`.
 
 The request header `X-Request-ID` is also allowed and exposed for correlation.
+`X-Sync-Revision` is exposed so the browser can adopt a mutation's
+server-issued revision before its next revision-protected sync.
 
 Production cross-site deployment must keep:
 
@@ -98,9 +100,36 @@ work can be observed before enforcement.
 Current limitation: `frontend/index.html` no longer uses inline event handlers
 or `javascript:` URLs, so `script-src 'unsafe-inline'` is no longer required in
 the enforced policy. `style-src 'unsafe-inline'` remains in the enforced policy
-because the current static frontend still uses JavaScript-driven inline style
-updates for progress bars, timers, effects, and small transitions. The policy
-does not allow `unsafe-eval`.
+because the current static frontend still has 27 allowlisted JavaScript-driven
+inline style updates for arbitrary progress values, animated login/effect
+coordinates, theme hints, and legacy helper visibility. The policy does not
+allow `unsafe-eval`.
+
+The static Vercel frontend mirrors the relevant browser protections in
+`frontend/vercel.json`: CSP, `X-Content-Type-Options`, `Referrer-Policy`,
+`Permissions-Policy`, and frame denial. Its CSP likewise excludes
+`unsafe-eval` and script `unsafe-inline`; style `unsafe-inline` remains the
+documented compatibility exception for the current JavaScript-driven style
+inventory.
+
+### Inline Style Ratchet
+
+`npm run test:frontend-inline-styles` inventories HTML `style=` attributes and
+JavaScript style APIs, including `.style.*`, bracket style access,
+`setAttribute("style", ...)`, and `cssText`. The allowlist is exact by file,
+API kind, normalized source line, count, and reason; a new use or a stale count
+fails the check.
+
+AUD-011 Batch 2 reduced the inventory from 45 to 32 JavaScript usages. Quiz
+timer and navigation visibility now use `hidden`, progress reset timing uses a
+CSS class, and score/comment tones use stylesheet rules plus `data-grade`.
+AUD-011 Batch 3 moved app/studio toast dismissal state to `.toast.is-hiding`,
+reducing the ratchet to 27 JavaScript usages. HTML inline style attributes
+remain at zero. Remaining arbitrary-value writes are intentionally visible in
+`scripts/frontend-inline-style-guard.mjs` and must be removed in focused batches
+before enforced `style-src 'unsafe-inline'` can be dropped. Report-only
+`style-src 'self'` remains the stricter observation policy; real
+staging/report-only evidence is still required before enforcement changes.
 
 ## Actuator And Metrics Access
 
@@ -144,6 +173,12 @@ Authorization remains per authenticated `AppUser`: `wordUid` is unique only with
 
 The server ignores client-supplied `wrongWords` for vocabulary creation/update and ignores client-managed progress stats/mastery in sync payloads. This prevents stale or forged client payloads from creating vocabulary through the wrong-bank channel or overwriting server-managed learning progress.
 
+Mark-hard and mark-known actions send only the authenticated user's word ID and
+intent. The backend computes official stats and canonical mastery. Wrong-bank
+clear requests send stable word UIDs through `wrongWordDeletions`; the backend
+deletes only entries whose owned canonical word is already mastered and applies
+the normal revision conflict check atomically.
+
 `POST /api/sync` is capped before JSON deserialization by
 `app.sync.max-request-body-bytes` / `SYNC_MAX_REQUEST_BODY_BYTES` (default
 `1048576`). Oversized bodies return `413 Payload Too Large` with an `ApiError`
@@ -163,6 +198,61 @@ The production release gate adds these fail-closed security checks:
 
 If staging variables are missing, staging security smoke is `BLOCKED` and the gate conclusion is `NO-GO`.
 
+## Quiz Attempt Replay Boundary
+
+The additive online quiz-attempt API uses a server-generated UUID bearer
+identifier plus mandatory authenticated ownership checks. Issuance accepts only
+owned word IDs and supported direction/configuration; it rejects duplicate
+words and captures the answer context for the attempt. Submit accepts only
+ordinal/selected-answer pairs. The server recomputes correctness, score, combo,
+XP, mastery, wrong-bank effects, achievements, quiz history, and sync revision.
+
+Submit takes a database pessimistic write lock on the owned attempt. The reward
+mutation and transition to `CONSUMED` occur in one transaction. A SHA-256
+fingerprint of the canonical logical selection set gives safe HTTP retry:
+identical retry returns the original bounded outcome without mutation, while a
+different retry returns `409`. Unconsumed attempts expire after 24 hours and
+fail closed. Multiple tabs may hold independent attempts, and a later new
+attempt may legitimately include the same word.
+
+Finding 12 Batch 12B moves every supported online frontend quiz flow to this
+attempt boundary. Lost responses retry the same in-memory attempt ID and exact
+logical payload; exact replay cannot cause a second mutation, and stale replay
+headers/snapshots cannot reduce the frontend's monotonic known revision. The
+legacy `POST /api/quiz-results` URL remains present only as an authenticated,
+non-mutating `410 Gone` retirement stub.
+Responses are bound to the original in-memory attempt and account before
+application. Home/reset/logout cancels that browser lifecycle; late responses
+cannot consume a replacement attempt or apply rewards to a different account.
+An already accepted server mutation is not undone by browser cancellation.
+Full-reload retry recovery is not persisted in Batch 12B.
+
+New frontend with old backend degrades to an honest local-only round and never
+falls back to the legacy route. Old frontend with new backend receives the
+retirement response. Deployment therefore requires backend-first sequencing;
+no insecure compatibility shim is provided.
+
+Batch 12C gives Review Today and Mark Known/Hard owner-bound UUID operation
+identities and immutable accepted outcomes. Exact retry is mutation-free while
+the ledger row is retained. Review Today additionally consumes an authoritative
+due state, so a new ID cannot repeat a stale review. Known/Hard retain their
+approved genuinely-new-command semantics. Fully offline quiz learning remains
+local-only and cannot later claim cloud XP without a server-issued attempt.
+
+Batch 12D bounds replay bookkeeping retention. Consumed attempts and accepted
+review operations are eligible strictly after seven days from `consumed_at`;
+expired unconsumed attempts are eligible strictly after a seven-day grace from
+their existing 24-hour `expires_at`. Exact retry recovery is not promised after
+physical deletion. A deleted quiz attempt cannot be recreated by submit. A
+deleted Review Today operation remains protected by the word's due state;
+Known/Hard cleanup grants no capability beyond an already-permitted fresh
+explicit command.
+
+Cleanup is opportunistic after committed ledger writes, throttled to at most
+once per hour per process, and capped at 500 rows per category per pass. It runs
+in a separate transaction and failures are contained. It deletes no quiz
+history and performs no reward, learning, wrong-bank, or revision mutation.
+
 ## Logging Safety
 
 Production logs must not include secrets, OAuth credentials, cookies, CSRF tokens, passwords, API keys, raw request bodies, or user-authored vocabulary payloads. The backend log format includes `requestId` for correlation and keeps application events as bounded key-value messages.
@@ -178,11 +268,14 @@ explicit destructive action and requires a successful downloadable backup
 first. Merge keeps local fields on duplicate English keys. Imported sync
 metadata and pending deletion data are not trusted or applied.
 
-Import persistence uses a capacity probe and restores prior vocabulary and
-wrong-bank storage values if a write fails, including quota failures. The UI
-surfaces the failure without logging raw vocabulary content. Browser site-data
-clearing and the inherent capacity limits of `localStorage` remain platform
-risks; this remediation does not migrate data to IndexedDB.
+Import persistence uses the same account-scoped atomic `localStateTxn` save as
+normal vocabulary changes. If that authoritative write fails, the import
+candidate is discarded from working memory, the previously committed local
+state remains unchanged, and the UI reports the failure without logging raw
+vocabulary content. Ordinary edits that fail the same write remain in the
+active tab's working memory for retry. Browser site-data clearing and the
+inherent capacity limits of `localStorage` remain platform risks; this
+remediation does not migrate data to IndexedDB.
 
 ## Rate Limit Policy
 

@@ -8,6 +8,7 @@ speechSynthesis.speak(u);
 }
 
 function goHome() {
+window.WordArenaQuizAttemptClient?.reset?.();
 if (typeof window.showAppPage === "function") {
 window.showAppPage("dashboard");
 return;

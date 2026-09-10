@@ -3,6 +3,10 @@ package com.quizapp.shared;
 import com.quizapp.ai.AiRateLimitError;
 import com.quizapp.ai.AiRateLimitExceededException;
 import com.quizapp.health.HealthCounterService;
+import com.quizapp.quiz.QuizAttemptConflictException;
+import com.quizapp.quiz.QuizAttemptConflictResponse;
+import com.quizapp.review.ReviewOperationConflictException;
+import java.util.Map;
 import com.quizapp.vocab.SyncConflictResponse;
 import com.quizapp.vocab.SyncClientUpgradeRequiredException;
 import com.quizapp.vocab.SyncClientUpgradeResponse;
@@ -29,7 +33,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException exception) {
-        log.warn("[AUTH] Validation failed: {}",
+        log.warn("[VALIDATION] Validation failed: {}",
                 exception.getBindingResult().getFieldErrors().stream()
                         .map(e -> e.getField() + ": " + e.getDefaultMessage())
                         .toList());
@@ -48,7 +52,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     ResponseEntity<ApiError> handleIllegalArgument(IllegalArgumentException exception) {
-        log.warn("[AUTH] Bad request: {}", exception.getMessage());
+        log.warn("[REQUEST] Bad request: {}", exception.getMessage());
         if (healthCounters != null) healthCounters.incrementValidationErrors();
         return ResponseEntity
                 .badRequest()
@@ -57,7 +61,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ApiError> handleUnreadableMessage(HttpMessageNotReadableException exception) {
-        log.warn("[AUTH] Malformed request body: type={}", exception.getClass().getSimpleName());
+        log.warn("[REQUEST] Malformed request body: type={}", exception.getClass().getSimpleName());
         if (healthCounters != null) healthCounters.incrementValidationErrors();
         return ResponseEntity
                 .badRequest()
@@ -83,6 +87,22 @@ public class GlobalExceptionHandler {
                         exception.getExpectedRevision(),
                         exception.getCurrentRevision()
                 ));
+    }
+
+    @ExceptionHandler(QuizAttemptConflictException.class)
+    ResponseEntity<QuizAttemptConflictResponse> handleQuizAttemptConflict(
+            QuizAttemptConflictException exception
+    ) {
+        log.warn("[QUIZ] Attempt conflict: error={} message={}", exception.getError(), exception.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(new QuizAttemptConflictResponse(exception.getError(), exception.getMessage()));
+    }
+
+    @ExceptionHandler(ReviewOperationConflictException.class)
+    ResponseEntity<Map<String, String>> handleReviewOperationConflict(ReviewOperationConflictException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", exception.getError(), "message", exception.getMessage()));
     }
 
     @ExceptionHandler(SyncClientUpgradeRequiredException.class)

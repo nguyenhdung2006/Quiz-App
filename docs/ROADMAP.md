@@ -11,7 +11,7 @@
 - Re-run production release-gate secret scan on a clean tree and confirm the
   empty env key false positive is gone.
 - Load real production/staging env vars and pass `npm run gate:validate-env`.
-- Provide restore rehearsal evidence at `docs/restore-rehearsal-evidence.md` or via `RELEASE_RESTORE_REHEARSAL_EVIDENCE=true`.
+- Provide complete restore rehearsal evidence at `docs/restore-rehearsal-evidence.md` or point `RELEASE_RESTORE_REHEARSAL_EVIDENCE_FILE` to an equivalent reviewed evidence file.
 - Run staging smoke with `STAGING_BACKEND_URL`, `STAGING_FRONTEND_URL`, and `STAGING_TEST_USER_HINT`.
 - Re-run source integrity from a clean committed release candidate.
 
@@ -27,7 +27,7 @@
 ## Later
 
 - Add pagination or delta sync for large accounts.
-- Add quiz attempt anti-replay only if product requirements demand it.
+- Complete the remaining Finding 12 Review Today, Mark Known/Hard retry, and consumed-attempt retention boundaries; rewarded online quizzes already use server-issued attempts.
 - Define tombstone retention and cleanup policy after real data-age needs are known.
 - Upgrade AI rate limiting to distributed storage only when the backend runs multiple instances, AI cost risk is material, or abuse evidence appears.
 - Add external monitoring/APM and verify alert delivery when production traffic

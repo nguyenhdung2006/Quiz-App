@@ -122,29 +122,35 @@ class Audit005CapacityTests {
         String email = "aud005-quiz-many@example.com";
         seedWords(email, 1_000, 20);
 
+        AppUser user = users.findByEmailIgnoreCase(email).orElseThrow();
+        List<VocabularyWord> quizWords = words.findByUserOrderByCreatedAtDesc(user).stream().limit(100).toList();
+        List<Map<String, Object>> items = new ArrayList<>();
         List<Map<String, Object>> answers = new ArrayList<>();
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < quizWords.size(); i++) {
+            VocabularyWord word = quizWords.get(i);
+            items.add(Map.of("wordId", word.getId(), "questionMode", "eng"));
             answers.add(Map.of(
-                    "eng", "aud word " + i,
-                    "questionMode", "eng",
-                    "selectedAnswer", i % 3 == 0 ? "wrong answer" : "nghia " + i,
-                    "correctAnswer", "nghia " + i,
-                    "correct", i % 3 != 0
+                    "ordinal", i,
+                    "selectedAnswer", i % 3 == 0 ? "wrong answer" : word.getVie()
             ));
         }
 
-        StatisticsSnapshot stats = measurePost(email, "/api/quiz-results", Map.of(
-                "quizMode", "mixed",
-                "totalQuestions", answers.size(),
-                "correctAnswers", 0,
-                "wrongAnswers", 0,
-                "score", 0,
-                "maxCombo", 0,
+        MvcResult issued = mockMvc.perform(post("/api/quiz/attempts")
+                        .with(oauthUser(email))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "quizMode", "mixed",
+                                "items", items
+                        ))))
+                .andExpect(status().isOk())
+                .andReturn();
+        String attemptId = objectMapper.readTree(issued.getResponse().getContentAsString()).path("attemptId").asText();
+        StatisticsSnapshot stats = measurePost(email, "/api/quiz/attempts/" + attemptId + "/submit", Map.of(
                 "answers", answers
         ));
         JsonNode response = objectMapper.readTree(stats.responseBody());
 
-        assertThat(response.path("quizHistory").size()).isEqualTo(1);
+        assertThat(response.path("snapshot").path("quizHistory").size()).isEqualTo(1);
         assertThat(stats.queryCount()).isLessThanOrEqualTo(350);
         logMetric("quiz-submit-100", 1_000, 20, stats);
     }

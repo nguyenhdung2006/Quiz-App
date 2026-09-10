@@ -1,3 +1,4 @@
+/* global markWordHard, markWordKnown, save, vocab:writable */
 const { test, expect } = require("@playwright/test");
 const fs = require("fs");
 const path = require("path");
@@ -50,6 +51,16 @@ function word(eng, vie, tag, index) {
   };
 }
 
+function reviewResponse(payload, result, revision) {
+  return {
+    outcome: { operationId: payload.operationId, wordId: payload.wordId,
+      action: payload.mode || "known", mastery: result.mastery, streak: result.streak,
+      nextReview: result.nextReview, message: result.message, resultingRevision: revision },
+    replayed: false, word: result.word || null,
+    inWrongBank: payload.correct === false, revision
+  };
+}
+
 test("frontend html has no inline event handlers or javascript urls", async () => {
   const htmlFiles = ["index.html", "login.html"];
   const findings = [];
@@ -80,6 +91,25 @@ test("Vercel public root redirects only to the login entry", async () => {
     destination: "/login.html",
     permanent: false
   });
+});
+
+test("Vercel frontend defines compatible production security headers", async () => {
+  const config = JSON.parse(fs.readFileSync(
+    path.join(frontendDir, "vercel.json"),
+    "utf8"
+  ));
+  const globalHeaders = config.headers?.find(entry => entry.source === "/(.*)")?.headers || [];
+  const values = Object.fromEntries(globalHeaders.map(header => [header.key, header.value]));
+
+  expect(values["X-Content-Type-Options"]).toBe("nosniff");
+  expect(values["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
+  expect(values["Permissions-Policy"]).toBeTruthy();
+  expect(values["Content-Security-Policy"]).toContain("default-src 'self'");
+  expect(values["Content-Security-Policy"]).toContain("script-src 'self'");
+  expect(values["Content-Security-Policy"]).toContain("style-src 'self' 'unsafe-inline'");
+  expect(values["Content-Security-Policy"]).toContain("https://quiz-app-xd9m.onrender.com");
+  expect(values["Content-Security-Policy"]).not.toContain("'unsafe-eval'");
+  expect(values["Content-Security-Policy"]).not.toContain("script-src 'self' 'unsafe-inline'");
 });
 
 test("fresh public root opens the login landing page instead of the app shell", async ({ page }) => {
@@ -114,13 +144,22 @@ async function preparePage(page, options = {}) {
   const fatalConsole = [];
   const syncBodies = [];
   const deleteRequests = [];
+  const reviewBodies = [];
+  const knownBodies = [];
+  const aiDeckRequests = [];
+  const attemptCreateBodies = [];
+  const attemptSubmitRequests = [];
+  const legacyQuizRequests = [];
   let meRequestCount = 0;
   let snapshotRequestCount = 0;
+  let attemptSubmitCount = 0;
   const profile = options.profile || {
     name: "Smoke Tester",
     email: "",
     avatar: "images/icon.png"
   };
+  let activeProfile = profile;
+  let sessionAuthenticated = Boolean(options.authenticated);
   const accountId = String(profile.email || "").trim().toLowerCase() || "local-guest";
   const baseCloudSnapshot = options.cloudSnapshot || {
     profile,
@@ -173,8 +212,8 @@ async function preparePage(page, options = {}) {
         return;
       }
       await route.fulfill({
-        json: options.authenticated
-          ? { authenticated: true, ...profile }
+        json: sessionAuthenticated
+          ? { authenticated: true, ...activeProfile }
           : { authenticated: false }
       });
       return;
@@ -190,12 +229,38 @@ async function preparePage(page, options = {}) {
         return;
       }
       await route.fulfill({
-        json: cloudSnapshots[Math.min(snapshotRequestCount - 1, cloudSnapshots.length - 1)]
+        json: options.mutableSession
+          ? {
+              ...cloudSnapshots[Math.min(snapshotRequestCount - 1, cloudSnapshots.length - 1)],
+              profile: activeProfile
+            }
+          : cloudSnapshots[Math.min(snapshotRequestCount - 1, cloudSnapshots.length - 1)]
       });
       return;
     }
     if (url.endsWith("/api/sync")) {
       syncBodies.push(route.request().postDataJSON());
+      const queuedSyncResponse = Array.isArray(options.syncResponses)
+        ? options.syncResponses[syncBodies.length - 1]
+        : null;
+      if (queuedSyncResponse) {
+        await route.fulfill({
+          status: queuedSyncResponse.status || 200,
+          contentType: queuedSyncResponse.contentType || "application/json",
+          body: queuedSyncResponse.body !== undefined
+            ? queuedSyncResponse.body
+            : JSON.stringify(queuedSyncResponse.json || {})
+        });
+        return;
+      }
+      if (options.syncFails || (options.syncFailsAfter && syncBodies.length > options.syncFailsAfter)) {
+        await route.fulfill({
+          status: options.syncStatus || 503,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Sync unavailable." })
+        });
+        return;
+      }
       if (options.syncConflict) {
         await route.fulfill({
           status: 409,
@@ -229,10 +294,122 @@ async function preparePage(page, options = {}) {
       });
       return;
     }
+    if (options.vocabMutationFails && (
+      (method === "POST" && url.endsWith("/api/vocab"))
+      || (method === "PUT" && url.includes("/api/vocab/"))
+    )) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Vocabulary mutation unavailable." })
+      });
+      return;
+    }
+    if (url.endsWith("/api/quiz/attempts")) {
+      const body = route.request().postDataJSON();
+      attemptCreateBodies.push(body);
+      if (options.attemptCreateStatus) {
+        await route.fulfill({
+          status: options.attemptCreateStatus,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Attempt unavailable." })
+        });
+        return;
+      }
+      const sourceWords = [
+        ...(options.cloudSnapshot?.vocab || []),
+        ...(options.vocab || [])
+      ];
+      await route.fulfill({
+        json: {
+          attemptId: options.attemptId || `10000000-0000-4000-8000-${String(attemptCreateBodies.length).padStart(12, "0")}`,
+          quizMode: body.quizMode,
+          challengeSeconds: body.challengeSeconds,
+          createdAt: "2026-08-26T00:00:00Z",
+          expiresAt: "2026-08-27T00:00:00Z",
+          items: body.items.map((item, ordinal) => {
+            const word = sourceWords.find(candidate => Number(candidate.id) === Number(item.wordId)) || {};
+            return {
+              ordinal,
+              wordId: item.wordId,
+              wordUid: word.wordUid || null,
+              questionMode: item.questionMode,
+              prompt: item.questionMode === "eng" ? word.eng : word.vie
+            };
+          })
+        }
+      });
+      return;
+    }
+    if (url.includes("/api/quiz/attempts/") && url.endsWith("/submit")) {
+      attemptSubmitCount++;
+      const requestRecord = {
+        url,
+        body: route.request().postData(),
+        json: route.request().postDataJSON()
+      };
+      attemptSubmitRequests.push(requestRecord);
+      const configured = options.attemptSubmitResponses?.[
+        Math.min(attemptSubmitCount - 1, options.attemptSubmitResponses.length - 1)
+      ];
+      if (configured?.abort) {
+        await route.abort("connectionreset");
+        return;
+      }
+      if (configured?.status && configured.status !== 200) {
+        await route.fulfill({
+          status: configured.status,
+          contentType: "application/json",
+          body: JSON.stringify({ message: "Submit unavailable." })
+        });
+        return;
+      }
+      const total = requestRecord.json.answers.length;
+      const outcome = configured?.outcome || options.attemptOutcome || {
+        quizHistoryId: 77,
+        totalQuestions: total,
+        correctAnswers: total,
+        wrongAnswers: 0,
+        score: 10,
+        maxCombo: total,
+        awardedQuizXp: total * 16,
+        awardedAchievementXp: 20,
+        resultingSyncRevision: options.attemptOutcomeRevision ?? 8
+      };
+      const snapshot = configured?.snapshot || options.attemptSnapshot || {
+        ...cloudSnapshot,
+        revision: configured?.snapshotRevision ?? options.attemptSnapshotRevision ?? outcome.resultingSyncRevision
+      };
+      const revision = configured?.headerRevision ?? options.attemptHeaderRevision ?? snapshot.revision;
+      await route.fulfill({
+        headers: {
+          "X-Sync-Revision": String(revision),
+          "Access-Control-Expose-Headers": "X-Sync-Revision"
+        },
+        json: {
+          attemptId: url.split("/").at(-2),
+          replayed: Boolean(configured?.replayed),
+          outcome,
+          snapshot
+        }
+      });
+      return;
+    }
+    if (url.endsWith("/api/quiz-results")) {
+      legacyQuizRequests.push({ url, body: route.request().postData() });
+      await route.fulfill({ status: 410, json: { error: "QUIZ_RESULT_ENDPOINT_RETIRED" } });
+      return;
+    }
     if (method === "DELETE" && url.includes("/api/vocab/")) {
       deleteRequests.push(url);
       await route.fulfill({
         status: options.deleteFails ? 500 : 204,
+        headers: options.deleteRevision == null
+          ? {}
+          : {
+              "X-Sync-Revision": String(options.deleteRevision),
+              "Access-Control-Expose-Headers": "X-Sync-Revision"
+            },
         body: ""
       });
       return;
@@ -247,19 +424,46 @@ async function preparePage(page, options = {}) {
       }
       return;
     }
-    if (url.endsWith("/api/review/answer")) {
+    if (url.endsWith("/api/review/known")) {
+      knownBodies.push(route.request().postDataJSON());
       await route.fulfill({
-        json: {
+        headers: {
+              "X-Sync-Revision": String(options.knownRevision ?? 1),
+              "Access-Control-Expose-Headers": "X-Sync-Revision"
+            },
+        json: reviewResponse(route.request().postDataJSON(), options.knownResponse || {
+          wordId: 1,
+          mastery: 60,
+          streak: 2,
+          nextReview: new Date(Date.now() + 3 * 86400000).toISOString(),
+          message: "Known state saved."
+        }, options.knownRevision ?? 1)
+      });
+      return;
+    }
+    if (url.endsWith("/api/review/answer")) {
+      reviewBodies.push(route.request().postDataJSON());
+      await route.fulfill({
+        headers: {
+              "X-Sync-Revision": String(options.reviewRevision ?? 1),
+              "Access-Control-Expose-Headers": "X-Sync-Revision"
+            },
+        json: reviewResponse(route.request().postDataJSON(), options.reviewResponse || {
           wordId: 1,
           mastery: 40,
           streak: 2,
           nextReview: new Date(Date.now() + 86400000).toISOString(),
           message: "Smoke review saved."
-        }
+        }, options.reviewRevision ?? 1)
       });
       return;
     }
     if (url.endsWith("/api/ai/generate-deck")) {
+      aiDeckRequests.push({
+        method,
+        headers: route.request().headers(),
+        body: route.request().postDataJSON()
+      });
       if (options.aiDeckRawBody !== undefined || options.aiDeckStatus) {
         await route.fulfill({
           status: options.aiDeckStatus || 200,
@@ -291,6 +495,13 @@ async function preparePage(page, options = {}) {
     await route.fulfill({ json: {} });
   });
 
+  if (options.mutableSession) {
+    await page.route("http://localhost:8080/logout", async (route) => {
+      sessionAuthenticated = false;
+      await route.fulfill({ status: 204, body: "" });
+    });
+  }
+
   await page.addInitScript((seed) => {
     window.QUIZ_APP_CONFIG = {
       apiOrigin: "http://localhost:8080",
@@ -317,20 +528,27 @@ async function preparePage(page, options = {}) {
         }
       };
     }
-    localStorage.clear();
-    let accountId = String(seed.profile.email || "").trim().toLowerCase() || "local-guest";
-    localStorage.setItem("quizUserProfile", JSON.stringify(seed.profile));
-    if (seed.vocab) {
-      localStorage.setItem(`quizAccount:${accountId}:vocab`, JSON.stringify(seed.vocab));
-    }
-    if (seed.wrongWords) {
-      localStorage.setItem(`quizAccount:${accountId}:wrongWords`, JSON.stringify(seed.wrongWords));
-    }
-    if (seed.pendingDeletes) {
-      localStorage.setItem(`quizAccount:${accountId}:cloudDeleteQueue`, JSON.stringify(seed.pendingDeletes));
-    }
-    if (seed.syncMeta) {
-      localStorage.setItem(`quizAccount:${accountId}:cloudSyncMeta`, JSON.stringify(seed.syncMeta));
+    const alreadySeeded = sessionStorage.getItem("__quizSmokeStorageSeeded") === "true";
+    if (!seed.preserveStorageOnNavigation || !alreadySeeded) {
+      localStorage.clear();
+      let accountId = String(seed.profile.email || "").trim().toLowerCase() || "local-guest";
+      localStorage.setItem("quizUserProfile", JSON.stringify(seed.profile));
+      if (seed.vocab) {
+        localStorage.setItem(`quizAccount:${accountId}:vocab`, JSON.stringify(seed.vocab));
+      }
+      if (seed.wrongWords) {
+        localStorage.setItem(`quizAccount:${accountId}:wrongWords`, JSON.stringify(seed.wrongWords));
+      }
+      if (seed.pendingDeletes) {
+        localStorage.setItem(`quizAccount:${accountId}:cloudDeleteQueue`, JSON.stringify(seed.pendingDeletes));
+      }
+      if (seed.syncMeta) {
+        localStorage.setItem(`quizAccount:${accountId}:cloudSyncMeta`, JSON.stringify(seed.syncMeta));
+      }
+      Object.entries(seed.extraStorage || {}).forEach(([key, value]) => {
+        localStorage.setItem(key, value);
+      });
+      sessionStorage.setItem("__quizSmokeStorageSeeded", "true");
     }
   }, {
     profile,
@@ -338,6 +556,8 @@ async function preparePage(page, options = {}) {
     wrongWords: options.wrongWords || [],
     pendingDeletes: options.pendingDeletes || null,
     syncMeta: options.syncMeta || null,
+    extraStorage: options.extraStorage || null,
+    preserveStorageOnNavigation: Boolean(options.preserveStorageOnNavigation),
     fixedNow: options.fixedNow || null,
     staleRecoveryEnabled: options.staleRecoveryEnabled || false
   });
@@ -346,9 +566,21 @@ async function preparePage(page, options = {}) {
   await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
   Object.defineProperty(fatalConsole, "syncBodies", { value: syncBodies });
   Object.defineProperty(fatalConsole, "deleteRequests", { value: deleteRequests });
+  Object.defineProperty(fatalConsole, "reviewBodies", { value: reviewBodies });
+  Object.defineProperty(fatalConsole, "knownBodies", { value: knownBodies });
+  Object.defineProperty(fatalConsole, "aiDeckRequests", { value: aiDeckRequests });
+  Object.defineProperty(fatalConsole, "attemptCreateBodies", { value: attemptCreateBodies });
+  Object.defineProperty(fatalConsole, "attemptSubmitRequests", { value: attemptSubmitRequests });
+  Object.defineProperty(fatalConsole, "legacyQuizRequests", { value: legacyQuizRequests });
   Object.defineProperty(fatalConsole, "accountId", { value: accountId });
   Object.defineProperty(fatalConsole, "meRequestCount", { get: () => meRequestCount });
   Object.defineProperty(fatalConsole, "snapshotRequestCount", { get: () => snapshotRequestCount });
+  Object.defineProperty(fatalConsole, "setSession", {
+    value: (nextProfile) => {
+      activeProfile = nextProfile;
+      sessionAuthenticated = true;
+    }
+  });
   return fatalConsole;
 }
 
@@ -408,6 +640,19 @@ async function readImportStorage(page, accountId = "local-guest") {
     pendingDeletes: JSON.parse(localStorage.getItem(`quizAccount:${id}:cloudDeleteQueue`) || "[]"),
     syncMeta: JSON.parse(localStorage.getItem(`quizAccount:${id}:cloudSyncMeta`) || "{}")
   }), accountId);
+}
+
+async function openLearningStudio(page, tab = "profile") {
+  await page.getByRole("button", { name: "Studio", exact: true }).click();
+  await page.locator("#studioBtn").click();
+  await expect(page.locator("#learningStudio")).toBeVisible();
+  if (tab !== "profile") {
+    await page.locator(`.studioTab[data-studio-tab='${tab}']`).click();
+  }
+}
+
+function studioBadge(page, name) {
+  return page.locator("#badgeGallery .badgeCard").filter({ hasText: name });
 }
 
 async function loadConfigOnly(page) {
@@ -591,6 +836,57 @@ test("profile save renders text safely and falls back from unsafe avatar data", 
   expect(fatalConsole).toEqual([]);
 });
 
+test("profile editor traps keyboard focus, closes with Escape, and restores the profile trigger", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+  const profileTrigger = page.locator("#profileTrigger");
+
+  await profileTrigger.click();
+  await page.locator("#profileSettingsBtn").click();
+  await expect(page.locator("#profileEditor")).toBeVisible();
+  await expect(page.locator("#profileEditorCloseBtn")).toBeFocused();
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.getByRole("button", { name: "Save Profile" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#profileEditorCloseBtn")).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#profileEditor")).toBeHidden();
+  await expect(profileTrigger).toBeFocused();
+
+  await profileTrigger.click();
+  await page.locator("#profileSettingsBtn").click();
+  await expect(page.locator("#profileEditorCloseBtn")).toBeFocused();
+  await page.locator("#profileEditorCloseBtn").click();
+  await expect(page.locator("#profileEditor")).toBeHidden();
+  await expect(profileTrigger).toBeFocused();
+  expect(fatalConsole).toEqual([]);
+});
+
+test("How it works modal moves focus inside, traps Tab, and restores its opener", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+  const opener = page.locator("#previewBtn");
+
+  await opener.click();
+  await expect(page.locator("#appPreview")).toBeVisible();
+  await expect(page.locator("#previewCloseBtn")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#previewCloseBtn")).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.locator("#previewCloseBtn")).toBeFocused();
+
+  await page.locator("#previewCloseBtn").click();
+  await expect(page.locator("#appPreview")).toBeHidden();
+  await expect(opener).toBeFocused();
+
+  await opener.click();
+  await expect(page.locator("#previewCloseBtn")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#appPreview")).toBeHidden();
+  await expect(opener).toBeFocused();
+  expect(fatalConsole).toEqual([]);
+});
+
 test("static app loads without fatal console errors", async ({ page }) => {
   const fatalConsole = await preparePage(page);
 
@@ -600,6 +896,23 @@ test("static app loads without fatal console errors", async ({ page }) => {
   await expect(page.locator(".appFooter")).toContainText("WordArena Beta");
   await expect(page.locator(".appFooter")).toContainText("AI-assisted vocabulary learning");
   await expect(page.locator(".appFooter a", { hasText: "Send feedback" })).toHaveAttribute("href", /github\.com\/nguyenhdung2006\/Quiz-App\/issues\/new/);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("application does not cancel normal contextmenu events", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+
+  const contextMenuResult = await page.locator(".appMain").evaluate((element) => {
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      button: 2
+    });
+    const dispatched = element.dispatchEvent(event);
+    return { defaultPrevented: event.defaultPrevented, dispatched };
+  });
+
+  expect(contextMenuResult).toEqual({ defaultPrevented: false, dispatched: true });
   expect(fatalConsole).toEqual([]);
 });
 
@@ -633,6 +946,44 @@ test("main navigation opens critical sections", async ({ page }) => {
 
   await page.getByRole("button", { name: "Studio" }).click();
   await expect(page.locator("#studioBtn")).toBeVisible();
+
+  expect(fatalConsole).toEqual([]);
+});
+
+test("data UI actions dispatch once by click and keyboard while preserving active-page state", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+  await page.evaluate(() => {
+    const originalOpenChallengeMenu = window.openChallengeMenu;
+    window.__dataUiActionCalls = { openChallenge: 0, challengeSeconds: [] };
+    window.openChallengeMenu = () => {
+      window.__dataUiActionCalls.openChallenge++;
+      originalOpenChallengeMenu();
+    };
+    window.startChallenge = seconds => {
+      window.__dataUiActionCalls.challengeSeconds.push(seconds);
+    };
+  });
+
+  const vocabularyNav = page.locator(".appNavBtn[data-app-page='vocabulary']");
+  const dashboardNav = page.locator(".appNavBtn[data-app-page='dashboard']");
+  const openChallengeAction = page.locator("[data-ui-action='open-challenge-menu']");
+
+  await vocabularyNav.click();
+  await expect(vocabularyNav).toHaveAttribute("aria-current", "page");
+  await dashboardNav.click();
+  await expect(dashboardNav).toHaveAttribute("aria-current", "page");
+
+  await openChallengeAction.click();
+  await expect(page.locator("#challengeMenu")).toBeVisible();
+  expect(await page.evaluate(() => window.__dataUiActionCalls.openChallenge)).toBe(1);
+  await page.locator("[data-ui-action='close-challenge-menu']").click();
+
+  await openChallengeAction.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#challengeMenu")).toBeVisible();
+  expect(await page.evaluate(() => window.__dataUiActionCalls.openChallenge)).toBe(2);
+  await page.locator("[data-ui-action='start-challenge'][data-challenge-seconds='15']").click();
+  expect(await page.evaluate(() => window.__dataUiActionCalls.challengeSeconds)).toEqual([15]);
 
   expect(fatalConsole).toEqual([]);
 });
@@ -773,6 +1124,26 @@ test("local vocabulary can add and delete a word", async ({ page }) => {
   await page.locator("#tableBody .moreBtn").first().click();
   await page.locator("#tableBody .deleteBtn").first().click();
   await expect(page.locator("#tableBody")).not.toContainText("smoke-test-word");
+
+  expect(fatalConsole).toEqual([]);
+});
+
+test("toast dismissal uses CSS class state without inline styles", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+  await page.clock.install();
+
+  await page.locator("#exportBtn").click();
+
+  const toast = page.locator(".toast").filter({ hasText: "Exported backup JSON." });
+  await expect(toast).toBeVisible();
+  await expect(toast).not.toHaveAttribute("style", /.*/);
+
+  await page.clock.fastForward(2200);
+  await expect(toast).toHaveClass(/is-hiding/);
+  await expect(toast).not.toHaveAttribute("style", /.*/);
+
+  await page.clock.fastForward(220);
+  await expect(toast).toHaveCount(0);
 
   expect(fatalConsole).toEqual([]);
 });
@@ -955,7 +1326,7 @@ test("replace quota failure rolls storage back and surfaces a visible error", as
     const originalSetItem = Storage.prototype.setItem;
     let thrown = false;
     Storage.prototype.setItem = function (key, value) {
-      if (!thrown && String(key).endsWith(":wrongWords")) {
+      if (!thrown && String(key).includes(":localStateTxn:")) {
         thrown = true;
         const error = new DOMException("Storage quota exceeded", "QuotaExceededError");
         throw error;
@@ -1137,6 +1508,180 @@ test("sync revision conflict pulls cloud snapshot and retries rebuilt push once"
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
+test("successful direct delete advances the next sync revision without hiding real conflicts", async ({ page }) => {
+  const profile = { name: "Revision Client", email: "revision-client@example.com", avatar: "images/icon.png" };
+  const localWord = {
+    ...word("delete revision", "xoa revision", "sync", 120),
+    id: 1,
+    wordUid: "00000000-0000-4000-8000-000000001201"
+  };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    revision: 5,
+    deleteRevision: 7,
+    vocab: [localWord],
+    cloudSnapshot: {
+      revision: 5,
+      profile,
+      vocab: [localWord],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.quizCloud.state().lastKnownRevision)).toBe(6);
+  fatalConsole.syncBodies.length = 0;
+
+  await page.evaluate(async () => {
+    const target = vocab[0];
+    vocab = [];
+    save();
+    await window.quizCloud.deleteWord(target);
+    await window.quizCloud.syncNow();
+  });
+
+  expect(fatalConsole.deleteRequests).toHaveLength(1);
+  expect(fatalConsole.syncBodies.at(-1).expectedRevision).toBe(7);
+
+  await page.evaluate(() => {
+    window.quizCloud.rememberResponseRevision({
+      ok: true,
+      headers: { get: () => "6" }
+    });
+    window.quizCloud.rememberResponseRevision({
+      ok: false,
+      headers: { get: () => "99" }
+    });
+  });
+  expect(await page.evaluate(() => window.quizCloud.state().lastKnownRevision)).toBe(7);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("Mark known and Mark hard send intent only and apply server-authoritative learning state", async ({ page }) => {
+  const profile = { name: "Learning Intent", email: "learning-intent@example.com", avatar: "images/icon.png" };
+  const baseWord = {
+    ...word("intent word", "tu y dinh", "review", 121),
+    id: 1,
+    wordUid: "00000000-0000-4000-8000-000000001202"
+  };
+  const knownWord = {
+    ...baseWord,
+    stats: { ...baseWord.stats, seen: 1, correct: 1, streak: 2, bestStreak: 2, masteryLevel: 3 },
+    mastered: false
+  };
+  const hardWord = {
+    ...knownWord,
+    stats: { ...knownWord.stats, seen: 2, wrong: 1, streak: 0, masteryLevel: 2 },
+    mastered: false
+  };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    revision: 5,
+    knownRevision: 8,
+    reviewRevision: 9,
+    knownResponse: {
+      wordId: 1,
+      mastery: 60,
+      streak: 2,
+      nextReview: new Date(Date.now() + 3 * 86400000).toISOString(),
+      message: "Known state saved.",
+      word: knownWord
+    },
+    reviewResponse: {
+      wordId: 1,
+      mastery: 40,
+      streak: 0,
+      nextReview: new Date(Date.now() + 86400000).toISOString(),
+      message: "Review this word again tomorrow.",
+      word: hardWord
+    },
+    vocab: [baseWord],
+    cloudSnapshot: {
+      revision: 5,
+      profile,
+      vocab: [baseWord],
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  fatalConsole.syncBodies.length = 0;
+
+  await page.evaluate(() => markWordKnown(0));
+  await expect.poll(() => fatalConsole.knownBodies.length).toBe(1);
+  expect(fatalConsole.knownBodies[0]).toEqual({ operationId: expect.any(String), wordId: 1 });
+  let state = await readImportStorage(page, fatalConsole.accountId);
+  expect(state.vocab[0].stats.streak).toBe(2);
+  expect(state.vocab[0].stats.masteryLevel).toBe(3);
+
+  await page.evaluate(() => markWordHard(0));
+  await expect.poll(() => fatalConsole.reviewBodies.length).toBe(1);
+  expect(fatalConsole.reviewBodies[0]).toEqual({ operationId: expect.any(String), wordId: 1, correct: false, mode: "mark-hard" });
+  state = await readImportStorage(page, fatalConsole.accountId);
+  expect(state.vocab[0].stats.wrong).toBe(1);
+  expect(state.wrongWords).toHaveLength(1);
+
+  await page.evaluate(() => window.quizCloud.syncNow());
+  expect(fatalConsole.syncBodies.at(-1).expectedRevision).toBe(9);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("Clear Mastered syncs only mastered wrong-bank identities and keeps unrelated mistakes", async ({ page }) => {
+  const profile = { name: "Wrong Bank", email: "wrong-bank-clear@example.com", avatar: "images/icon.png" };
+  const mastered = {
+    ...word("mastered mistake", "loi da thuoc", "review", 122),
+    id: 1,
+    wordUid: "00000000-0000-4000-8000-000000001203",
+    mastered: true,
+    stats: { ...word("x", "x", "review", 122).stats, streak: 5, bestStreak: 5, masteryLevel: 5 }
+  };
+  const active = {
+    ...word("active mistake", "loi con lai", "review", 123),
+    id: 2,
+    wordUid: "00000000-0000-4000-8000-000000001204"
+  };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    revision: 10,
+    vocab: [mastered, active],
+    wrongWords: [mastered, active],
+    cloudSnapshot: {
+      revision: 10,
+      profile,
+      vocab: [mastered, active],
+      wrongWords: [mastered, active],
+      progress: {},
+      achievements: [],
+      quizHistory: []
+    }
+  });
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
+  fatalConsole.syncBodies.length = 0;
+  page.once("dialog", dialog => dialog.accept());
+
+  await page.locator("[data-ui-action='open-mistake-screen']").click();
+  await page.locator("[data-ui-action='clear-mastered']").click();
+  await expect.poll(() => fatalConsole.syncBodies.length).toBe(1);
+
+  const body = fatalConsole.syncBodies[0];
+  expect(body.expectedRevision).toBe(11);
+  expect(body.wrongWordDeletions).toEqual([{ wordUid: mastered.wordUid }]);
+  expect(body.wrongWordDeletions).not.toContainEqual({ wordUid: active.wordUid });
+  const state = await readImportStorage(page, fatalConsole.accountId);
+  expect(state.wrongWords.map(item => item.eng)).toEqual(["active mistake"]);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
 test("retry sync button is visible when cloud is unavailable", async ({ page }) => {
   const profile = { name: "Retry Vis", email: "retry-vis@example.com", avatar: "images/icon.png" };
   const fatalConsole = await preparePage(page, {
@@ -1160,6 +1705,106 @@ test("retry sync button is hidden when sync is healthy", async ({ page }) => {
 
   await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
   await expect(page.locator("#syncRetryBtn")).toBeHidden();
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("HTTP 413 explains the payload limit, preserves local data, and retries successfully", async ({ page }) => {
+  const profile = { name: "Payload Keeper", email: "payload-keeper@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    vocabMutationFails: true,
+    syncResponses: [
+      null,
+      {
+        status: 413,
+        json: {
+          message: "Payload too large.",
+          errors: ["/api/sync request body exceeds the configured limit of 1048576 bytes."]
+        }
+      },
+      null
+    ]
+  });
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect.poll(() => fatalConsole.syncBodies.length).toBe(1);
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await page.locator("#engInput").fill("safe-large-payload-word");
+  await page.locator("#vieInput").fill("du lieu local van an toan");
+  await page.locator(".addBtn").click();
+
+  const expectedWarning = "Sync failed: payload too large. Your local data is still saved.";
+  await expect(page.locator("#cloudSyncStatus")).toHaveText(expectedWarning);
+  await expect(page.locator("#cloudSyncStatus")).toHaveAttribute("aria-label", expectedWarning);
+  await expect(page.locator("#cloudSyncStatus")).not.toContainText("Synced");
+  await expect(page.locator("#syncRetryBtn")).toBeVisible();
+  await expect(page.locator("#tableBody")).toContainText("safe-large-payload-word");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("#cloudSyncStatus")).toHaveText(expectedWarning);
+  const mobileStatusMetrics = await statusDoesNotClipText(page);
+  expect(mobileStatusMetrics.clippedInline).toBe(false);
+  expect(mobileStatusMetrics.clippedBlock).toBe(false);
+  expect(mobileStatusMetrics.whiteSpace).not.toBe("nowrap");
+  expect(mobileStatusMetrics.ariaLabel).toBe(expectedWarning);
+  expect(mobileStatusMetrics.title).toBe(expectedWarning);
+  await expectNoDocumentHorizontalOverflow(page);
+  await expect.poll(() => page.evaluate((accountId) => {
+    const mirror = JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]");
+    const transactionPrefix = `quizAccount:${accountId}:localStateTxn:`;
+    const transactionKeys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+      .filter(key => key?.startsWith(transactionPrefix));
+    const transactionHasWord = transactionKeys.some(key => {
+      const transaction = JSON.parse(localStorage.getItem(key) || "{}");
+      return (transaction.vocab || []).some(mutation => mutation.word?.eng === "safe-large-payload-word");
+    });
+    return {
+      mirrorHasWord: mirror.some(item => item.eng === "safe-large-payload-word"),
+      transactionHasWord
+    };
+  }, fatalConsole.accountId)).toEqual({ mirrorHasWord: true, transactionHasWord: true });
+  expect(fatalConsole.syncBodies[1].vocab.map(item => item.eng)).toContain("safe-large-payload-word");
+
+  await page.locator("#syncRetryBtn").click();
+  await expect.poll(() => fatalConsole.syncBodies.length).toBe(3);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await expect(page.locator("#syncRetryBtn")).toBeHidden();
+  await expect(page.locator("#tableBody")).toContainText("safe-large-payload-word");
+  expect(fatalConsole.syncBodies[2].vocab.map(item => item.eng)).toContain("safe-large-payload-word");
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("failed cloud sync keeps the account-local edit through retry and reload", async ({ page }) => {
+  const profile = { name: "Local Keeper", email: "local-keeper@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    preserveStorageOnNavigation: true,
+    vocabMutationFails: true,
+    syncFailsAfter: 1
+  });
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await page.locator("#engInput").fill("kept-after-cloud-failure");
+  await page.locator("#vieInput").fill("giu sau loi cloud");
+  await page.locator(".addBtn").click();
+
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Cloud unavailable");
+  await expect(page.locator("#tableBody")).toContainText("kept-after-cloud-failure");
+  await expect.poll(() => page.evaluate((accountId) => {
+    const words = JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]");
+    return words.some(item => item.eng === "kept-after-cloud-failure");
+  }, fatalConsole.accountId)).toBe(true);
+
+  await page.locator("#syncRetryBtn").click();
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Cloud unavailable");
+  await expect(page.locator("#tableBody")).toContainText("kept-after-cloud-failure");
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await expect(page.locator("#tableBody")).toContainText("kept-after-cloud-failure");
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
@@ -1739,7 +2384,7 @@ test("stale recovery persistence failure keeps local state", async ({ page }) =>
     const originalSetItem = Storage.prototype.setItem;
     let thrown = false;
     Storage.prototype.setItem = function (key, value) {
-      if (!thrown && String(key).includes(":vocab")) {
+      if (!thrown && String(key).includes(":localStateTxn:")) {
         thrown = true;
         throw new Error("forced persistence failure");
       }
@@ -1952,6 +2597,743 @@ test("quiz locks answers and keyboard Enter continues after feedback", async ({ 
   expect(fatalConsole).toEqual([]);
 });
 
+test("quiz controls and result tones avoid inline style state", async ({ page }) => {
+  const fatalConsole = await preparePage(page, { vocab: sampleWords });
+
+  await page.getByRole("button", { name: "Dashboard" }).click();
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+
+  const timer = page.locator("#timer");
+  const back = page.locator(".backQuestionBtn");
+  const submit = page.locator(".submitBtn");
+  const next = page.locator(".nextBtn");
+
+  await expect(timer).toHaveAttribute("hidden", "");
+  await expect(back).toHaveAttribute("hidden", "");
+  await expect(submit).toHaveAttribute("hidden", "");
+  await expect(next).not.toHaveAttribute("hidden", "");
+
+  for (let question = 0; question < sampleWords.length; question++) {
+    await page.locator("#answers .answer").first().click();
+    if (question < sampleWords.length - 1) {
+      await next.click();
+    }
+  }
+
+  await expect(submit).not.toHaveAttribute("hidden", "");
+  await expect(next).toHaveAttribute("hidden", "");
+  await submit.click();
+
+  await expect(page.locator("#resultScreen")).toBeVisible();
+  await expect(page.locator("#score")).not.toHaveAttribute("style", /color/i);
+  await expect(page.locator("#comment")).toHaveAttribute("data-grade", /^(A\+?|B\+?|C\+?|D\+?|F)$/);
+  await expect(page.locator("#comment")).not.toHaveAttribute("style", /color/i);
+  expect(fatalConsole).toEqual([]);
+});
+
+async function completeFourQuestionQuiz(page) {
+  for (let question = 0; question < 4; question++) {
+    await page.locator("#answers .answer").first().click();
+    if (question < 3) await page.locator(".nextBtn").click();
+  }
+  await page.locator(".submitBtn").click();
+  await expect(page.locator("#resultScreen")).toBeVisible();
+}
+
+function authenticatedQuizOptions(overrides = {}) {
+  const profile = {
+    name: "Attempt Tester",
+    email: "attempt-tester@example.com",
+    avatar: "images/icon.png"
+  };
+  return {
+    authenticated: true,
+    profile,
+    vocab: sampleWords,
+    revision: 5,
+    cloudSnapshot: {
+      profile,
+      vocab: sampleWords,
+      wrongWords: [],
+      progress: {},
+      achievements: [],
+      quizHistory: [],
+      revision: 5
+    },
+    ...overrides
+  };
+}
+
+async function readQuizLearningState(page) {
+  return page.evaluate(() => {
+    const prefix = `quizAccount:${window.getCurrentAccountId()}:`;
+    const read = key => JSON.parse(localStorage.getItem(prefix + key) || "[]");
+    const learning = words => words.map(({ id, mastered, stats }) => ({ id, mastered, stats }))
+      .sort((left, right) => left.id - right.id);
+    return {
+      vocab: learning(read("vocab")),
+      wrongWords: learning(read("wrongWords")),
+      history: read("quizHistory"),
+      profile: JSON.parse(localStorage.getItem("quizUserProfile") || "{}"),
+      revision: window.quizCloud.state().lastKnownRevision
+    };
+  });
+}
+
+async function completeQuizWithOneWrongAnswer(page) {
+  for (let ordinal = 0; ordinal < 4; ordinal++) {
+    const prompt = await page.locator("#question .keyword").textContent();
+    const item = sampleWords.find(candidate => candidate.eng === prompt || candidate.vie === prompt);
+    const correct = item.eng === prompt ? item.vie : item.eng;
+    const choices = page.locator("#answers .answer");
+    const labels = (await choices.allTextContents()).map(label => label.replace(/^\d+\. /, ""));
+    const choice = labels.findIndex(label => item.id === 4 ? label !== correct : label === correct);
+    expect(choice).toBeGreaterThanOrEqual(0);
+    await choices.nth(choice).click();
+    if (ordinal < 3) await page.locator(".nextBtn").click();
+  }
+  await page.locator(".submitBtn").click();
+  await expect(page.locator("#resultScreen")).toBeVisible();
+}
+
+test("pending issued quiz retains local learning effects exactly once", async ({ page }) => {
+  const fatalConsole = await preparePage(page, authenticatedQuizOptions({
+    fixedNow: "2026-08-28T00:00:00.000Z",
+    attemptSubmitResponses: [{ status: 503 }]
+  }));
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  const before = await readQuizLearningState(page);
+  const syncCount = fatalConsole.syncBodies.length;
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await completeQuizWithOneWrongAnswer(page);
+  await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("pending");
+  const after = await readQuizLearningState(page);
+  await test.info().attach("pending-local-learning-before-after", {
+    body: JSON.stringify({ before, after }), contentType: "application/json"
+  });
+  expect(after.history).toHaveLength(1);
+  expect(after.history[0]).toMatchObject({ totalQuestions: 4, correctAnswers: 3, wrongAnswers: 1 });
+  expect(after.revision).toBe(before.revision);
+  expect(after.profile).toEqual(before.profile);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(2);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+  expect(after.vocab.map(item => item.stats.seen)).toEqual([1, 1, 1, 1]);
+  expect(after.vocab.map(item => item.stats.correct)).toEqual([1, 1, 1, 0]);
+  expect(after.vocab.map(item => item.stats.wrong)).toEqual([0, 0, 0, 1]);
+  expect(after.vocab.map(item => item.stats.streak)).toEqual([1, 1, 1, 0]);
+  expect(after.vocab.map(item => item.stats.masteryLevel)).toEqual([1, 1, 1, 0]);
+  expect(after.vocab.map(item => item.stats.nextReview)).toEqual([
+    "2026-08-31T00:00:00.000Z", "2026-08-31T00:00:00.000Z",
+    "2026-08-31T00:00:00.000Z", "2026-08-29T00:00:00.000Z"
+  ]);
+  expect(after.wrongWords.map(item => item.id)).toEqual([4]);
+  await page.evaluate(async () => {
+    window.finishQuiz();
+    await window.WordArenaQuizAttemptClient.retryActiveSubmission();
+  });
+  expect(await readQuizLearningState(page)).toEqual(after);
+  expect(fatalConsole.syncBodies).toHaveLength(syncCount);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(3);
+  expect(new Set(fatalConsole.attemptSubmitRequests.map(item => item.body)).size).toBe(1);
+  expect(new Set(fatalConsole.attemptSubmitRequests.map(item => item.url)).size).toBe(1);
+});
+
+function learningReconciliationOptions(overrides = {}) {
+  const seededWords = sampleWords.map(item => ({
+    ...item,
+    wordUid: `20000000-0000-4000-8000-${String(item.id).padStart(12, "0")}`,
+    updatedAt: "2026-08-20T00:00:00.000Z",
+    mastered: item.id === 4,
+    stats: { ...item.stats, seen: 4, correct: 4, streak: 4, bestStreak: 4, masteryLevel: 4 }
+  }));
+  const profile = { ...authenticatedQuizOptions().profile, xp: 100, level: 1 };
+  const cloudSnapshot = {
+    ...authenticatedQuizOptions().cloudSnapshot,
+    profile,
+    vocab: seededWords,
+    wrongWords: [seededWords[0]]
+  };
+  // Deliberately different from browser answers, and older than the local completion timestamp.
+  // Authoritative learning must win even when the editable-field merge prefers the local word.
+  const serverWords = seededWords.map(item => ({
+    ...item,
+    updatedAt: "2026-08-27T23:59:59.000Z",
+    mastered: item.id !== 2,
+    stats: {
+      seen: 5, correct: item.id === 2 ? 4 : 5, wrong: item.id === 2 ? 1 : 0,
+      streak: item.id === 2 ? 0 : 5, bestStreak: item.id === 2 ? 4 : 5,
+      masteryLevel: item.id === 2 ? 3 : 5,
+      lastReviewed: "2026-08-27T23:59:59.000Z", nextReview: "2026-09-01T00:00:00.000Z"
+    }
+  }));
+  const outcome = {
+    quizHistoryId: 91, totalQuestions: 4, correctAnswers: 3, wrongAnswers: 1,
+    score: 7.5, maxCombo: 2, awardedQuizXp: 46, awardedAchievementXp: 20, resultingSyncRevision: 8
+  };
+  const snapshot = {
+    ...cloudSnapshot,
+    profile: { ...profile, xp: 166 },
+    vocab: serverWords,
+    wrongWords: [serverWords[1]],
+    quizHistory: [{ id: 91, totalQuestions: 4, correctAnswers: 3, wrongAnswers: 1, score: 7.5, maxCombo: 2 }],
+    revision: 8
+  };
+  return authenticatedQuizOptions({
+    profile, vocab: seededWords, wrongWords: cloudSnapshot.wrongWords, cloudSnapshot,
+    fixedNow: "2026-08-28T00:00:00.000Z", attemptOutcome: outcome,
+    attemptSnapshot: snapshot, syncResponse: cloudSnapshot, ...overrides
+  });
+}
+
+function expectAuthoritativeLearning(state, snapshot) {
+  const learning = words => words.map(({ id, mastered, stats }) => ({ id, mastered, stats }))
+    .sort((left, right) => left.id - right.id);
+  expect(state.vocab).toEqual(learning(snapshot.vocab));
+  expect(state.wrongWords).toEqual(learning(snapshot.wrongWords));
+  expect(state.history).toHaveLength(1);
+  expect(state.history[0]).toMatchObject({ totalQuestions: 4, correctAnswers: 3, wrongAnswers: 1, score: 7.5, maxCombo: 2 });
+  expect(state.profile.xp).toBe(snapshot.profile.xp);
+  expect(state.revision).toBe(snapshot.revision);
+}
+
+test("successful issued quiz reconciles local learning and wrong bank to the server snapshot", async ({ page }) => {
+  const options = learningReconciliationOptions();
+  const fatalConsole = await preparePage(page, options);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await completeQuizWithOneWrongAnswer(page);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Quiz saved securely");
+  expectAuthoritativeLearning(await readQuizLearningState(page), options.attemptSnapshot);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(1);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+});
+
+for (const lostResponse of [false, true]) {
+  test(`pending local learning reconciles on ${lostResponse ? "lost-response replay" : "retry success"} without doubling`, async ({ page }) => {
+    const options = learningReconciliationOptions({
+      attemptSubmitResponses: [
+        lostResponse ? { abort: true } : { status: 503 },
+        { status: 503 },
+        { replayed: lostResponse }
+      ]
+    });
+    const fatalConsole = await preparePage(page, options);
+    await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+    const before = await readQuizLearningState(page);
+    // A normal sync after the Retry button is a no-op at the same server revision.
+    options.syncResponse = options.attemptSnapshot;
+    await page.getByRole("button", { name: "Start Quiz" }).last().click();
+    await expect(page.locator("#quizScreen")).toBeVisible();
+    await completeQuizWithOneWrongAnswer(page);
+    await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("pending");
+    const pending = await readQuizLearningState(page);
+    expect(pending.vocab.map(item => item.stats.seen)).toEqual(before.vocab.map(item => item.stats.seen + 1));
+    expect(pending.wrongWords.map(item => item.id)).toContain(4);
+    expect(pending.history).toHaveLength(1);
+    expect(pending.profile.xp).toBe(before.profile.xp);
+    expect(pending.revision).toBe(before.revision);
+    const attempt = await page.evaluate(() => window.WordArenaQuizAttemptClient.state());
+    await page.getByRole("button", { name: "Retry Sync", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("consumed");
+    await expect(page.locator("#syncRetryBtn")).toBeEnabled();
+    expectAuthoritativeLearning(await readQuizLearningState(page), options.attemptSnapshot);
+    const consumed = await page.evaluate(() => window.WordArenaQuizAttemptClient.state());
+    expect(consumed.attemptId).toBe(attempt.attemptId);
+    expect(consumed.lastResponse.outcome).toEqual(options.attemptOutcome);
+    expect(consumed.lastResponse.replayed).toBe(lostResponse);
+    expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+    expect(fatalConsole.attemptSubmitRequests).toHaveLength(3);
+    expect(new Set(fatalConsole.attemptSubmitRequests.map(item => item.body)).size).toBe(1);
+    expect(new Set(fatalConsole.attemptSubmitRequests.map(item => item.url)).size).toBe(1);
+    expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+  });
+}
+
+for (const practice of [false, true]) {
+  test(`pending quiz preserves local-only learning semantics (${practice ? "wrong practice" : "standard"})`, async ({ page, browser }) => {
+    const options = learningReconciliationOptions({ attemptSubmitResponses: [{ status: 503 }] });
+    const fatalConsole = await preparePage(page, options);
+    await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+    const start = target => target.evaluate(isPractice => window.startWordSetQuiz(
+      window.readAccountArray("vocab"), "eng", { practice: isPractice, kind: isPractice ? "wrong-practice" : "quiz" }
+    ), practice);
+    await start(page);
+    await expect(page.locator("#quizScreen")).toBeVisible();
+    await completeQuizWithOneWrongAnswer(page);
+    await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("pending");
+    const pending = await readQuizLearningState(page);
+
+    const localPage = await browser.newPage();
+    try {
+      const localRequests = await preparePage(localPage, { ...options, authenticated: false });
+      await expect.poll(() => localPage.evaluate(() => window.quizCloud.isReady())).toBe(false);
+      await start(localPage);
+      await expect(localPage.locator("#quizScreen")).toBeVisible();
+      await completeQuizWithOneWrongAnswer(localPage);
+      const local = await readQuizLearningState(localPage);
+      expect(pending.vocab).toEqual(local.vocab);
+      expect(pending.wrongWords).toEqual(local.wrongWords);
+      expect(pending.history).toHaveLength(1);
+      expect(local.history).toHaveLength(1);
+      expect(pending.vocab.map(item => item.mastered)).toEqual([true, true, true, false]);
+      expect(pending.vocab.map(item => item.stats.streak)).toEqual([5, 5, 5, 0]);
+      expect(pending.vocab.map(item => item.stats.masteryLevel)).toEqual([5, 5, 5, 3]);
+      expect(pending.wrongWords.find(item => item.id === 1).mastered).toBe(practice);
+      expect(localRequests.attemptCreateBodies).toHaveLength(0);
+      expect(localRequests.attemptSubmitRequests).toHaveLength(0);
+      expect(localRequests.legacyQuizRequests).toHaveLength(0);
+    } finally {
+      await localPage.close();
+    }
+    expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+    expect(fatalConsole.attemptSubmitRequests).toHaveLength(2);
+    expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+  });
+}
+
+test("quiz local fallback is not applied after the issuing account changes", async ({ page }) => {
+  const fatalConsole = await preparePage(page, learningReconciliationOptions());
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  // The storage-switch save schedules ordinary sync; isolate this quiz boundary from that unrelated response.
+  await page.route("**/api/sync", route => route.fulfill({ status: 503, json: {} }));
+  await page.evaluate(() => window.switchAccountStorage({ email: "other-account@example.com", name: "Other" }));
+  const before = await readQuizLearningState(page);
+  await completeQuizWithOneWrongAnswer(page);
+  expect(await readQuizLearningState(page)).toEqual(before);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(0);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+});
+
+test("logout preserves completed local learning and cancels late attempt delivery", async ({ page }) => {
+  const fatalConsole = await preparePage(page, learningReconciliationOptions({ mutableSession: true }));
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  let releaseSubmit;
+  const submitGate = new Promise(resolve => { releaseSubmit = resolve; });
+  let submitReceived = false;
+  await page.route("**/api/quiz/attempts/*/submit", async route => {
+    submitReceived = true;
+    await submitGate;
+    await route.fallback();
+  });
+  let releaseLogout;
+  const logoutGate = new Promise(resolve => { releaseLogout = resolve; });
+  await page.route("http://localhost:8080/logout", async route => {
+    await logoutGate;
+    await route.fallback();
+  });
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await completeQuizWithOneWrongAnswer(page);
+  await expect.poll(() => submitReceived).toBe(true);
+  const completed = await readQuizLearningState(page);
+  expect(completed.vocab.map(item => item.stats.seen)).toEqual([5, 5, 5, 5]);
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+  expect(await page.evaluate(() => window.WordArenaQuizAttemptClient.state())).toBeNull();
+  const oldResponse = page.waitForResponse(response => response.url().endsWith("/submit"));
+  releaseSubmit();
+  await (await oldResponse).finished();
+  expect(await readQuizLearningState(page)).toEqual(completed);
+  releaseLogout();
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true$/);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(1);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+});
+
+test("online quiz issues once, binds issued items, and applies authoritative outcome", async ({ page }) => {
+  const options = authenticatedQuizOptions({
+    attemptOutcome: {
+      quizHistoryId: 91,
+      totalQuestions: 4,
+      correctAnswers: 3,
+      wrongAnswers: 1,
+      score: 7.5,
+      maxCombo: 2,
+      awardedQuizXp: 46,
+      awardedAchievementXp: 20,
+      resultingSyncRevision: 8
+    },
+    attemptSnapshotRevision: 8,
+    attemptHeaderRevision: 8
+  });
+  const fatalConsole = await preparePage(page, options);
+  await expect.poll(() => page.evaluate(() => window.quizCloud.isReady())).toBe(true);
+
+  await page.getByRole("button", { name: "Dashboard" }).click();
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptCreateBodies[0].items).toHaveLength(4);
+  const firstIssued = fatalConsole.attemptCreateBodies[0].items[0];
+  const issuedWord = sampleWords.find(item => item.id === firstIssued.wordId);
+  await expect(page.locator("#question")).toContainText(
+    firstIssued.questionMode === "eng" ? issuedWord.eng : issuedWord.vie
+  );
+
+  await completeFourQuestionQuiz(page);
+  await expect.poll(() => fatalConsole.attemptSubmitRequests.length).toBe(1);
+  expect(fatalConsole.attemptSubmitRequests[0].url).toContain(
+    "/api/quiz/attempts/10000000-0000-4000-8000-000000000001/submit"
+  );
+  expect(fatalConsole.attemptSubmitRequests[0].json.answers.map(item => item.ordinal)).toEqual([0, 1, 2, 3]);
+  await expect(page.locator("#rCorrect")).toHaveText("3/4");
+  await expect(page.locator("#score")).toHaveText("7.5 / 10");
+  await expect.poll(() => page.evaluate(() => window.quizCloud.state().lastKnownRevision)).toBe(8);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("lost submit response retries the same attempt and byte-identical payload", async ({ page }) => {
+  const fatalConsole = await preparePage(page, authenticatedQuizOptions({
+    attemptSubmitResponses: [
+      { abort: true },
+      { replayed: true, headerRevision: 6, snapshotRevision: 6 }
+    ],
+    attemptOutcomeRevision: 6
+  }));
+  await expect.poll(() => page.evaluate(() => window.quizCloud.isReady())).toBe(true);
+
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await completeFourQuestionQuiz(page);
+
+  await expect.poll(() => fatalConsole.attemptSubmitRequests.length).toBe(2);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptSubmitRequests[0].url).toBe(fatalConsole.attemptSubmitRequests[1].url);
+  expect(fatalConsole.attemptSubmitRequests[0].body).toBe(fatalConsole.attemptSubmitRequests[1].body);
+  await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("consumed");
+  const historyLength = await page.evaluate(() => {
+    const key = "quizAccount:attempt-tester@example.com:quizHistory";
+    return JSON.parse(localStorage.getItem(key) || "[]").length;
+  });
+  expect(historyLength).toBe(1);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+});
+
+test("attempt creation failure keeps a local-only quiz without legacy fallback", async ({ page }) => {
+  const fatalConsole = await preparePage(page, authenticatedQuizOptions({ attemptCreateStatus: 503 }));
+  await expect.poll(() => page.evaluate(() => window.quizCloud.isReady())).toBe(true);
+
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await page.locator("#answers .answer").first().click();
+
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(0);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+  expect(await page.evaluate(() => window.WordArenaQuizAttemptClient.state())).toBeNull();
+  await expect(page.locator("#cloudSyncStatus")).toContainText("local-only");
+});
+
+test("submit failure retains the original active attempt and never reissues", async ({ page }) => {
+  const fatalConsole = await preparePage(page, authenticatedQuizOptions({
+    attemptSubmitResponses: [{ status: 503 }, { status: 503 }, { status: 503 }]
+  }));
+  await expect.poll(() => page.evaluate(() => window.quizCloud.isReady())).toBe(true);
+
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await completeFourQuestionQuiz(page);
+
+  await expect.poll(() => fatalConsole.attemptSubmitRequests.length).toBe(2);
+  const pending = await page.evaluate(() => window.WordArenaQuizAttemptClient.state());
+  expect(pending.status).toBe("pending");
+  expect(pending.attemptId).toBe("10000000-0000-4000-8000-000000000001");
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+});
+
+test("stale exact-replay response cannot regress the remembered sync revision", async ({ page }) => {
+  const fatalConsole = await preparePage(page, authenticatedQuizOptions({
+    revision: 7,
+    cloudSnapshot: {
+      ...authenticatedQuizOptions().cloudSnapshot,
+      revision: 7
+    },
+    attemptSubmitResponses: [
+      { abort: true },
+      { replayed: true, headerRevision: 4, snapshotRevision: 4 }
+    ],
+    attemptOutcomeRevision: 4
+  }));
+  await expect.poll(() => page.evaluate(() => window.quizCloud.state().lastKnownRevision)).toBeGreaterThanOrEqual(7);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  const revisionBeforeReplay = await page.evaluate(() => window.quizCloud.state().lastKnownRevision);
+
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await completeFourQuestionQuiz(page);
+
+  await expect.poll(() => fatalConsole.attemptSubmitRequests.length).toBe(2);
+  await expect.poll(() => page.evaluate(() => window.quizCloud.state().lastKnownRevision)).toBe(revisionBeforeReplay);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+});
+
+test("late submit response cannot consume or overwrite a replacement quiz", async ({ page }) => {
+  const fatalConsole = await preparePage(page, authenticatedQuizOptions());
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  let releaseSubmit;
+  const gate = new Promise(resolve => { releaseSubmit = resolve; });
+  let submitReceived = false;
+  await page.route("**/api/quiz/attempts/*/submit", async route => {
+    submitReceived = true;
+    await gate;
+    await route.fallback();
+  });
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await completeFourQuestionQuiz(page);
+  await expect.poll(() => submitReceived).toBe(true);
+  await page.evaluate(() => window.goHome());
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  const replacement = await page.evaluate(() => window.WordArenaQuizAttemptClient.state());
+  expect(replacement.attemptId).toBe("10000000-0000-4000-8000-000000000002");
+  const oldResponse = page.waitForResponse(response => response.url().includes("000000000001/submit"));
+  releaseSubmit();
+  await (await oldResponse).finished();
+  await completeFourQuestionQuiz(page);
+  await expect.poll(() => fatalConsole.attemptSubmitRequests.length).toBe(2);
+  expect(fatalConsole.attemptSubmitRequests[1].url).toContain(`${replacement.attemptId}/submit`);
+  await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("consumed");
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(2);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("late quiz outcome cannot write into a different account", async ({ page }) => {
+  const fatalConsole = await preparePage(page, authenticatedQuizOptions());
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  let releaseSubmit;
+  const gate = new Promise(resolve => { releaseSubmit = resolve; });
+  let submitReceived = false;
+  await page.route("**/api/quiz/attempts/*/submit", async route => {
+    submitReceived = true;
+    await gate;
+    await route.fallback();
+  });
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await completeFourQuestionQuiz(page);
+  await expect.poll(() => submitReceived).toBe(true);
+  await page.evaluate(() => window.switchAccountStorage({ email: "other-account@example.com", name: "Other Account" }));
+  const before = await page.evaluate(() => JSON.stringify(localStorage));
+  releaseSubmit();
+  await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state())).toBeNull();
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).toBe(before);
+  expect(await page.evaluate(() => window.getCurrentAccountId())).toBe("other-account@example.com");
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
+});
+
+test("production frontend contains no legacy quiz-result submission", async () => {
+  const files = fs.readdirSync(path.join(frontendDir, "js"))
+    .filter(file => file.endsWith(".js"));
+  const references = files.filter(file => fs.readFileSync(path.join(frontendDir, "js", file), "utf8")
+    .includes("/api/quiz-results"));
+  expect(references).toEqual([]);
+});
+
+function reviewServer() {
+  const due = { ...word("review security", "on tap", "review", 0),
+    wordUid: "00000000-0000-4000-8000-000000001299" };
+  due.stats.nextReview = new Date(Date.now() - 86400000).toISOString();
+  return { word: due, revision: 10, ledger: new Map(), requests: [], mutations: 0, losses: 0, inWrongBank: false };
+}
+
+async function prepareReviewPage(page, server) {
+  const profile = { name: "Review Security", email: "review-security@example.com", avatar: "images/icon.png" };
+  const snapshot = () => ({ revision: server.revision, profile, vocab: [server.word],
+    wrongWords: server.inWrongBank ? [server.word] : [], quizHistory: [], achievements: [], progress: {} });
+  const dueQueue = () => Date.parse(server.word.stats.nextReview) <= Date.now()
+    ? [{ ...server.word, wordId: server.word.id, nextReview: server.word.stats.nextReview }] : [];
+  const errors = await preparePage(page, { authenticated: true, profile, vocab: [server.word],
+    cloudSnapshot: snapshot(), syncResponse: snapshot(), cloudReviewQueue: dueQueue() });
+  await expect.poll(() => page.evaluate(() => window.quizCloud.isReady())).toBe(true);
+  await expect.poll(() => errors.syncBodies.length).toBeGreaterThan(0);
+  await page.route("**/api/snapshot", route => route.fulfill({ json: snapshot(),
+    headers: { "X-Sync-Revision": String(server.revision), "Access-Control-Expose-Headers": "X-Sync-Revision" } }));
+  await page.route("**/api/sync", route => route.fulfill({ json: snapshot() }));
+  await page.route("**/api/review/queue?*", route => route.fulfill({ json: dueQueue() }));
+  await page.route(/\/api\/review\/(answer|known)$/, async route => {
+    const payload = route.request().postDataJSON();
+    server.requests.push({ raw: route.request().postData(), payload });
+    const original = server.ledger.get(payload.operationId);
+    if (!original && payload.mode === "review" && !dueQueue().length) {
+      await route.fulfill({ status: 409, json: { error: "REVIEW_NOT_DUE" } });
+      return;
+    }
+    if (!original) {
+      const stats = server.word.stats;
+      const known = !payload.mode;
+      stats.seen++;
+      if (known || payload.correct) {
+        stats.correct++;
+        stats.streak = Math.max(known ? 2 : 1, stats.streak + 1);
+        stats.masteryLevel = Math.min(5, Math.max(known ? 3 : 1, stats.masteryLevel + 1));
+      } else {
+        stats.wrong++; stats.streak = 0;
+        stats.masteryLevel = Math.max(0, stats.masteryLevel - 1);
+        server.inWrongBank = true;
+      }
+      stats.bestStreak = Math.max(stats.bestStreak, stats.streak);
+      stats.nextReview = new Date(Date.now() + 86400000).toISOString();
+      server.revision++; server.mutations++;
+      server.ledger.set(payload.operationId, reviewResponse(payload, { word: server.word,
+        mastery: stats.masteryLevel * 20, streak: stats.streak, nextReview: stats.nextReview,
+        message: "Original operation accepted." }, server.revision).outcome);
+    }
+    if (server.hold) await server.hold;
+    if (server.losses > 0) { server.losses--; await route.abort("connectionreset"); return; }
+    await route.fulfill({ headers: { "X-Sync-Revision": String(server.revision),
+      "Access-Control-Expose-Headers": "X-Sync-Revision" }, json: {
+      outcome: server.ledger.get(payload.operationId), replayed: Boolean(original),
+      revision: server.revision, word: server.word, inWrongBank: server.inWrongBank
+    } });
+  });
+  return errors;
+}
+
+async function rateReview(page, rating = "Good") {
+  await page.getByRole("button", { name: "Review", exact: true }).click();
+  await page.locator("#reviewTodayBody").getByRole("button", { name: "Reveal Answer" }).first().click();
+  await page.locator("#reviewTodayBody").getByRole("button", { name: new RegExp(rating) }).first().click();
+}
+
+for (const rating of ["Good", "Again"]) {
+  test(`12C Review ${rating} lost response retries exact operation and reconciles local once`, async ({ page }) => {
+    const server = reviewServer(); server.losses = 1;
+    const errors = await prepareReviewPage(page, server);
+    await rateReview(page, rating);
+    await expect.poll(() => server.requests.length).toBe(2);
+    await expect.poll(() => page.evaluate(() => window.WordArenaReviewOperationClient.pendingCount())).toBe(0);
+    const state = await readImportStorage(page, errors.accountId);
+    expect(state.vocab[0].stats.seen).toBe(1);
+    expect(state.vocab[0].stats[rating === "Good" ? "correct" : "wrong"]).toBe(1);
+    expect(server.mutations).toBe(1);
+    expect(server.requests[0].raw).toBe(server.requests[1].raw);
+    expect(await page.evaluate(() => window.quizCloud.state().lastKnownRevision)).toBe(11);
+  });
+}
+
+test("12C Review unknown outcome retains UUID across manual Retry Review without second local learning", async ({ page }) => {
+  const server = reviewServer(); server.losses = 2;
+  const errors = await prepareReviewPage(page, server);
+  await rateReview(page);
+  await expect(page.getByRole("button", { name: "Retry Review", exact: true })).toBeVisible();
+  expect((await readImportStorage(page, errors.accountId)).vocab[0].stats.seen).toBe(1);
+  await page.getByRole("button", { name: "Retry Review", exact: true }).click();
+  await expect.poll(() => server.requests.length).toBe(3);
+  await expect.poll(() => page.evaluate(() => window.WordArenaReviewOperationClient.pendingCount())).toBe(0);
+  expect(new Set(server.requests.map(request => request.raw)).size).toBe(1);
+  expect((await readImportStorage(page, errors.accountId)).vocab[0].stats.seen).toBe(1);
+  expect(server.mutations).toBe(1);
+});
+
+for (const action of ["known", "hard"]) {
+  test(`12C Mark ${action} lost response and explicit retry reuse one command`, async ({ page }) => {
+    const server = reviewServer(); server.losses = 2;
+    const errors = await prepareReviewPage(page, server);
+    await page.evaluate(action => action === "known" ? markWordKnown(0) : markWordHard(0), action);
+    expect((await readImportStorage(page, errors.accountId)).vocab[0].stats.seen).toBe(1);
+    expect(server.requests).toHaveLength(2);
+    await page.evaluate(action => action === "known" ? markWordKnown(0) : markWordHard(0), action);
+    expect(server.requests).toHaveLength(3);
+    expect(new Set(server.requests.map(request => request.raw)).size).toBe(1);
+    expect(server.mutations).toBe(1);
+    expect((await readImportStorage(page, errors.accountId)).vocab[0].stats.seen).toBe(1);
+    // A new click AFTER confirmed completion preserves the existing command semantics.
+    await page.evaluate(action => action === "known" ? markWordKnown(0) : markWordHard(0), action);
+    expect(server.mutations).toBe(2);
+    expect(server.requests[3].payload.operationId).not.toBe(server.requests[0].payload.operationId);
+  });
+}
+
+test("12C two stale Review tabs consume one due state and refresh the rejected card", async ({ page, browser }) => {
+  const server = reviewServer();
+  await prepareReviewPage(page, server);
+  const contextB = await browser.newContext();
+  const tabB = await contextB.newPage();
+  try {
+    const errorsB = await prepareReviewPage(tabB, server);
+    await tabB.getByRole("button", { name: "Review", exact: true }).click();
+    await tabB.getByRole("button", { name: "Reveal Answer" }).first().click();
+    await rateReview(page);
+    await expect.poll(() => page.evaluate(() => window.WordArenaReviewOperationClient.pendingCount())).toBe(0);
+    await tabB.locator("#reviewTodayBody").getByRole("button", { name: /Good/ }).first().click();
+    await expect(tabB.locator("#reviewTodayBody")).toContainText("already reviewed");
+    expect(server.mutations).toBe(1);
+    expect(server.revision).toBe(11);
+    expect(server.requests[0].payload.operationId).not.toBe(server.requests[1].payload.operationId);
+    const state = await readImportStorage(tabB, errorsB.accountId);
+    expect(state.vocab[0].stats.seen).toBe(1);
+    await expect(tabB.locator(".reviewQueueItem")).toHaveCount(0);
+  } finally { await contextB.close(); }
+});
+
+for (const action of ["review", "known", "hard"]) {
+  test(`12C late ${action} response cannot mutate a different account`, async ({ page }) => {
+    const server = reviewServer();
+    let release;
+    server.hold = new Promise(resolve => { release = resolve; });
+    await prepareReviewPage(page, server);
+    if (action === "review") await rateReview(page);
+    else await page.evaluate(action => { void (action === "known" ? markWordKnown(0) : markWordHard(0)); }, action);
+    await expect.poll(() => server.requests.length).toBe(1);
+    await page.evaluate(() => {
+      window.switchAccountStorage({ email: "review-b@example.com", name: "Account B" });
+      vocab = [{ id: 1, wordUid: "b-word", eng: "B only", vie: "B", stats: { seen: 30, correct: 20 } }];
+      window.quizCloud.saveLocalReview();
+    });
+    release();
+    await page.waitForTimeout(150);
+    const state = await readImportStorage(page, "review-b@example.com");
+    expect(state.vocab[0].eng).toBe("B only");
+    expect(state.vocab[0].stats.seen).toBe(30);
+    expect(await page.evaluate(() => window.WordArenaReviewOperationClient.pendingCount())).toBe(0);
+  });
+}
+
+test("12C late review queue cannot populate a different account", async ({ page }) => {
+  const server = reviewServer();
+  await prepareReviewPage(page, server);
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  let requested = false;
+  await page.route("**/api/review/queue?*", async route => {
+    requested = true; await held;
+    await route.fulfill({ json: [{ ...server.word, eng: "Private A queue", wordId: 1 }] });
+  });
+  await page.evaluate(() => { void window.reviewToday.refresh(); });
+  await expect.poll(() => requested).toBe(true);
+  await page.evaluate(() => window.switchAccountStorage({ email: "queue-b@example.com", name: "Queue B" }));
+  release();
+  await page.waitForTimeout(150);
+  await expect(page.locator("#reviewTodayBody")).not.toContainText("Private A queue");
+});
+
+test("12C late review completion cannot update a replacement review session", async ({ page }) => {
+  const server = reviewServer(); let release;
+  server.hold = new Promise(resolve => { release = resolve; });
+  await prepareReviewPage(page, server);
+  await rateReview(page);
+  await expect.poll(() => server.requests.length).toBe(1);
+  await page.locator("#reviewTodayStartBtn").click();
+  release();
+  await expect.poll(() => page.evaluate(() => window.WordArenaReviewOperationClient.pendingCount())).toBe(0);
+  await expect(page.locator(".reviewSessionOverview")).toContainText("Progress: 0 / 0");
+  await expect(page.locator("#reviewTodayBody .reviewFeedback")).toHaveCount(0);
+});
+
 test("review queue renders ratings and accepts one local review", async ({ page }) => {
   const fatalConsole = await preparePage(page, {
     vocab: reviewWords,
@@ -1972,6 +3354,237 @@ test("review queue renders ratings and accepts one local review", async ({ page 
   await expect(page.locator("#reviewTodayBody")).toContainText("Review Complete");
   await expect(page.locator(".reviewSessionOverview")).toContainText("Progress: 1 / 1");
   await expect(page.locator(".reviewCompletionStats")).toContainText("Good");
+
+  expect(fatalConsole).toEqual([]);
+});
+
+test("account-local vocabulary survives logout and relogin to the same account", async ({ page }) => {
+  const profileA = {
+    name: "Persistence User A",
+    email: "persistence.a@example.com",
+    avatar: "images/icon.png"
+  };
+  const accountA = "persistence.a@example.com";
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    mutableSession: true,
+    preserveStorageOnNavigation: true,
+    snapshotFails: true,
+    vocabMutationFails: true,
+    profile: profileA
+  });
+
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await page.locator("#engInput").fill("account-a-persisted-word");
+  await page.locator("#vieInput").fill("du lieu tai khoan a");
+  await page.locator(".addBtn").click();
+  await expect(page.locator("#tableBody")).toContainText("account-a-persisted-word");
+  const beforeLogout = await page.evaluate((accountId) =>
+    localStorage.getItem(`quizAccount:${accountId}:vocab`), accountA);
+  expect(JSON.parse(beforeLogout || "[]").map(item => item.eng)).toContain("account-a-persisted-word");
+
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true$/);
+
+  fatalConsole.setSession(profileA);
+  await page.goto("index.html");
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await expect(page.locator("#tableBody")).toContainText("account-a-persisted-word");
+  expect(await page.evaluate((accountId) =>
+    localStorage.getItem(`quizAccount:${accountId}:vocab`), accountA)).toBe(beforeLogout);
+
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("account A vocabulary remains isolated from account B across A-B-A sessions", async ({ page }) => {
+  const profileA = { name: "Isolation User A", email: "isolation.a@example.com", avatar: "images/icon.png" };
+  const profileB = { name: "Isolation User B", email: "isolation.b@example.com", avatar: "images/icon.png" };
+  const accountA = "isolation.a@example.com";
+  const accountB = "isolation.b@example.com";
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    mutableSession: true,
+    preserveStorageOnNavigation: true,
+    snapshotFails: true,
+    vocabMutationFails: true,
+    profile: profileA
+  });
+
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await page.locator("#engInput").fill("only-account-a");
+  await page.locator("#vieInput").fill("chi tai khoan a");
+  await page.locator(".addBtn").click();
+  await expect(page.locator("#tableBody")).toContainText("only-account-a");
+
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true$/);
+  fatalConsole.setSession(profileB);
+  await page.goto("index.html");
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await expect(page.locator("#tableBody")).not.toContainText("only-account-a");
+  await page.locator("#engInput").fill("only-account-b");
+  await page.locator("#vieInput").fill("chi tai khoan b");
+  await page.locator(".addBtn").click();
+  await expect(page.locator("#tableBody")).toContainText("only-account-b");
+
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true$/);
+  fatalConsole.setSession(profileA);
+  await page.goto("index.html");
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
+  await expect(page.locator("#tableBody")).toContainText("only-account-a");
+  await expect(page.locator("#tableBody")).not.toContainText("only-account-b");
+
+  const stored = await page.evaluate(({ accountAId, accountBId }) => ({
+    a: JSON.parse(localStorage.getItem(`quizAccount:${accountAId}:vocab`) || "[]").map(item => item.eng),
+    b: JSON.parse(localStorage.getItem(`quizAccount:${accountBId}:vocab`) || "[]").map(item => item.eng)
+  }), { accountAId: accountA, accountBId: accountB });
+  expect(stored.a).toContain("only-account-a");
+  expect(stored.a).not.toContain("only-account-b");
+  expect(stored.b).toContain("only-account-b");
+  expect(stored.b).not.toContain("only-account-a");
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("learning studio storage remains isolated across account logout and relogin", async ({ page }) => {
+  const profileA = {
+    name: "Storage User A",
+    email: "User.A@Example.com",
+    avatar: "images/icon.png"
+  };
+  const profileB = {
+    name: "Storage User B",
+    email: "user.b@example.com",
+    avatar: "images/icon.png"
+  };
+  const accountA = "user.a@example.com";
+  const accountB = "user.b@example.com";
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    mutableSession: true,
+    preserveStorageOnNavigation: true,
+    snapshotFails: true,
+    profile: profileA
+  });
+
+  await openLearningStudio(page, "decks");
+  await page.locator("#topicDeckGrid .topicDeckCard").first().getByRole("button", { name: "Import Deck" }).click();
+  const accountAState = await page.evaluate((accountId) => ({
+    deckImported: localStorage.getItem(`quizAccount:${accountId}:deckImported`),
+    vocab: localStorage.getItem(`quizAccount:${accountId}:vocab`)
+  }), accountA);
+  expect(accountAState.deckImported).toBe("true");
+  expect(JSON.parse(accountAState.vocab)).not.toHaveLength(0);
+
+  await page.keyboard.press("Escape");
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true$/);
+
+  fatalConsole.setSession(profileB);
+  await page.goto("index.html");
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await openLearningStudio(page, "badges");
+  await expect(studioBadge(page, "Deck Builder")).toContainText("Locked");
+  const accountBState = await page.evaluate(({ accountAId, accountBId }) => ({
+    accountADeckImported: localStorage.getItem(`quizAccount:${accountAId}:deckImported`),
+    accountAVocab: localStorage.getItem(`quizAccount:${accountAId}:vocab`),
+    accountBDeckImported: localStorage.getItem(`quizAccount:${accountBId}:deckImported`),
+    accountBVocab: localStorage.getItem(`quizAccount:${accountBId}:vocab`)
+  }), { accountAId: accountA, accountBId: accountB });
+  expect(accountBState.accountADeckImported).toBe(accountAState.deckImported);
+  expect(accountBState.accountAVocab).toBe(accountAState.vocab);
+  expect(accountBState.accountBDeckImported).toBeNull();
+  expect(JSON.parse(accountBState.accountBVocab || "[]")).toEqual([]);
+
+  await page.keyboard.press("Escape");
+  await page.locator("#profileTrigger").click();
+  await page.locator("#profileLogoutBtn").click();
+  await expect(page).toHaveURL(/login\.html\?loggedOut=true$/);
+
+  fatalConsole.setSession(profileA);
+  await page.goto("index.html");
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await openLearningStudio(page, "badges");
+  await expect(studioBadge(page, "Deck Builder")).toContainText("Unlocked");
+  const restoredAState = await page.evaluate((accountId) => ({
+    deckImported: localStorage.getItem(`quizAccount:${accountId}:deckImported`),
+    vocab: localStorage.getItem(`quizAccount:${accountId}:vocab`)
+  }), accountA);
+  expect(restoredAState).toEqual(accountAState);
+
+  expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
+});
+
+test("learning studio local state survives an offline reload without schema changes", async ({ page }) => {
+  const fatalConsole = await preparePage(page, {
+    preserveStorageOnNavigation: true
+  });
+
+  await openLearningStudio(page, "decks");
+  await page.locator("#topicDeckGrid .topicDeckCard").first().getByRole("button", { name: "Import Deck" }).click();
+  const beforeReload = await page.evaluate(() => ({
+    deckImported: localStorage.getItem("quizAccount:local-guest:deckImported"),
+    vocab: localStorage.getItem("quizAccount:local-guest:vocab")
+  }));
+  expect(beforeReload.deckImported).toBe("true");
+  expect(JSON.parse(beforeReload.vocab)).not.toHaveLength(0);
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "WordArena" })).toBeVisible();
+  await openLearningStudio(page, "badges");
+  await expect(studioBadge(page, "Deck Builder")).toContainText("Unlocked");
+  const afterReload = await page.evaluate(() => ({
+    deckImported: localStorage.getItem("quizAccount:local-guest:deckImported"),
+    vocab: localStorage.getItem("quizAccount:local-guest:vocab")
+  }));
+  expect(afterReload).toEqual(beforeReload);
+
+  expect(fatalConsole).toEqual([]);
+});
+
+test("learning studio handles missing account storage with existing empty fallbacks", async ({ page }) => {
+  const fatalConsole = await preparePage(page);
+
+  await openLearningStudio(page, "history");
+  await expect(page.locator("#historySummary")).toHaveText("No rounds yet");
+  await expect(page.locator("#historyList")).toContainText("Finish a quiz or focus session");
+  await page.locator(".studioTab[data-studio-tab='badges']").click();
+  await expect(studioBadge(page, "Calm Focus")).toContainText("Locked");
+  await expect(studioBadge(page, "Deck Builder")).toContainText("Locked");
+  const stored = await page.evaluate(() => ({
+    history: localStorage.getItem("quizAccount:local-guest:quizHistory"),
+    focusStarted: localStorage.getItem("quizAccount:local-guest:focusStarted"),
+    deckImported: localStorage.getItem("quizAccount:local-guest:deckImported")
+  }));
+  expect(stored).toEqual({ history: null, focusStarted: null, deckImported: null });
+
+  expect(fatalConsole).toEqual([]);
+});
+
+test("learning studio preserves malformed JSON and exact flag fallback semantics", async ({ page }) => {
+  const malformedHistory = "{not-json";
+  const fatalConsole = await preparePage(page, {
+    extraStorage: {
+      "quizAccount:local-guest:quizHistory": malformedHistory,
+      "quizAccount:local-guest:focusStarted": "TRUE",
+      "quizAccount:local-guest:deckImported": "false"
+    }
+  });
+
+  await openLearningStudio(page, "history");
+  await expect(page.locator("#historySummary")).toHaveText("No rounds yet");
+  await expect(page.locator("#historyList")).toContainText("Finish a quiz or focus session");
+  await page.locator(".studioTab[data-studio-tab='badges']").click();
+  await expect(studioBadge(page, "Calm Focus")).toContainText("Locked");
+  await expect(studioBadge(page, "Deck Builder")).toContainText("Locked");
+  expect(await page.evaluate(() => localStorage.getItem("quizAccount:local-guest:quizHistory"))).toBe(malformedHistory);
 
   expect(fatalConsole).toEqual([]);
 });
@@ -2067,6 +3680,48 @@ test("AI deck panel opens without calling a real AI service", async ({ page }) =
   await expect(page.locator("#aiDeckGenerateBtn")).toBeVisible();
   await expect(page.locator(".trustNote--studio")).toContainText("edit every generated word");
 
+  expect(fatalConsole).toEqual([]);
+});
+
+test("AI deck successful request preserves request semantics and renders generated words", async ({ page }) => {
+  const fatalConsole = await preparePage(page, {
+    aiDeckResponse: {
+      source: "openai",
+      items: [
+        {
+          english: "concentrate",
+          vietnameseMeaning: "tập trung",
+          partOfSpeech: "v",
+          level: "B1",
+          exampleSentence: "Students concentrate during focused practice.",
+          tag: "study",
+          source: "mock"
+        }
+      ]
+    }
+  });
+
+  await page.getByRole("button", { name: "AI Deck", exact: true }).click();
+  await page.locator("#aiDeckBtn").click();
+  await page.locator("#aiDeckText").fill("Students concentrate during focused practice.");
+  await page.locator("#aiDeckTargetLevel").selectOption("B1");
+  await page.locator("#aiDeckMaxWords").selectOption("10");
+  await page.locator("#aiDeckGenerateBtn").click();
+
+  await expect(page.locator("#aiDeckStatus")).toContainText("Generated 1 B1 vocabulary items");
+  await expect(page.locator("#aiDeckSource")).toContainText("AI Generated");
+  await expect(page.locator("#aiDeckList .aiDeckField--eng input")).toHaveValue("concentrate");
+  expect(fatalConsole.aiDeckRequests).toHaveLength(1);
+  expect(fatalConsole.aiDeckRequests[0]).toMatchObject({
+    method: "POST",
+    body: {
+      text: "Students concentrate during focused practice.",
+      targetLevel: "B1",
+      maxWords: 10
+    }
+  });
+  expect(fatalConsole.aiDeckRequests[0].headers["content-type"]).toContain("application/json");
+  expect(fatalConsole.aiDeckRequests[0].headers["x-xsrf-token"]).toBe("smoke-csrf-token");
   expect(fatalConsole).toEqual([]);
 });
 

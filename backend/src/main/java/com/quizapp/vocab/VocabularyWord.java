@@ -23,7 +23,8 @@ import java.util.UUID;
         name = "vocabulary",
         uniqueConstraints = {
                 @UniqueConstraint(name = "ux_vocabulary_user_eng", columnNames = {"user_id", "eng"}),
-                @UniqueConstraint(name = "ux_vocabulary_user_word_uid", columnNames = {"user_id", "word_uid"})
+                @UniqueConstraint(name = "ux_vocabulary_user_word_uid", columnNames = {"user_id", "word_uid"}),
+                @UniqueConstraint(name = "ux_vocabulary_id_user", columnNames = {"id", "user_id"})
         }
 )
 public class VocabularyWord {

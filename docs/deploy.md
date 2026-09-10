@@ -57,11 +57,11 @@ variables in the hosting platform.
 | `FRONTEND_URL` | Production yes | Public frontend origin, for example `https://YOUR_FRONTEND_DOMAIN`. |
 | `BACKEND_URL` | Frontend deploy yes | Public backend origin for frontend config. |
 | `CORS_ALLOWED_ORIGINS` | Optional | Comma-separated frontend origins. Defaults to `FRONTEND_URL` or local origins. |
-| `OAUTH_SUCCESS_REDIRECT_URI` | Optional | Override success redirect if needed. |
+| `OAUTH_SUCCESS_REDIRECT_URI` | Production yes | Exact production app entry: `${FRONTEND_URL}/index.html`. |
 | `OAUTH_LOGOUT_REDIRECT_URI` | Removed | Logout now uses `POST /logout` with CSRF and returns `204`; the frontend redirects to `login.html?loggedOut=true`. |
 | `SESSION_COOKIE_SAME_SITE` | Production yes | Use `none` for Vercel frontend + Render backend. Local default is `lax`. |
 | `SESSION_COOKIE_SECURE` | Production yes | Use `true` for HTTPS production. Local default is `false`. |
-| `SESSION_COOKIE_PATH` | Optional | Defaults to `/`. |
+| `SESSION_COOKIE_PATH` | Production yes | Must be `/` for the release gate. |
 | `APP_ENV` | Optional | Safe label shown by `/actuator/info`, for example `production`. |
 | `APP_VERSION` | Optional | Safe release label shown by `/actuator/info`. |
 | `OPENAI_API_KEY` | Optional | If missing, AI explain uses rule-based fallback. |
@@ -97,9 +97,11 @@ Set the backend environment variables:
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 FRONTEND_URL=https://YOUR_FRONTEND_DOMAIN
+OAUTH_SUCCESS_REDIRECT_URI=https://YOUR_FRONTEND_DOMAIN/index.html
 CORS_ALLOWED_ORIGINS=https://YOUR_FRONTEND_DOMAIN
 SESSION_COOKIE_SAME_SITE=none
 SESSION_COOKIE_SECURE=true
+SESSION_COOKIE_PATH=/
 ```
 
 ## PostgreSQL Setup
@@ -129,16 +131,12 @@ This disables server-side prepared statement caching, which is safe for
 transaction-mode PgBouncer. Always verify this parameter is present after any
 `DATABASE_URL` change.
 
-### Missing Production Column
+### Sync Revision Schema Ownership
 
-Production Supabase must have `app_users.sync_revision` (bigint, default 0).
-This column is created by JPA `ddl-auto=update` on fresh databases but was
-missing on existing Supabase instances. Manual SQL:
-
-```sql
-ALTER TABLE app_users
-ADD COLUMN IF NOT EXISTS sync_revision BIGINT NOT NULL DEFAULT 0;
-```
+Flyway V2 owns `app_users.sync_revision` (`bigint`, non-null, default `0`). Do
+not apply an ad hoc `ALTER TABLE` during a normal release and do not rely on JPA
+`ddl-auto=update`. The release target must validate the complete Flyway history
+through V8 before the application is considered ready.
 
 Verify:
 
@@ -155,13 +153,14 @@ Expected:
 sync_revision | bigint | NO | 0
 ```
 
-Any future entity/schema change must have a planned migration or manual SQL
-before deploying with `JPA_DDL_AUTO=validate`.
+If an existing database differs from the verified migration history, stop the
+release, create and verify a backup, rehearse the reconciliation on a disposable
+copy, and use a separately reviewed maintenance action or forward migration.
 
 ### Flyway Migration
 
-Flyway migration support is prepared but disabled by default. For a fresh
-PostgreSQL database, enable Flyway and let it apply the baseline migration:
+Flyway is disabled only on the default local/H2 path. The production profile
+pins it on. For a fresh PostgreSQL database, let Flyway apply V1 through V8:
 
 ```text
 DATABASE_URL=jdbc:postgresql://HOST:5432/quizapp
@@ -221,23 +220,21 @@ JDBC URL before setting `DATABASE_URL`.
 
 ## Render Backend Deploy
 
-Create a new Render Web Service.
+Create a Render Docker Web Service from the reviewed repository commit.
 
 Suggested settings:
 
 ```text
 Root Directory: backend
-Build Command: .\mvnw.cmd clean package -DskipTests
-Start Command: java -jar target/quiz-0.0.1-SNAPSHOT.jar
-Health Check Path: /actuator/health
+Runtime: Docker
+Dockerfile Path: ./Dockerfile
+Health Check Path: /api/health
 ```
 
-On Linux-based Render services, use:
-
-```text
-Build Command: ./mvnw clean package -DskipTests
-Start Command: java -jar target/quiz-0.0.1-SNAPSHOT.jar
-```
+Do not replace the tracked Docker build with dashboard-only Maven build/start
+commands. Record the Render service ID, deployment ID, tracked branch, exact
+commit SHA, root directory, Dockerfile path, instance size, and deploy timestamp
+in the release evidence before calling the candidate proven.
 
 Add the environment variables from the table above. Keep
 `OPENAI_API_KEY` optional unless AI explanations should call OpenAI.
@@ -392,16 +389,17 @@ deploy.
 `sync_revision` column was added to the `AppUser` entity. JPA
 `ddl-auto=validate` failed on startup because the column did not exist.
 
-**Fix:** Manual SQL applied directly to Supabase:
+**Historical fix:** Manual SQL was previously applied directly to Supabase
+before Flyway owned this change:
 
 ```sql
 ALTER TABLE app_users
 ADD COLUMN IF NOT EXISTS sync_revision BIGINT NOT NULL DEFAULT 0;
 ```
 
-**Prevention:** Any future entity/schema change must include a planned migration
-or manual SQL. Do not rely on `ddl-auto=update` in production. After manual SQL
-is applied, set `JPA_DDL_AUTO=validate` to catch future drift.
+**Current prevention:** V2 owns this column. Do not repeat the historical SQL as
+a release step. Require Flyway through V8 and `JPA_DDL_AUTO=validate`; if drift
+exists, stop for backup, disposable rehearsal, and reviewed reconciliation.
 
 See `docs/flyway-baseline-strategy.md` for the staged Flyway rollout plan.
 
@@ -582,8 +580,9 @@ ERROR: prepared statement "S_1" does not exist
 `app_users.sync_revision` column missing:
 
 - Backend fails to start or sync returns 500.
-- Verify with the SQL query in "PostgreSQL Setup → Missing Production Column".
-- Apply the `ALTER TABLE` SQL if the column is missing.
+- Verify with the SQL query in "PostgreSQL Setup → Sync Revision Schema Ownership".
+- Stop the release. Do not apply the historical `ALTER TABLE` ad hoc; verify
+  Flyway V2/history and follow the backed-up, rehearsed drift procedure above.
 
 OAuth redirect mismatch:
 
@@ -605,8 +604,8 @@ H2 local vs PostgreSQL production:
 - Local can run with no database env and uses H2.
 - Flyway is disabled by default so PostgreSQL-specific migrations do not break
   H2 local/test startup.
-- Production should use PostgreSQL, `FLYWAY_ENABLED=true` only after baseline
-  verification, and `JPA_DDL_AUTO=validate`.
+- Production must use PostgreSQL with the `prod` profile, Flyway enabled after
+  baseline verification, and `JPA_DDL_AUTO=validate`.
 
 AI not configured:
 
@@ -614,10 +613,14 @@ AI not configured:
 - Set `AI_MODEL` only if you need a model other than the default.
 # Sync V2 Deployment Note
 
-Before deploying this change, apply Flyway migrations through V4 in staging/production with `SPRING_PROFILES_ACTIVE=prod`, `spring.flyway.enabled=true`, and `spring.jpa.hibernate.ddl-auto=validate`.
+Before deploying the current application, apply and validate Flyway migrations
+through V8 with `SPRING_PROFILES_ACTIVE=prod`,
+`spring.flyway.enabled=true`, and `spring.jpa.hibernate.ddl-auto=validate`.
 
 Client/server compatibility is strict: deployed frontends must send `syncContractVersion: 2`, `wordUid` for every sync vocabulary item, and `deletions` for pending deletes. Legacy clients that omit the contract version receive `400 SYNC_CLIENT_UPGRADE_REQUIRED` and must be refreshed/upgraded.
 
 No manual tombstone cleanup job is included. Tombstones are retained to protect multi-device delete integrity.
 
-Render backend deploy must set `SPRING_PROFILES_ACTIVE=prod` or equivalent safe env values. If logs show `No active profile set` while `JPA_DDL_AUTO=validate` is active and Flyway is not active, Hibernate can fail startup before the V3/V4 schema exists.
+Render backend deploy must set `SPRING_PROFILES_ACTIVE=prod`. If logs show `No
+active profile set`, Flyway is inactive, or the schema is not at V8, stop the
+release rather than serving traffic from an unproven runtime.

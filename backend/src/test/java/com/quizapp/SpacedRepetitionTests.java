@@ -146,15 +146,15 @@ class SpacedRepetitionTests {
                         .with(oauthUser("review-answer@example.com"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
-                                "wordId", wordId,
+                                "operationId", java.util.UUID.randomUUID(), "wordId", wordId,
                                 "correct", true,
                                 "mode", "review"
                         ))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.wordId", is((int) wordId)))
-                .andExpect(jsonPath("$.streak", is(1)))
-                .andExpect(jsonPath("$.mastery", is(20)))
-                .andExpect(jsonPath("$.nextReview", not(nullValue())));
+                .andExpect(jsonPath("$.outcome.wordId", is((int) wordId)))
+                .andExpect(jsonPath("$.outcome.streak", is(1)))
+                .andExpect(jsonPath("$.outcome.mastery", is(20)))
+                .andExpect(jsonPath("$.outcome.nextReview", not(nullValue())));
 
         mockMvc.perform(get("/api/vocab")
                         .with(oauthUser("review-answer@example.com")))

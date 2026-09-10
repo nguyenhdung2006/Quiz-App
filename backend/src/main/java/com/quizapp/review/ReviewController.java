@@ -1,8 +1,10 @@
 package com.quizapp.review;
 
 import com.quizapp.user.CurrentUserService;
+import com.quizapp.shared.RevisionedResult;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/review")
 public class ReviewController {
+    private static final String SYNC_REVISION_HEADER = "X-Sync-Revision";
     private final CurrentUserService currentUsers;
     private final SpacedRepetitionService spacedRepetition;
 
@@ -42,10 +45,26 @@ public class ReviewController {
     }
 
     @PostMapping("/answer")
-    ReviewAnswerResponse answer(
+    ResponseEntity<ReviewAnswerResponse> answer(
             @AuthenticationPrincipal OAuth2User principal,
             @Valid @RequestBody ReviewAnswerRequest request
     ) {
-        return spacedRepetition.answer(currentUsers.requireUser(principal), request);
+        return revisionResponse(spacedRepetition.answer(currentUsers.requireUser(principal), request));
+    }
+
+    @PostMapping("/known")
+    ResponseEntity<ReviewAnswerResponse> markKnown(
+            @AuthenticationPrincipal OAuth2User principal,
+            @Valid @RequestBody MarkKnownRequest request
+    ) {
+        return revisionResponse(spacedRepetition.markKnown(currentUsers.requireUser(principal), request));
+    }
+
+    private ResponseEntity<ReviewAnswerResponse> revisionResponse(
+            RevisionedResult<ReviewAnswerResponse> result
+    ) {
+        return ResponseEntity.ok()
+                .header(SYNC_REVISION_HEADER, String.valueOf(result.revision()))
+                .body(result.body());
     }
 }

@@ -4,6 +4,7 @@ const AUTH_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
 const API_FETCH = window.quizApiFetch || fetch.bind(window);
 const REQUIRE_AUTH = window.quizIsProductionFrontend ? window.quizIsProductionFrontend() : false;
 const CLOUD_DELETE_QUEUE_KEY = "cloudDeleteQueue";
+const WRONG_BANK_CLEAR_QUEUE_KEY = "wrongBankClearQueue";
 const AUTH_PROFILE_RETRY_DELAYS = [500, 1000];
 const CLOUD_SYNC_META_KEY = "cloudSyncMeta";
 const STALE_SYNC_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
@@ -11,23 +12,7 @@ const STALE_RECOVERY_ENABLED = Boolean(window.QUIZ_APP_CONFIG?.staleRecoveryEnab
 const DELETE_RETRY_30_SECONDS = 30 * 1000;
 const DELETE_RETRY_5_MINUTES = 5 * 60 * 1000;
 const DELETE_RETRY_1_HOUR = 60 * 60 * 1000;
-const UI_ACTIONS = {
-"go-home": () => window.goHome?.(),
-"start-quiz": () => window.startQuiz?.(),
-"add-word": () => window.addWord?.(),
-"open-mistake-screen": () => window.openMistakeScreen?.(),
-"practice-favorites": () => window.practiceFavorites?.(),
-"start-daily-challenge": () => window.startDailyChallenge?.(),
-"open-challenge-menu": () => window.openChallengeMenu?.(),
-"close-challenge-menu": () => window.closeChallengeMenu?.(),
-"prev-question": () => window.prevQuestion?.(),
-"submit-answer": () => window.submitAnswer?.(),
-"next-question": () => window.nextQuestion?.(),
-"open-review-screen": () => window.openReviewScreen?.(),
-"show-result-screen": () => window.showResultScreen?.(),
-"clear-mastered": () => window.clearMastered?.(),
-"practice-wrong": () => window.practiceWrong?.()
-};
+const UI_ACTIONS = window.WordArenaUiActions;
 let cloudSyncReady = false;
 let cloudSyncTimer = null;
 let applyingCloudSnapshot = false;
@@ -57,6 +42,84 @@ normalized: null,
 lastFocused: null,
 busy: false
 };
+
+const MODAL_FOCUSABLE_SELECTOR = [
+"button:not([disabled])",
+"[href]",
+"input:not([disabled]):not([type='hidden'])",
+"select:not([disabled])",
+"textarea:not([disabled])",
+"[tabindex]:not([tabindex='-1'])"
+].join(", ");
+
+function isVisibleFocusable(element) {
+return Boolean(element
+&& !element.disabled
+&& element.tabIndex >= 0
+&& (element.offsetWidth || element.offsetHeight || element.getClientRects().length));
+}
+
+function createModalFocusManager(overlay, options = {}) {
+let lastFocused = null;
+overlay.tabIndex = -1;
+
+function focusableElements() {
+return Array.from(overlay.querySelectorAll(MODAL_FOCUSABLE_SELECTOR)).filter(isVisibleFocusable);
+}
+
+function focusInitial() {
+let preferred = typeof options.initialFocus === "function" ? options.initialFocus() : options.initialFocus;
+let target = isVisibleFocusable(preferred) ? preferred : focusableElements()[0];
+if (target) target.focus();
+else overlay.focus();
+}
+
+function activate(opener = document.activeElement) {
+lastFocused = opener instanceof HTMLElement ? opener : null;
+requestAnimationFrame(focusInitial);
+}
+
+function restore() {
+let fallback = typeof options.restoreFallback === "function" ? options.restoreFallback() : options.restoreFallback;
+let target = lastFocused?.isConnected ? lastFocused : fallback;
+lastFocused = null;
+if (target?.isConnected && typeof target.focus === "function") target.focus();
+}
+
+function trapTab(event) {
+let focusable = focusableElements();
+if (!focusable.length) {
+event.preventDefault();
+overlay.focus();
+return;
+}
+let first = focusable[0];
+let last = focusable[focusable.length - 1];
+let active = document.activeElement;
+if (!overlay.contains(active)) {
+event.preventDefault();
+first.focus();
+} else if (event.shiftKey && active === first) {
+event.preventDefault();
+last.focus();
+} else if (!event.shiftKey && active === last) {
+event.preventDefault();
+first.focus();
+}
+}
+
+document.addEventListener("keydown", event => {
+if (overlay.classList.contains("hidden")) return;
+if (event.key === "Escape") {
+event.preventDefault();
+options.close?.();
+} else if (event.key === "Tab") {
+trapTab(event);
+}
+});
+
+return { activate, restore };
+}
 
 const STARTER_WORDS = [
 { eng: "resilient", vie: "kiên cường", pos: "adj", tag: "mindset", ipa: "/ri-ZIL-yuhnt/", level: "B1", context: "learning after difficulty", example: "She stayed resilient after the hard exam.", exampleMeaning: "Cô ấy vẫn kiên cường sau bài kiểm tra khó.", collocation: "resilient learner, remain resilient", synonyms: "strong, tough", antonyms: "fragile", commonMistake: "Do not use resilient for every kind of strong object.", note: "Useful for school and life." },
@@ -103,7 +166,9 @@ function initSyncRetry() {
   btn.addEventListener("click", () => {
     if (typeof window.quizCloud?.syncNow === "function") {
       btn.disabled = true;
-      Promise.resolve(window.quizCloud.syncNow()).finally(() => {
+      Promise.resolve(retryPendingQuizAttempt())
+      .then(() => window.WordArenaReviewOperationClient?.retryPending?.())
+      .then(() => window.quizCloud.syncNow()).finally(() => {
         btn.disabled = false;
       });
     }
@@ -192,6 +257,58 @@ localStorage.removeItem(cloudDeleteQueueKey());
 return clean;
 }
 
+function wrongBankClearQueueKey() {
+return typeof accountStorageKey === "function"
+? accountStorageKey(WRONG_BANK_CLEAR_QUEUE_KEY)
+: WRONG_BANK_CLEAR_QUEUE_KEY;
+}
+
+function readPendingWrongBankClears() {
+try {
+let raw = localStorage.getItem(wrongBankClearQueueKey());
+let items = raw ? JSON.parse(raw) : [];
+return Array.from(new Set((Array.isArray(items) ? items : [])
+.map(value => String(value || "").trim())
+.filter(Boolean)));
+} catch (_error) {
+return [];
+}
+}
+
+function writePendingWrongBankClears(items) {
+let clean = Array.from(new Set((Array.isArray(items) ? items : [])
+.map(value => String(value || "").trim())
+.filter(Boolean)));
+try {
+if (clean.length) localStorage.setItem(wrongBankClearQueueKey(), JSON.stringify(clean));
+else localStorage.removeItem(wrongBankClearQueueKey());
+} catch (_error) {
+// The visible local clear remains usable if storage is temporarily unavailable.
+}
+return clean;
+}
+
+function queueWrongBankClears(words) {
+let next = [...readPendingWrongBankClears()];
+for (let word of Array.isArray(words) ? words : []) {
+let wordUid = String(word?.wordUid || word?.word_uid || "").trim();
+if (wordUid) next.push(wordUid);
+}
+return writePendingWrongBankClears(next);
+}
+
+function pendingWrongBankDeletionPayload() {
+return readPendingWrongBankClears().map(wordUid => ({ wordUid }));
+}
+
+function reconcilePendingWrongBankClears(snapshot) {
+if (!Array.isArray(snapshot?.wrongWords)) return;
+let remainingCloudUids = new Set(snapshot.wrongWords
+.map(word => String(word?.wordUid || word?.word_uid || "").trim())
+.filter(Boolean));
+writePendingWrongBankClears(readPendingWrongBankClears().filter(wordUid => remainingCloudUids.has(wordUid)));
+}
+
 function deleteRetryDelayMs(attempts) {
 if (attempts <= 1) return 0;
 if (attempts === 2) return DELETE_RETRY_30_SECONDS;
@@ -243,8 +360,10 @@ return Number.isSafeInteger(revision) && revision >= 0 ? revision : null;
 function rememberCloudRevision(value) {
 let revision = normalizeRevision(value);
 if (revision === null) return false;
-cloudSyncState.lastKnownRevision = revision;
-writeCloudSyncMeta({ lastKnownRevision: revision });
+let currentRevision = normalizeRevision(cloudSyncState.lastKnownRevision);
+let nextRevision = currentRevision === null ? revision : Math.max(currentRevision, revision);
+cloudSyncState.lastKnownRevision = nextRevision;
+writeCloudSyncMeta({ lastKnownRevision: nextRevision });
 return true;
 }
 
@@ -354,9 +473,14 @@ localStorage.setItem(cloudSyncMetaKey(), JSON.stringify(cloneJson(state.syncMeta
 return false;
 }
 restoreCloudSyncMeta();
-save();
+if (save() === false) return false;
 refreshAccountData();
 return true;
+}
+
+function rememberResponseRevision(response) {
+if (!response?.ok) return false;
+return rememberCloudRevision(response.headers?.get?.("X-Sync-Revision"));
 }
 
 function backupPayload(reason = "manual") {
@@ -591,7 +715,7 @@ lastPullAt: cloudSyncState.lastPullAt,
 lastSuccessfulSyncAt: cloudSyncState.lastSuccessfulSyncAt,
 cloudSnapshotUpdatedAt: cloudSyncState.cloudSnapshotUpdatedAt
 });
-save();
+if (save() === false) throw new Error("Cloud recovery could not commit local state.");
 refreshAccountData();
 }
 
@@ -689,6 +813,8 @@ lastAttemptAt: attemptedAt,
 lastStatus: "failed",
 lastError: `HTTP ${response.status}`
 });
+} else {
+rememberResponseRevision(response);
 }
 } catch (error) {
 remaining.push({
@@ -920,7 +1046,7 @@ bio: profile.bio || ""
 };
 }
 
-function applyServerSnapshot(snapshot) {
+function applyServerSnapshot(snapshot, quizResultPlan = null) {
 if (!snapshot) return;
 if (!rememberCloudRevision(snapshot.revision)) {
 cloudSyncState.lastKnownRevision = null;
@@ -930,6 +1056,7 @@ writeCloudSyncMeta({ lastKnownRevision: null });
 applyingCloudSnapshot = true;
 try {
 let deleted = applyTombstonesToLocal(snapshot);
+reconcilePendingWrongBankClears(snapshot);
 if (snapshot.profile) applyProfile(snapshot.profile);
 if (Array.isArray(snapshot.vocab)) {
 let cloudVocab = snapshot.vocab.filter(word =>
@@ -945,6 +1072,7 @@ let cloudWrong = snapshot.wrongWords.filter(word =>
 );
 wrongWords = mergeWordLists(getWrongWords(), cloudWrong);
 }
+if (quizResultPlan) reconcileQuizLearningSnapshot(snapshot, quizResultPlan);
 if (snapshot.progress) latestProgressSummary = snapshot.progress;
 if (Array.isArray(snapshot.achievements)) latestAchievements = snapshot.achievements;
 save();
@@ -1040,6 +1168,7 @@ expectedRevision: cloudSyncState.lastKnownRevision,
 profile: profilePayload(),
 vocab: getVocab().map(toServerWord),
 deletions: pendingDeletionPayload(),
+wrongWordDeletions: pendingWrongBankDeletionPayload(),
 wrongWords: getWrongWords().map(toServerWord)
 })
 });
@@ -1060,6 +1189,12 @@ setSyncStatus("Please refresh the app before syncing.", "warn");
 return;
 }
 setSyncStatus("Sync validation failed", "warn");
+return;
+}
+
+if (response.status === 413) {
+await readJsonSafely(response);
+setSyncStatus("Sync failed: payload too large. Your local data is still saved.", "warn");
 return;
 }
 
@@ -1099,6 +1234,7 @@ headers: { "Content-Type": "application/json", ...(options.headers || {}) }
 });
 
 if (!response.ok) return null;
+rememberResponseRevision(response);
 if (response.status === 204) return {};
 return await response.json();
 } catch (error) {
@@ -1123,6 +1259,19 @@ method: "PUT",
 body: JSON.stringify(clean)
 });
 return updated ? fromServerWord(updated) : null;
+}
+
+function submitReviewAction(word, action, callbacks = {}) {
+let clean = normalizeWord(word || {});
+return window.WordArenaReviewOperationClient.run({ wordId: clean.id,
+action: action === "known" ? "known" : "mark-hard", ...callbacks });
+}
+
+async function clearMasteredWrongWords(words) {
+queueWrongBankClears(words);
+if (!cloudSyncReady) return false;
+await syncCloudNow();
+return readPendingWrongBankClears().length === 0;
 }
 
 async function deleteCloudWord(word) {
@@ -1151,6 +1300,11 @@ window.quizCloud = {
 createWord: createCloudWord,
 updateWord: updateCloudWord,
 deleteWord: deleteCloudWord,
+markKnown: (word, callbacks) => submitReviewAction(word, "known", callbacks),
+markHard: (word, callbacks) => submitReviewAction(word, "hard", callbacks),
+saveLocalReview: () => originalSave(),
+clearMasteredWrongWords,
+rememberResponseRevision,
 importSamples: importCloudSamples,
 syncNow: syncCloudNow,
 pullNow: pullCloudSnapshot,
@@ -1158,42 +1312,87 @@ isReady: () => cloudSyncReady,
 state: () => ({ ...cloudSyncState, pullInFlight: Boolean(cloudSyncState.pullInFlight) })
 };
 
-async function submitCloudQuizResult() {
-if (!cloudSyncReady || !Array.isArray(quizData) || quizData.length === 0) return;
+let pendingQuizResultContext = null;
 
-try {
-let reviewAnswers = quizData.map((item, i) => {
-let word = normalizeWord(item.word);
-let correctAnswer = item.mode === "eng" ? word.vie : word.eng;
-let selectedAnswer = answers[i] || "";
-return {
-eng: word.eng,
-questionMode: item.mode,
-selectedAnswer,
-correctAnswer,
-correct: selectedAnswer === correctAnswer
-};
+function reconcileQuizLearningSnapshot(snapshot, plan) {
+// Only attempt completion overrides local learning; editable-field sync keeps its existing merge rules.
+let wordIds = new Set(plan.items.map(item => Number(item.word.id)));
+let serverWords = new Map((snapshot.vocab || []).map(word => [Number(word.id), fromServerWord(word)]));
+vocab = getVocab().map(word => {
+let serverWord = wordIds.has(Number(word.id)) && serverWords.get(Number(word.id));
+return serverWord ? { ...word, mastered: serverWord.mastered, stats: { ...serverWord.stats } } : word;
 });
-
-let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/quiz-results`, {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({
-quizMode: window.currentQuizKind || modeSelect?.value || currentMode || "mixed",
-challengeSeconds: isChallengeMode ? questionTime : null,
-totalQuestions: quizData.length,
-correctAnswers: correctCount,
-wrongAnswers: quizData.length - correctCount,
-score: quizData.length ? Number((correctCount / quizData.length * 10).toFixed(2)) : 0,
-maxCombo,
-answers: reviewAnswers
-})
+let serverWrong = new Map((snapshot.wrongWords || []).map(word => [Number(word.id), fromServerWord(word)]));
+wrongWords = getWrongWords().flatMap(word => {
+if (!wordIds.has(Number(word.id))) return [word];
+let serverWord = serverWrong.get(Number(word.id));
+return serverWord ? [serverWord] : [];
 });
-
-if (response.ok) applyServerSnapshot(await response.json());
-} catch (error) {
-// Quiz result remains saved locally even if cloud sync cannot be reached.
 }
+
+function applyQuizLocalResultOnce(context) {
+if (context.localApplied || pendingQuizResultContext !== context
+|| context.accountId !== currentAccountId()
+|| context.attemptId !== window.WordArenaQuizAttemptClient?.state?.()?.attemptId) return;
+for (let item of context.localPlan.items) {
+window.recordLocalQuizAnswer(item.word, item.isCorrect, context.localPlan.practice);
+}
+context.localApplied = true;
+// Persist learning only: no sync scheduling, reward mutation, or fabricated revision.
+originalSave();
+refreshAccountData();
+}
+
+function updateRecordedQuizHistory(createdAt, outcome) {
+if (!createdAt || !outcome) return;
+let history = getQuizHistory();
+let entry = history.find(item => item.createdAt === createdAt);
+if (!entry) return;
+entry.totalQuestions = Number(outcome.totalQuestions);
+entry.correctAnswers = Number(outcome.correctAnswers);
+entry.wrongAnswers = Number(outcome.wrongAnswers);
+entry.score = Number(outcome.score);
+entry.maxCombo = Number(outcome.maxCombo);
+saveQuizHistory(history);
+}
+
+function applyQuizAttemptSubmission(result, context) {
+if (!result?.ok || !result.body?.outcome || !result.body?.snapshot) return false;
+if (!context || pendingQuizResultContext !== context
+|| context.accountId !== currentAccountId()
+|| context.attemptId !== result.body.attemptId
+|| context.attemptId !== window.WordArenaQuizAttemptClient?.state?.()?.attemptId) return false;
+rememberResponseRevision(result.response);
+applyServerSnapshot(result.body.snapshot, context.localPlan);
+applyAuthoritativeQuizOutcome(result.body.outcome);
+updateRecordedQuizHistory(context?.historyCreatedAt, result.body.outcome);
+pendingQuizResultContext = null;
+updateStats();
+setSyncStatus(result.body.replayed ? "Quiz save confirmed (no duplicate reward)" : "Quiz saved securely", "ok");
+return true;
+}
+
+async function submitIssuedQuizAttempt(context) {
+let client = window.WordArenaQuizAttemptClient;
+let attemptId = client?.state?.()?.attemptId;
+if (!attemptId) return false;
+let submissionContext = { ...context, attemptId, accountId: context.localPlan.accountId, localApplied: false };
+pendingQuizResultContext = submissionContext;
+applyQuizLocalResultOnce(submissionContext);
+let result = await client.submit(submissionContext.localPlan.items.map(item => item.selectedAnswer));
+return applyQuizAttemptSubmission(result, submissionContext);
+}
+
+async function retryPendingQuizAttempt() {
+if (!pendingQuizResultContext) return false;
+let context = pendingQuizResultContext;
+if (context.accountId !== currentAccountId()
+|| context.attemptId !== window.WordArenaQuizAttemptClient?.state?.()?.attemptId) {
+pendingQuizResultContext = null;
+return false;
+}
+let result = await window.WordArenaQuizAttemptClient?.retryActiveSubmission?.();
+return applyQuizAttemptSubmission(result, context);
 }
 
 function updateStats() {
@@ -1387,8 +1586,9 @@ function recordLocalQuizHistory() {
 if (!Array.isArray(quizData) || quizData.length === 0) return;
 
 let history = getQuizHistory();
+let createdAt = new Date().toISOString();
 history.push({
-createdAt: new Date().toISOString(),
+createdAt,
 quizMode: window.currentQuizKind || modeSelect?.value || currentMode || "mixed",
 challengeSeconds: isChallengeMode ? questionTime : null,
 totalQuestions: quizData.length,
@@ -1398,6 +1598,7 @@ score: quizData.length ? Number((correctCount / quizData.length * 10).toFixed(2)
 maxCombo
 });
 saveQuizHistory(history);
+return createdAt;
 }
 
 function updateProfilePanel() {
@@ -1625,18 +1826,11 @@ showAppPage(document.body.dataset.appPage || "dashboard");
 window.showAppPage = showAppPage;
 
 function initInlineFreeActions() {
-document.addEventListener("contextmenu", event => event.preventDefault());
 document.addEventListener("click", event => {
 let button = event.target.closest("[data-ui-action]");
 if (!button) return;
-let action = button.dataset.uiAction;
 event.preventDefault();
-if (action === "start-challenge") {
-let seconds = Number(button.dataset.challengeSeconds);
-window.startChallenge?.(seconds);
-return;
-}
-UI_ACTIONS[action]?.();
+UI_ACTIONS.dispatch(button.dataset.uiAction, button);
 });
 }
 
@@ -1728,6 +1922,7 @@ refreshOnboardingPanel();
 }
 
 let profileEditorPendingAvatar = "";
+let profileEditorFocusManager = null;
 
 async function loadAuthenticatedProfile() {
 let cached = getCurrentPlayer();
@@ -1803,7 +1998,7 @@ if (bio) bio.value = profile.bio || "";
 setImage("profileEditorAvatarPreview", profile.avatar || "images/icon.png");
 }
 
-function openProfileEditor() {
+function openProfileEditor(opener = document.activeElement) {
 let overlay = document.getElementById("profileEditor");
 if (!overlay) return;
 
@@ -1811,14 +2006,17 @@ populateProfileForm();
 profileEditorPendingAvatar = "";
 overlay.classList.remove("hidden");
 document.body.classList.add("modalOpen");
+profileEditorFocusManager?.activate(opener);
 }
 
 function closeProfileEditor() {
 let overlay = document.getElementById("profileEditor");
 if (!overlay) return;
 
+let wasOpen = !overlay.classList.contains("hidden");
 overlay.classList.add("hidden");
 document.body.classList.remove("modalOpen");
+if (wasOpen) profileEditorFocusManager?.restore();
 }
 
 function initProfileEditor() {
@@ -1831,6 +2029,12 @@ let resetBtn = document.getElementById("profileResetBtn");
 let avatarPreview = document.getElementById("profileEditorAvatarPreview");
 
 if (!overlay || !form) return;
+
+profileEditorFocusManager = createModalFocusManager(overlay, {
+close: closeProfileEditor,
+initialFocus: closeBtn,
+restoreFallback: () => document.getElementById("profileTrigger")
+});
 
 closeBtn?.addEventListener("click", closeProfileEditor);
 overlay.addEventListener("click", event => {
@@ -1894,9 +2098,6 @@ closeProfileEditor();
 toast("Profile saved for this account.", "ok");
 });
 
-document.addEventListener("keydown", event => {
-if (event.key === "Escape" && !overlay.classList.contains("hidden")) closeProfileEditor();
-});
 }
 
 function initProfileMenu() {
@@ -1937,6 +2138,9 @@ logoutButtons.forEach(button => {
 button.addEventListener("click", async () => {
 button.disabled = true;
 closeMenu();
+window.WordArenaQuizAttemptClient?.reset?.();
+window.WordArenaReviewOperationClient?.reset?.();
+pendingQuizResultContext = null;
 try {
 await API_FETCH(`${AUTH_API_ORIGIN}/logout`, { method: "POST" });
 } catch (error) {
@@ -1951,7 +2155,7 @@ window.location.href = new URL("login.html?loggedOut=true", window.location.href
 
 settingsBtn?.addEventListener("click", () => {
 closeMenu();
-openProfileEditor();
+openProfileEditor(trigger);
 });
 }
 
@@ -1973,9 +2177,7 @@ el.textContent = message;
 host.appendChild(el);
 
 setTimeout(() => {
-el.style.opacity = "0";
-el.style.transform = "translateY(6px)";
-el.style.transition = "all 180ms ease";
+el.classList.add("is-hiding");
 setTimeout(() => el.remove(), 220);
 }, ms);
 }
@@ -2136,47 +2338,16 @@ window.setTimeout(() => document.getElementById("importCancelBtn")?.focus(), 0);
 return true;
 }
 
-function restoreStorageValue(key, rawValue) {
-if (rawValue === null) localStorage.removeItem(key);
-else localStorage.setItem(key, rawValue);
-}
-
 function persistImportedData(nextVocab, nextWrongWords) {
-let accountId = currentAccountId();
-let vocabKey = typeof accountStorageKey === "function" ? accountStorageKey("vocab", accountId) : "vocab";
-let wrongKey = typeof accountStorageKey === "function" ? accountStorageKey("wrongWords", accountId) : "wrongWords";
-let probeKey = typeof accountStorageKey === "function" ? accountStorageKey("importCapacityProbe", accountId) : "importCapacityProbe";
-let previousVocabRaw = localStorage.getItem(vocabKey);
-let previousWrongRaw = localStorage.getItem(wrongKey);
-let serializedVocab;
-let serializedWrong;
-let serializedProbe;
-let wroteVocab = false;
-let wroteWrong = false;
-
-try {
-serializedVocab = JSON.stringify(nextVocab);
-serializedWrong = JSON.stringify(nextWrongWords);
-serializedProbe = JSON.stringify({ vocab: nextVocab, wrongWords: nextWrongWords });
-localStorage.setItem(probeKey, serializedProbe);
-localStorage.removeItem(probeKey);
-localStorage.setItem(vocabKey, serializedVocab);
-wroteVocab = true;
-localStorage.setItem(wrongKey, serializedWrong);
-wroteWrong = true;
-} catch (error) {
-try {
-localStorage.removeItem(probeKey);
-if (wroteVocab) restoreStorageValue(vocabKey, previousVocabRaw);
-if (wroteWrong) restoreStorageValue(wrongKey, previousWrongRaw);
-} catch (rollbackError) {
-return { ok: false, error, rollbackError };
-}
-return { ok: false, error };
-}
-
+let previousVocab = cloneJson(getVocab(), []);
+let previousWrongWords = cloneJson(getWrongWords(), []);
 vocab = nextVocab;
 wrongWords = nextWrongWords;
+if (save() === false) {
+vocab = previousVocab;
+wrongWords = previousWrongWords;
+return { ok: false, error: new Error(window.__wordArenaStorageError || "Browser storage is unavailable.") };
+}
 renderTable();
 renderMistakeTable();
 updateStats();
@@ -2352,14 +2523,23 @@ let closeBtn = document.getElementById("previewCloseBtn");
 
 if (!overlay || !openBtn || !closeBtn) return;
 
+let focusManager = createModalFocusManager(overlay, {
+close,
+initialFocus: closeBtn,
+restoreFallback: openBtn
+});
+
 function open() {
 overlay.classList.remove("hidden");
 document.body.classList.add("modalOpen");
+focusManager.activate(openBtn);
 }
 
 function close() {
+let wasOpen = !overlay.classList.contains("hidden");
 overlay.classList.add("hidden");
 document.body.classList.remove("modalOpen");
+if (wasOpen) focusManager.restore();
 }
 
 openBtn.addEventListener("click", open);
@@ -2369,9 +2549,6 @@ overlay.addEventListener("click", event => {
 if (event.target === overlay) close();
 });
 
-document.addEventListener("keydown", event => {
-if (event.key === "Escape" && !overlay.classList.contains("hidden")) close();
-});
 }
 
 initAppShell();
@@ -2382,6 +2559,12 @@ initProfileEditor();
 initProfileMenu();
 ensureSyncStatus();
 initSyncRetry();
+window.addEventListener("wordarena-storage-error", event => {
+toast(`Local save failed: ${event.detail?.message || "browser storage is unavailable."}`, "err", 5000);
+});
+if (window.__wordArenaStorageError) {
+toast(`Local save failed: ${window.__wordArenaStorageError}`, "err", 5000);
+}
 loadAuthenticatedProfile();
 updateStats();
 
@@ -2416,9 +2599,18 @@ let originalFinishQuiz = window.finishQuiz;
 if (typeof originalFinishQuiz === "function") {
 window.finishQuiz = function (...args) {
 let result = originalFinishQuiz.apply(this, args);
-recordLocalQuizHistory();
+let attemptState = window.WordArenaQuizAttemptClient?.state?.();
+let localPlan = null;
+if (window.quizUsesIssuedAttempt()) {
+if (attemptState?.status !== "issued") return result;
+localPlan = window.captureQuizLocalResultPlan();
+if (localPlan.accountId !== currentAccountId()) return result;
+}
+let historyCreatedAt = recordLocalQuizHistory();
 updateStats();
-submitCloudQuizResult();
+if (localPlan) {
+submitIssuedQuizAttempt({ historyCreatedAt, localPlan });
+}
 return result;
 };
 }

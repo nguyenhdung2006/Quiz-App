@@ -24,6 +24,9 @@ The design goal is "learn while playing, without pressure": combo feedback, smal
 - Browser speech synthesis for English pronunciation.
 - Quiz review screen with selected answer, correct answer, examples, and notes.
 - Wrong bank with mastered cleanup.
+- Review Today remains self-rating (Good/Easy/Again), with one server due-state
+  consumption and exact retry recovery. Mark Known/Hard preserve their existing
+  meaning for new commands; retries reuse the same operation identity.
 - Local import/export JSON backup.
 - CSV bulk import with validation feedback and CSV template download in Learning Studio.
 - Starter sample word import.

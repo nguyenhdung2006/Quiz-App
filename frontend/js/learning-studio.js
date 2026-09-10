@@ -91,6 +91,7 @@ const STUDIO_FOCUSABLE_SELECTOR = [
 "select:not([disabled])",
 "[tabindex]:not([tabindex='-1'])"
 ].join(",");
+const STUDIO_STORAGE = window.WordArenaLearningStudioStorage;
 
 const BADGES = [
 { code: "FIRST_WORD", name: "First Word", description: "Add your first word.", test: () => getWords().length > 0 },
@@ -98,18 +99,9 @@ const BADGES = [
 { code: "PERFECT_ROUND", name: "Perfect Round", description: "Score a clean round.", test: () => getHistory().some(h => h.totalQuestions > 0 && h.correctAnswers === h.totalQuestions) },
 { code: "COMBO_10", name: "Combo 10", description: "Reach a 10-answer combo.", test: () => getHistory().some(h => Number(h.maxCombo || 0) >= 10) },
 { code: "DAILY_CHALLENGE", name: "Daily Challenger", description: "Complete a daily challenge.", test: () => getHistory().some(h => h.quizMode === "daily") },
-{ code: "FOCUS_START", name: "Calm Focus", description: "Start a 5-minute focus session.", test: () => localStorage.getItem(accountStorageKey("focusStarted")) === "true" },
-{ code: "DECK_IMPORT", name: "Deck Builder", description: "Import a topic deck or CSV.", test: () => localStorage.getItem(accountStorageKey("deckImported")) === "true" }
+{ code: "FOCUS_START", name: "Calm Focus", description: "Start a 5-minute focus session.", test: () => STUDIO_STORAGE.hasFocusStarted() },
+{ code: "DECK_IMPORT", name: "Deck Builder", description: "Import a topic deck or CSV.", test: () => STUDIO_STORAGE.hasDeckImported() }
 ];
-
-function readJson(key, fallback) {
-try {
-let raw = localStorage.getItem(key);
-return raw ? JSON.parse(raw) : fallback;
-} catch (error) {
-return fallback;
-}
-}
 
 function getWords() {
 return Array.isArray(window.vocab) ? window.vocab : vocab;
@@ -120,7 +112,7 @@ return Array.isArray(window.wrongWords) ? window.wrongWords : wrongWords;
 }
 
 function getHistory() {
-return readJson(accountStorageKey("quizHistory"), []);
+return STUDIO_STORAGE.readHistory();
 }
 
 function getProfile() {
@@ -152,8 +144,6 @@ return String(value || "")
 }
 
 let generatedAiDeckWords = [];
-const AI_DECK_API_ORIGIN = window.quizApiOrigin ? window.quizApiOrigin() : "";
-const API_FETCH = window.quizApiFetch || fetch.bind(window);
 const AI_DECK_POS_OPTIONS = ["n", "v", "adj", "adv", "conj", "prep", "idiom", "phrase"];
 const AI_DECK_LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"];
 const AI_DECK_COOLDOWN_MS = 8000;
@@ -199,8 +189,7 @@ el.className = `toast toast--${kind}`;
 el.textContent = message;
 host.appendChild(el);
 setTimeout(() => {
-el.style.opacity = "0";
-el.style.transform = "translateY(6px)";
+el.classList.add("is-hiding");
 setTimeout(() => el.remove(), 220);
 }, 2400);
 }
@@ -512,7 +501,7 @@ if (words.length < 4) {
 toastStudio("Add at least 4 words before focus mode.", "warn");
 return;
 }
-localStorage.setItem(accountStorageKey("focusStarted"), "true");
+STUDIO_STORAGE.markFocusStarted();
 closeStudio();
 startWordSetQuiz(words, "mixed", { challenge: true, time: 30, kind: "focus" });
 }
@@ -1007,60 +996,7 @@ maxWords: Number.isFinite(maxWords) ? maxWords : 20
 }
 
 async function requestAiDeck(text, options = {}) {
-let response;
-try {
-response = await API_FETCH(`${AI_DECK_API_ORIGIN}/api/ai/generate-deck`, {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({
-text,
-targetLevel: options.targetLevel || "Any",
-maxWords: options.maxWords || 20
-})
-});
-} catch (error) {
-throw new Error("AI deck generation failed. Please try again.");
-}
-
-if (!response.ok) {
-throw new Error(await aiDeckErrorMessage(response));
-}
-
-try {
-return await response.json();
-} catch (error) {
-throw new Error("AI response could not be processed. Please try again.");
-}
-}
-
-async function aiDeckErrorMessage(response) {
-if (response.status === 429) {
-let retry = await aiRetrySeconds(response);
-return retry
-? `Daily AI limit reached. Please try again in ${retry}s.`
-: "Daily AI limit reached. Please try again later.";
-}
-if (response.status >= 500) {
-return "AI deck generation failed. Please try again.";
-}
-try {
-let payload = await response.clone().json();
-if (payload?.message) return String(payload.message);
-if (payload?.error) return String(payload.error);
-} catch (error) {
-// Keep the user-facing message stable when the error body is not JSON.
-}
-return "AI response could not be processed. Please try again.";
-}
-
-async function aiRetrySeconds(response) {
-try {
-let payload = await response.clone().json();
-let retry = Number(payload?.retryAfterSeconds || 0);
-return Number.isFinite(retry) && retry > 0 ? retry : 0;
-} catch (error) {
-return 0;
-}
+return window.WordArenaAiDeckClient.request(text, options);
 }
 
 function renderAiDeckList() {
@@ -1414,7 +1350,7 @@ return { merged, added, skipped };
 function importWordsToVocabulary(words) {
 let result = mergeWordsWithImportStats(getWords(), words);
 vocab = result.merged;
-localStorage.setItem(accountStorageKey("deckImported"), "true");
+STUDIO_STORAGE.markDeckImported();
 save();
 renderTable();
 renderStudio();

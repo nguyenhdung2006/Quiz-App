@@ -81,6 +81,7 @@ public class SyncService {
 
         Map<UUID, WordRequest> incomingWords = dedupeWordsByUid(request.vocab());
         Map<UUID, WordDeletionRequest> incomingDeletions = dedupeDeletionsByUid(request.deletions());
+        Map<UUID, WordDeletionRequest> incomingWrongWordDeletions = dedupeDeletionsByUid(request.wrongWordDeletions());
         incomingDeletions.keySet().forEach(incomingWords::remove);
 
         List<VocabularyWord> liveWords = words.findByUserOrderByCreatedAtDesc(syncUser);
@@ -90,10 +91,12 @@ public class SyncService {
         Set<UUID> existingTombstoneUids = tombstones.findByUserOrderByDeletedRevisionAscDeletedAtAsc(syncUser).stream()
                 .map(WordTombstone::getWordUid)
                 .collect(Collectors.toSet());
+        List<WrongBankEntry> currentWrongBank = wrongBank.findByUserOrderByCreatedAtDesc(syncUser);
 
         boolean stateChanged = profileChanges(syncUser, request.profile())
                 || liveByUid.keySet().stream().anyMatch(existingTombstoneUids::contains)
                 || deletionsChangeState(incomingDeletions.keySet(), liveByUid, existingTombstoneUids)
+                || wrongWordDeletionsChangeState(incomingWrongWordDeletions.keySet(), currentWrongBank)
                 || wordsChangeState(incomingWords.values(), liveByUid, liveByEnglishKey, existingTombstoneUids);
 
         long resultingRevision = syncUser.getSyncRevision();
@@ -102,6 +105,7 @@ public class SyncService {
         }
 
         applyProfile(syncUser, request.profile());
+        applyWrongWordDeletions(incomingWrongWordDeletions.keySet(), currentWrongBank);
         deleteLiveWordsCoveredByTombstones(syncUser, liveByUid, liveByEnglishKey, existingTombstoneUids);
         applyDeletions(syncUser, incomingDeletions.keySet(), liveByUid, liveByEnglishKey, existingTombstoneUids, resultingRevision);
         applyWords(syncUser, incomingWords.values(), liveByUid, liveByEnglishKey, existingTombstoneUids);
@@ -113,15 +117,16 @@ public class SyncService {
     }
 
     @Transactional
-    public void deleteWord(AppUser user, Long id) {
+    public long deleteWord(AppUser user, Long id) {
         AppUser syncUser = lockUserForRevision(user);
         words.findByIdAndUser(id, syncUser).ifPresent(word -> hardDeleteWithTombstone(syncUser, word));
+        return syncUser.getSyncRevision();
     }
 
     @Transactional
-    public void deleteWordByUid(AppUser user, UUID wordUid) {
+    public long deleteWordByUid(AppUser user, UUID wordUid) {
         AppUser syncUser = lockUserForRevision(user);
-        if (wordUid == null) return;
+        if (wordUid == null) return syncUser.getSyncRevision();
         words.findByUserAndWordUid(syncUser, wordUid)
                 .ifPresentOrElse(
                         word -> hardDeleteWithTombstone(syncUser, word),
@@ -131,6 +136,7 @@ public class SyncService {
                             }
                         }
                 );
+        return syncUser.getSyncRevision();
     }
 
     private SyncResponse buildSnapshot(AppUser user) {
@@ -142,22 +148,35 @@ public class SyncService {
         Set<UUID> deletedUids = userTombstones.stream()
                 .map(WordTombstone::getWordUid)
                 .collect(Collectors.toSet());
+        List<VocabularyWord> userWords = words.findByUserOrderByCreatedAtDesc(user);
+        Map<Long, VocabularyWord> wordsById = userWords.stream()
+                .collect(Collectors.toMap(VocabularyWord::getId, Function.identity()));
+        Instant snapshotTime = Instant.now();
+        long dueToday = userWords.stream()
+                .map(VocabularyWord::getStats)
+                .filter(Objects::nonNull)
+                .map(WordStats::getNextReview)
+                .filter(Objects::nonNull)
+                .filter(nextReview -> !nextReview.isAfter(snapshotTime))
+                .count();
         return new SyncResponse(
                 SYNC_CONTRACT_VERSION,
                 user.getSyncRevision(),
                 ProfileDto.from(user),
-                words.findByUserOrderByCreatedAtDesc(user).stream()
+                userWords.stream()
                         .filter(word -> !deletedUids.contains(word.getWordUid()))
                         .map(WordDto::from)
                         .toList(),
                 userTombstones.stream()
                         .map(WordTombstoneDto::from)
                         .toList(),
-                wrongBank.findByUserOrderByCreatedAtDesc(user).stream()
-                        .filter(entry -> !deletedUids.contains(entry.getWord().getWordUid()))
-                        .map(entry -> WordDto.from(entry.getWord()))
+                wrongBank.findWordIdsByUserOrderByCreatedAtDesc(user).stream()
+                        .map(wordsById::get)
+                        .filter(Objects::nonNull)
+                        .filter(word -> !deletedUids.contains(word.getWordUid()))
+                        .map(WordDto::from)
                         .toList(),
-                progress.progress(user, unlocked.size()),
+                progress.progress(user, unlocked.size(), dueToday),
                 unlocked.stream().map(AchievementDto::from).toList(),
                 recentHistory
         );
@@ -220,6 +239,30 @@ public class SyncService {
     ) {
         return deletionUids.stream().anyMatch(wordUid ->
                 !tombstoneUids.contains(wordUid) || liveByUid.containsKey(wordUid));
+    }
+
+    private boolean wrongWordDeletionsChangeState(
+            Collection<UUID> deletionUids,
+            List<WrongBankEntry> currentWrongBank
+    ) {
+        if (deletionUids.isEmpty()) return false;
+        return currentWrongBank.stream().anyMatch(entry ->
+                entry.getWord() != null
+                        && entry.getWord().isMastered()
+                        && deletionUids.contains(entry.getWord().getWordUid()));
+    }
+
+    private void applyWrongWordDeletions(
+            Collection<UUID> deletionUids,
+            List<WrongBankEntry> currentWrongBank
+    ) {
+        if (deletionUids.isEmpty()) return;
+        List<WrongBankEntry> cleared = currentWrongBank.stream()
+                .filter(entry -> entry.getWord() != null)
+                .filter(entry -> entry.getWord().isMastered())
+                .filter(entry -> deletionUids.contains(entry.getWord().getWordUid()))
+                .toList();
+        if (!cleared.isEmpty()) wrongBank.deleteAll(cleared);
     }
 
     private boolean wordsChangeState(

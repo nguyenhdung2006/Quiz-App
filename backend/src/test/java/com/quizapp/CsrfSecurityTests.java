@@ -102,6 +102,17 @@ class CsrfSecurityTests {
     }
 
     @Test
+    void oauthFailureReturnsToConfiguredFrontendLoginPage() throws Exception {
+        mockMvc.perform(get("/login/oauth2/code/google")
+                        .param("error", "access_denied"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(header().string(
+                        HttpHeaders.LOCATION,
+                        "http://localhost:5500/frontend/login.html?error=oauth"
+                ));
+    }
+
+    @Test
     void validCsrfTokenDoesNotAuthenticateAnonymousUnsafeRequests() throws Exception {
         mockMvc.perform(post("/api/vocab")
                         .with(csrf())

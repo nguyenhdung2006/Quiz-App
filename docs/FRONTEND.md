@@ -9,6 +9,11 @@ Root Directory. `frontend/vercel.json` defines a temporary redirect from `/` to
 `/login.html`. Both public URLs therefore show the login/landing page and Google
 login entry after that commit is deployed.
 
+`frontend/vercel.json` also applies the static frontend's browser security
+headers. Keep the CSP external-script-only: do not add `unsafe-eval` or script
+`unsafe-inline`. Style `unsafe-inline` remains temporarily required by the
+ratcheted dynamic-style inventory.
+
 `/index.html` remains the explicit authenticated app/dashboard entry. The
 backend OAuth success default already targets `${FRONTEND_URL}/index.html`, so
 the root redirect does not intercept the callback flow. Do not change the root
@@ -23,6 +28,10 @@ Run these checks after frontend JavaScript changes:
 npm run check:frontend
 npm run lint
 npm run test:assets
+npm run test:frontend-inline-styles
+npm run test:frontend-ai-deck-client
+npm run test:frontend-learning-studio-storage
+npm run test:frontend-ui-actions
 npm run test:frontend-import-helpers
 npm run test:frontend-session-ui
 npm run test:frontend-sync-status
@@ -109,11 +118,53 @@ Behavior:
 - Does not set `Content-Type` automatically for `FormData`.
 - Does not retry unsafe requests after `403`; it clears the in-memory CSRF token so the next user action can fetch a fresh token.
 
+Finding 11 Batch 11A keeps this generic transport unchanged and extracts the
+AI Deck endpoint contract into `frontend/js/ai-deck-client.js` as
+`window.WordArenaAiDeckClient`. The endpoint client owns the existing POST
+payload, JSON parsing, rate-limit copy, and stable network/server error copy.
+Learning Studio continues to own loading, cooldown, validation, rendering, and
+import behavior. Run `npm run test:frontend-ai-deck-client` for the focused
+contract suite; Playwright retains the browser-level CSRF and AI Deck coverage.
+
+Finding 11 Batch 11B puts Learning Studio's direct account-scoped browser
+storage access behind `frontend/js/learning-studio-storage.js` as
+`window.WordArenaLearningStudioStorage`. The facade resolves the current account
+through the existing `accountStorageKey` source and preserves the exact
+`quizHistory`, `focusStarted`, and `deckImported` key suffixes, JSON fallback,
+and raw `"true"` flag format. Learning Studio still owns vocabulary import,
+`save()`/sync orchestration, profile rendering, and UI state. Run
+`npm run test:frontend-learning-studio-storage` for the focused helper suite;
+Playwright covers A/B/A logout/relogin isolation, offline reload, missing data,
+and malformed JSON. This incremental facade remains a browser global and adds
+no storage migration or new offline behavior.
+
+Finding 11 Batch 11C extracts the existing `data-ui-action` command mapping
+into `frontend/js/ui-actions.js` as `window.WordArenaUiActions`. `app.js` keeps
+the single delegated document click listener and forwards the action name and
+source button to the facade. The facade preserves the existing optional global
+action calls and numeric `data-challenge-seconds` conversion. Run
+`npm run test:frontend-ui-actions` for mapping/argument coverage; Playwright
+retains desktop/mobile navigation, active-page, click, Enter-key, and
+single-dispatch coverage. This reduces direct coordinator dependencies but does
+not eliminate browser globals or static script ordering.
+
 ## CSRF Lifecycle
 
 `window.quizCsrf.refresh()` calls `GET /api/csrf`, keeps the token in memory, and relies on backend cookies for the server-side CSRF check. `window.quizCsrf.clear()` clears the in-memory token after logout.
 
 After `/api/me` confirms an authenticated session, `frontend/js/app.js` refreshes CSRF before starting cloud sync. This prevents the first post-login unsafe request from failing due to a missing token.
+
+Successful cloud mutations expose `X-Sync-Revision`. `app.js` adopts that
+server-issued value immediately, including empty-body direct deletes, so the
+next sync uses the real baseline while genuine stale-device conflicts still
+follow the existing snapshot-and-retry path.
+
+## Modal Keyboard Focus
+
+The Profile Editor and How It Works dialogs use the shared focus manager in
+`frontend/js/app.js`: focus moves into the dialog on open, Tab and Shift+Tab
+stay inside, Escape closes, and focus returns to the logical opener. New app
+dialogs should reuse that boundary rather than adding one-off key handlers.
 
 ## Logout Flow
 
@@ -137,6 +188,15 @@ Sync status may use shorter visible text on small screens, but the full status m
 attributes, `javascript:` URLs, or inline script blocks. Use stable ids,
 `data-ui-action`, or existing module init functions with `addEventListener`
 instead. The smoke suite has a static guard for `index.html` and `login.html`.
+
+JavaScript inline style writes are separately ratcheted by
+`npm run test:frontend-inline-styles`. AUD-011 Batch 2 moves quiz timer/button
+visibility to `hidden`, progress reset transition state to
+`.progress--resetting`, and result colors to CSS selected by `data-grade`.
+AUD-011 Batch 3 moves app/studio toast dismissal state to `.toast.is-hiding`.
+The remaining 27 allowlisted writes require arbitrary percentages/coordinates
+or belong to later focused migration batches; do not broaden the allowlist or
+use inline CSS custom properties to bypass it.
 
 ## Local Import Safety
 
@@ -177,3 +237,13 @@ Offline delete behavior:
 - Direct fast-path delete uses `DELETE /api/vocab/uid/{wordUid}` when possible.
 - Full sync also sends pending `{ wordUid }` deletion intents in `deletions`, so failed direct deletes do not block normal sync.
 - On `409 SYNC_REVISION_CONFLICT`, the frontend pulls a snapshot, applies tombstones, rebuilds the payload, and retries once.
+
+Wrong-bank mastered clearing uses a separate account-local intent queue. The
+client removes only the selected mastered entries locally and sends their
+stable UIDs as `wrongWordDeletions`; successful snapshots reconcile the queue.
+The backend remains authoritative about whether each entry is eligible.
+
+Mark Known and Mark Hard also use dedicated server actions while online. The
+client sends only `wordId`/intent and applies the returned authoritative word.
+Offline local updates remain a fallback, but canonical mastered state is always
+`streak >= 5`; a single correct review does not clear a wrong-bank entry.
