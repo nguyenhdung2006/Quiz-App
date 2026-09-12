@@ -1,4 +1,5 @@
 /* global markWordHard, markWordKnown, save, vocab:writable */
+/* global quizData, index, renderTable, showThinkHint, wrongWords */
 const { test, expect } = require("@playwright/test");
 const fs = require("fs");
 const path = require("path");
@@ -1982,6 +1983,35 @@ test("stale guard preserves local state and retry remains fail-closed", async ({
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
+test("background stale sync stays blocked without interrupting an active quiz", async ({ page }) => {
+  const profile = { name: "Stale Quiz", email: "stale-quiz@example.com", avatar: "images/icon.png" };
+  const fatalConsole = await preparePage(page, {
+    authenticated: true,
+    profile,
+    vocab: sampleWords,
+    syncMeta: { lastSuccessfulSyncAt: "2026-01-01T00:00:00.000Z" },
+    cloudSnapshot: {
+      revision: 16,
+      profile,
+      vocab: [{ ...sampleWords[0], updatedAt: "2026-05-01T00:00:00.000Z" }],
+      wrongWords: [], progress: {}, achievements: [], quizHistory: []
+    }
+  });
+  await expect(page.locator("#staleRecoveryPanel")).toBeVisible();
+  await page.locator("#staleRecoveryCancelBtn").click();
+  await page.getByRole("button", { name: "Start Quiz", exact: true }).last().click();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  await page.evaluate(() => window.quizCloud.syncNow());
+  await expect(page.locator("#staleRecoveryPanel")).toBeHidden();
+  await expect(page.locator("#quizScreen")).toBeVisible();
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  await page.evaluate(() => window.showAppPage("dashboard"));
+  await page.locator("#syncRetryBtn").click();
+  await expect(page.locator("#staleRecoveryPanel")).toBeVisible();
+  expect(fatalConsole.syncBodies).toHaveLength(0);
+  expect(await page.evaluate(() => vocab.length)).toBe(sampleWords.length);
+});
+
 test("stale safety lock always opens recovery with unsafe choices disabled", async ({ page }) => {
   const profile = { name: "Recovery Flag", email: "recovery-flag@example.com", avatar: "images/icon.png" };
   const fatalConsole = await preparePage(page, {
@@ -2418,7 +2448,8 @@ test("stale recovery persistence failure keeps local state", async ({ page }) =>
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
-test("old sync metadata still allows push when cloud is not newer", async ({ page }) => {
+for (const futureReview of [false, true]) {
+test(`old sync metadata allows unchanged cloud${futureReview ? " with future review dates" : ""}`, async ({ page }) => {
   const profile = { name: "Quiet Cloud", email: "quiet-cloud@example.com", avatar: "images/icon.png" };
   const fatalConsole = await preparePage(page, {
     authenticated: true,
@@ -2435,9 +2466,10 @@ test("old sync metadata still allows push when cloud is not newer", async ({ pag
       vocab: [{
         ...word("quiet-word", "cloud meaning", "sync", 64),
         id: 9002,
-        updatedAt: "2026-01-01T00:00:00.000Z"
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        stats: { lastReviewed: "2026-01-01T00:00:00.000Z", nextReview: futureReview ? "2099-01-01T00:00:00.000Z" : "" }
       }],
-      wrongWords: [],
+      wrongWords: futureReview ? [{ ...word("quiet-mistake", "mistake", "sync", 65), updatedAt: "2026-01-01T00:00:00.000Z", stats: { nextReview: "2099-02-01T00:00:00.000Z" } }] : [],
       progress: {},
       achievements: [],
       quizHistory: []
@@ -2449,6 +2481,7 @@ test("old sync metadata still allows push when cloud is not newer", async ({ pag
   expect(fatalConsole.syncBodies.at(-1).vocab.map(item => item.eng)).toContain("quiet-word");
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
+}
 
 test("auth bootstrap retries transient /api/me failure before applying profile", async ({ page }) => {
   const profile = { name: "Retry Tester", email: "retry@example.com", avatar: "images/icon.png" };
@@ -2670,6 +2703,167 @@ test("focus words page has an empty state and disables practice without candidat
   await page.locator("#weakWordsOpenBtn").click();
   await expect(page.locator("#focusWordsTableBody .emptyTableCell")).toContainText("No focus words yet");
   await expect(page.locator("#weakWordsReviewBtn")).toBeDisabled();
+  expect(fatalConsole).toEqual([]);
+});
+
+test("legacy mistake projection matches positive IDs without rewriting identities or matching missing IDs", async ({ page }) => {
+  const words = sampleWords.map((item, ordinal) => ({
+    ...item, id: ordinal === 1 ? null : item.id,
+    wordUid: `00000000-0000-4000-8000-${String(ordinal + 1).padStart(12, "0")}`
+  }));
+  await preparePage(page, {
+    vocab: words,
+    wrongWords: words.slice(0, 2).map((item, ordinal) => ({
+      ...item, wordUid: `00000000-0000-4000-9000-${String(ordinal + 1).padStart(12, "0")}`
+    }))
+  });
+  const projection = await page.evaluate(() => {
+    const before = JSON.stringify({ vocab, wrongWords });
+    const words = window.getPracticeWrongWords();
+    return { eng: words.map(item => item.eng), unchanged: before === JSON.stringify({ vocab, wrongWords }) };
+  });
+  expect(projection.eng).toEqual([words[0].eng]);
+  expect(projection.unchanged).toBe(true);
+});
+
+test("Focus and Wrong Practice share current words, stats, counts and quiz inputs", async ({ page }) => {
+  const words = sampleWords.map((item, ordinal) => ({
+    ...item, stats: { ...item.stats, seen: ordinal === 2 ? 3 : 0, wrong: ordinal === 2 ? 2 : 0, correct: ordinal === 2 ? 1 : 0, streak: ordinal === 2 ? 1 : 0 }
+  }));
+  const fatalConsole = await preparePage(page, {
+    vocab: words,
+    wrongWords: words.slice(0, 3).map(item => ({ ...item, vie: "outdated bank meaning", stats: { seen: 99, wrong: 99, streak: 0 } }))
+  });
+  await page.locator("#weakWordsOpenBtn").click();
+  await expect(page.locator("#focusWordsTableBody tr")).toHaveCount(2);
+  const focusRows = await page.locator("#focusWordsTableBody tr").allTextContents();
+  await page.getByRole("button", { name: "Back to Dashboard", exact: true }).click();
+  await page.getByRole("button", { name: "Practice Wrong Words", exact: true }).click();
+  await expect(page.locator("#totalWrongWords")).toHaveText("2");
+  expect(await page.locator("#mistakeTableBody tr").allTextContents()).toEqual(focusRows);
+  await expect(page.locator("#mistakeTableBody")).not.toContainText("outdated bank meaning");
+  await page.locator("#mistakePracticeBtn").click();
+  const issuedWords = await page.evaluate(() => quizData.map(item => item.word.eng).sort());
+  expect(issuedWords).toEqual(words.slice(0, 2).map(item => item.eng).sort());
+  await page.evaluate(() => {
+    for (const word of window.getPracticeWrongWords()) window.recordWordResult(word, true);
+    window.renderMistakeTable();
+    window.showAppPage("focusWords");
+  });
+  await expect(page.locator("#focusWordsTableBody")).toContainText("No focus words");
+  await expect(page.locator("#totalWrongWords")).toHaveText("0");
+  await expect(page.locator("#mistakePracticeBtn")).toBeDisabled();
+  await page.evaluate(() => {
+    window.recordWordResult(vocab[0], false);
+    window.renderMistakeTable();
+  });
+  await expect(page.locator("#totalWrongWords")).toHaveText("1");
+  expect(await page.locator("#mistakeTableBody tr").allTextContents()).toEqual(await page.locator("#focusWordsTableBody tr").allTextContents());
+  expect(fatalConsole).toEqual([]);
+});
+
+test("focus words leave after a correct answer and return after a new mistake", async ({ page }) => {
+  const focusWords = sampleWords.map(item => ({ ...item, stats: { ...item.stats, seen: 3, wrong: 3, streak: 0 } }));
+  const fatalConsole = await preparePage(page, { vocab: focusWords });
+  await page.locator("#weakWordsOpenBtn").click();
+  await expect(page.locator("#focusWordsTableBody tr")).toHaveCount(4);
+  await page.locator("#weakWordsReviewBtn").click();
+  const answer = await page.evaluate(() => quizData[index].correctAnswer);
+  await page.locator("#answers .answer").filter({ hasText: answer }).first().click();
+  const answeredWord = await page.evaluate(() => quizData[index].word.eng);
+  await page.evaluate(() => window.showAppPage("focusWords"));
+  await expect(page.locator("#focusWordsTableBody tr")).toHaveCount(3);
+  await expect(page.locator("#focusWordsTableBody .engWord")).not.toContainText([answeredWord]);
+  await page.evaluate(eng => {
+    window.recordLocalQuizAnswer(vocab.find(item => item.eng === eng), false, false);
+    renderTable();
+  }, answeredWord);
+  await expect(page.locator("#focusWordsTableBody tr")).toHaveCount(4);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("think hint appears only on an unanswered active question and is cancelled when leaving", async ({ page }) => {
+  const fatalConsole = await preparePage(page, { vocab: sampleWords });
+  await page.clock.install();
+  await page.getByRole("button", { name: "Start Quiz", exact: true }).last().click();
+  await page.clock.fastForward(10001);
+  await expect(page.locator("#think-helper")).toBeVisible();
+  await page.locator("#answers .answer").first().click();
+  await expect(page.locator("#think-helper")).not.toBeVisible();
+  await page.locator(".nextBtn").click();
+  await page.evaluate(() => window.showAppPage("vocabulary"));
+  await page.clock.fastForward(20000);
+  await expect(page.locator("#think-helper")).not.toBeVisible();
+  await page.evaluate(() => showThinkHint("must not appear outside quiz"));
+  await expect(page.locator("#think-helper")).not.toBeVisible();
+  expect(fatalConsole).toEqual([]);
+});
+
+for (const launch of ["Start Quiz", "Practice Wrong Words", "Practice Favorites", "Daily Challenge", "Challenge"]) {
+test(`${launch} uses its assigned feedback mode`, async ({ page }) => {
+  const fatalConsole = await preparePage(page, {
+    vocab: sampleWords.map(item => ({ ...item, favorite: true })), wrongWords: sampleWords
+  });
+  await page.getByRole("button", { name: launch, exact: true }).last().click();
+  if (launch === "Practice Wrong Words") await page.getByRole("button", { name: "Start Practice", exact: true }).click();
+  if (launch === "Challenge") await page.locator("[data-ui-action='start-challenge'][data-challenge-seconds='15']").click();
+  const exam = launch === "Daily Challenge" || launch === "Challenge";
+  await expect(page.locator("#quizFeedbackModeLabel")).toContainText(exam ? "Exam" : "Practice");
+  await page.locator("#answers .answer").first().click();
+  if (exam) {
+    await expect(page.locator("#questionFeedback")).toBeEmpty();
+    await expect(page.locator("#answers .correct, #answers .wrong")).toHaveCount(0);
+    await expect(page.locator("#answers .answer").first()).toBeEnabled();
+  } else {
+    await expect(page.locator("#questionFeedback")).toContainText(/Correct|Wrong/);
+    await expect(page.locator("#answers .answer").first()).toBeDisabled();
+  }
+  expect(fatalConsole).toEqual([]);
+});
+}
+
+test("challenge selection does not reset timer and timeouts grade the whole round once", async ({ page }) => {
+  const fatalConsole = await preparePage(page, { vocab: sampleWords });
+  await page.clock.install();
+  await page.getByRole("button", { name: "Challenge", exact: true }).click();
+  await page.locator("[data-ui-action='start-challenge'][data-challenge-seconds='10']").click();
+  await page.clock.runFor(4000);
+  await expect(page.locator("#timer")).toHaveText("Time 6");
+  await page.locator("#answers .answer").first().click();
+  await page.locator("#answers .answer").nth(1).click();
+  await expect(page.locator("#timer")).toHaveText("Time 6");
+  await page.clock.runFor(6000);
+  await expect(page.locator("#question")).toContainText("Question 2/4");
+  expect(await page.evaluate(() => vocab.every(item => item.stats.seen === 0))).toBe(true);
+  await expect(page.locator("#comboDisplay")).toHaveText("Combo x0");
+  await page.clock.runFor(30000);
+  await expect(page.locator("#resultScreen")).toBeVisible();
+  expect(await page.evaluate(() => vocab.every(item => item.stats.seen === 1))).toBe(true);
+  expect(await page.evaluate(() => vocab.reduce((sum, item) => sum + item.stats.wrong, 0))).toBeGreaterThanOrEqual(3);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("exam feedback allows changing choices and reveals answers only after submission", async ({ page }) => {
+  const fatalConsole = await preparePage(page, { vocab: sampleWords });
+  await page.getByRole("button", { name: "Daily Challenge", exact: true }).click();
+  await expect(page.locator("#quizFeedbackModeLabel")).toContainText("Exam");
+  for (let ordinal = 0; ordinal < 4; ordinal++) {
+    await page.locator("#answers .answer").first().click();
+    await expect(page.locator("#answers .correct, #answers .wrong")).toHaveCount(0);
+    await expect(page.locator("#questionFeedback")).toHaveText("");
+    await expect(page.locator("#answers .answer").first()).toBeEnabled();
+    if (ordinal === 0) {
+      await page.locator("#answers .answer").nth(1).click();
+      await expect(page.locator("#answers .answer").nth(1)).toHaveAttribute("aria-pressed", "true");
+    }
+    if (ordinal < 3) await page.locator(".nextBtn").click();
+  }
+  expect(await page.evaluate(() => vocab.every(item => item.stats.seen === 0))).toBe(true);
+  await page.locator(".submitBtn").click();
+  await expect(page.locator("#resultScreen")).toBeVisible();
+  expect(await page.evaluate(() => vocab.every(item => item.stats.seen === 1))).toBe(true);
+  await page.getByRole("button", { name: "Review Answers", exact: true }).click();
+  await expect(page.locator("#reviewList .reviewCard")).toHaveCount(4);
   expect(fatalConsole).toEqual([]);
 });
 

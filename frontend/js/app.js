@@ -393,11 +393,12 @@ return Math.max(0, ...(values || []).map(parseTime).filter(Boolean));
 
 function snapshotUpdatedAt(snapshot) {
 let times = [];
+// A future review appointment is not evidence of a later cloud mutation.
 for (let word of Array.isArray(snapshot?.vocab) ? snapshot.vocab : []) {
-times.push(word?.updatedAt, word?.updated_at, word?.stats?.lastReviewed, word?.stats?.nextReview);
+times.push(word?.updatedAt, word?.updated_at, word?.stats?.lastReviewed);
 }
 for (let word of Array.isArray(snapshot?.wrongWords) ? snapshot.wrongWords : []) {
-times.push(word?.updatedAt, word?.updated_at, word?.stats?.lastReviewed, word?.stats?.nextReview);
+times.push(word?.updatedAt, word?.updated_at, word?.stats?.lastReviewed);
 }
 for (let item of Array.isArray(snapshot?.quizHistory) ? snapshot.quizHistory : []) {
 times.push(item?.createdAt, item?.created_at);
@@ -433,6 +434,8 @@ return staleAge > STALE_SYNC_THRESHOLD_MS && cloudUpdated > lastSync;
 
 function blockStaleSyncPush(snapshot = staleRecoveryState.snapshot) {
 setSyncStatus("Sync paused to protect your data: local and cloud both changed", "warn");
+// Background saves must not interrupt a quiz. The safety lock still blocks push.
+if (window.isQuizActive?.()) return false;
 openStaleRecoveryPanel(snapshot);
 return false;
 }
@@ -642,6 +645,7 @@ if (exportBtn) exportBtn.disabled = staleRecoveryState.busy;
 }
 
 function openStaleRecoveryPanel(snapshot) {
+window.hideHint?.();
 if (!snapshot) return;
 let panel = ensureStaleRecoveryPanel();
 staleRecoveryState.isOpen = true;
@@ -907,8 +911,7 @@ function wordUpdatedTime(word) {
 let candidates = [
 word?.updatedAt,
 word?.updated_at,
-word?.stats?.lastReviewed,
-word?.stats?.nextReview
+word?.stats?.lastReviewed
 ];
 
 for (let value of candidates) {
@@ -1505,21 +1508,17 @@ return total ? Math.round(Number(word?.stats?.correct || 0) / total * 100) : 0;
 
 function getWeakWordCandidates(limit = null) {
 let now = Date.now();
-let candidates = getVocab()
+let candidates = window.getPracticeWrongWords()
 .map(word => {
 let stats = word?.stats || {};
 let nextReview = stats.nextReview ? new Date(stats.nextReview).getTime() : null;
 let overdue = nextReview && !Number.isNaN(nextReview) && nextReview <= now;
-let mastery = typeof getMasteryLabel === "function" ? getMasteryLabel(word) : "";
 let wrong = Number(stats.wrong || 0);
 let reviews = getWordReviewCount(word);
 let accuracy = getWordAccuracy(word);
-let weak = wrong >= 2 || (reviews >= 3 && accuracy < 70) || (overdue && mastery !== "Mastered");
 let score = wrong * 4 + (100 - accuracy) / 10 + (overdue ? 12 : 0);
-return { word, wrong, reviews, accuracy, overdue, score, weak };
-})
-.filter(item => item.word?.eng && item.word?.vie && item.weak)
-.sort((a, b) => b.score - a.score);
+return { word, wrong, reviews, accuracy, overdue, score };
+});
 return Number.isInteger(limit) && limit >= 0 ? candidates.slice(0, limit) : candidates;
 }
 
@@ -1534,7 +1533,7 @@ let items = getWeakWordCandidates();
 list.innerHTML = "";
 if (summary) {
 summary.textContent = items.length
-? `${items.length} focus words based on mistakes, mastery, and due status.`
+? `${items.length} focus words with mistakes and no correct answer since the latest mistake.`
 : "Focus words appear after quizzes or reviews reveal what needs another pass.";
 }
 if (button) button.disabled = items.length === 0;
@@ -1758,6 +1757,8 @@ studio: { eyebrow: "Learning Tools", title: "Studio" }
 };
 
 function showAppPage(page = "dashboard") {
+window.hideHint?.();
+clearInterval(questionTimer);
 let nextPage = APP_PAGE_LABELS[page] ? page : "dashboard";
 document.body.dataset.appPage = nextPage;
 

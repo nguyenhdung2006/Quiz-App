@@ -98,6 +98,31 @@ if ((stats.streak || 0) >= 2 || (stats.correct || 0) >= 3 || stats.masteryLevel 
 return "New";
 }
 
+// Both mistake views and their practice launchers use this read-only projection.
+// Bank copies may be old: current vocabulary owns the displayed learning state.
+function getPracticeWrongWords() {
+function priority(word) {
+let stats = word.stats || {};
+let total = Math.max(Number(stats.seen || 0), Number(stats.correct || 0) + Number(stats.wrong || 0));
+let accuracy = total ? Math.round(Number(stats.correct || 0) / total * 100) : 0;
+let due = Date.parse(stats.nextReview || "");
+return Number(stats.wrong || 0) * 4 + (100 - accuracy) / 10 + (due <= Date.now() ? 12 : 0);
+}
+return vocab.filter(word => {
+let stats = word.stats || {};
+let flagged = wrongWords.some(mistake => {
+// Both arrays belong to the active account. A positive server ID can connect
+// legacy copies whose independently generated UIDs differ; never rewrite them.
+let wordId = Number(word.id);
+let mistakeId = Number(mistake.id);
+let sameId = Number.isSafeInteger(wordId) && wordId > 0 && wordId === mistakeId;
+return !mistake.mastered && (sameWordIdentity(mistake, word) || sameId);
+});
+return word.eng && word.vie && (Number(stats.wrong || 0) > 0 || flagged)
+&& Number(stats.streak || 0) === 0 && getMasteryLabel(word) !== "Mastered";
+}).sort((left, right) => priority(right) - priority(left));
+}
+
 function nextReviewDate(stats, isCorrect) {
 let streak = Number(stats?.streak || 0);
 let days = isCorrect ? Math.min(30, [1, 3, 7, 14, 30][Math.min(streak, 4)] || 30) : 1;

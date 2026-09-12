@@ -1,3 +1,4 @@
+/* global accountStorageKey, buildExampleSentence, chooseAnswerByIndex, closeChallengeMenu, continueQuiz, hideHint, normalizeWord, readLocalArray, readWordForm, renderMistakeTable, renderTable, save, speak, updateDifficulty */
 let vocab = readLocalArray("vocab");
 let wrongWords = readLocalArray("wrongWords");
 vocab = vocab.map(normalizeWord).filter(w => w.eng && w.vie);
@@ -155,6 +156,8 @@ renderMistakeTable();
 }
 
 function hideAllScreens() {
+hideHint();
+clearInterval(questionTimer);
     window.scrollTo(0, 0);
     document.querySelector(".heroPanel")?.classList.add("hidden");
     home.classList.add("hidden");

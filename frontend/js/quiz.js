@@ -1,3 +1,4 @@
+/* global answered:writable, answers:writable, autoSpeak, backBtn, challengeDifficulty, combo:writable, correctCount:writable, currentMode:writable, fireworks, hideAllScreens, hideHint, hintTimer, index:writable, isChallengeMode:writable, isPracticeMode:writable, maxCombo:writable, modeSelect, nextBtn, normalizeWord, progress, progressSpark, questionTime:writable, questionTimer, quiz:writable, quizData:writable, quizDifficulty, quizScreen, recordWordResult, renderMistakeTable, renderTable, resultScreen, reviewScreen, sameWordIdentity, save, screenShake, selected:writable, showThinkHint, shuffle, speak, startHintTimer, startQuestionTimer, submitBtn, updateCombo, vocab, wrongWords:writable */
 function uniqueValues(field) {
 return [...new Set(vocab.map(w => String(w[field] || "").trim()).filter(Boolean))];
 }
@@ -51,6 +52,7 @@ let quizInputLocked = false;
 let quizFinishing = false;
 let quizStarting = false;
 let quizAccountId = null;
+let quizFeedbackMode = "practice";
 
 function quizUsesIssuedAttempt() {
 return Boolean(Array.isArray(quizData)
@@ -76,6 +78,7 @@ expectedPrompt: item.prompt
 if (issueResult?.cancelled || accountId !== window.getCurrentAccountId()) return false;
 
 quizAccountId = accountId;
+quizFeedbackMode = kind === "daily" || kind === "challenge" ? "exam" : "practice";
 quiz = preparedQuiz;
 quizData = preparedData.map((item, ordinal) => {
 let issued = issueResult?.online ? issueResult.items[ordinal] : null;
@@ -119,6 +122,12 @@ function isQuizActive() {
 return quizScreen && !quizScreen.classList.contains("hidden") && Array.isArray(quizData) && quizData.length > 0;
 }
 
+function quizCanShowThinkHint() {
+return isQuizActive() && !quizFinishing && !selected && !answered[index]
+&& !Array.from(document.querySelectorAll("[aria-modal='true']"))
+.some(panel => panel.getClientRects().length > 0);
+}
+
 function setAnswerButtonsLocked(locked) {
 document.querySelectorAll("#answers .answer").forEach(button => {
 button.disabled = locked;
@@ -146,6 +155,10 @@ if (!isQuizActive() || quizInputLocked || answered[index] || quizFinishing) retu
 
 answers[index] = option;
 selected = true;
+if (quizFeedbackMode === "exam") {
+loadQuestion(false);
+return;
+}
 lockCurrentQuestionInput();
 checkAnswer();
 loadQuestion();
@@ -172,6 +185,10 @@ return true;
 }
 
 if (!answered[index]) {
+if (quizFeedbackMode === "exam") {
+nextQuestion();
+return true;
+}
 lockCurrentQuestionInput();
 checkAnswer();
 loadQuestion();
@@ -265,7 +282,8 @@ isPracticeMode = true;
 isChallengeMode = false;
 window.currentQuizKind = "wrong-practice";
 
-if (wrongWords.length === 0) {
+let practiceWords = window.getPracticeWrongWords();
+if (practiceWords.length === 0) {
 alert("No wrong words yet!");
 return;
 }
@@ -275,7 +293,7 @@ alert("You need at least 4 unique English and Vietnamese answers to practice wro
 return;
 }
 
-let preparedQuiz = shuffle([...wrongWords]);
+let preparedQuiz = shuffle([...practiceWords]);
 let preparedData = buildQuizData(preparedQuiz, "mixed");
 
 if (!preparedData) {
@@ -356,7 +374,7 @@ line.append(keyword, '" ?');
 questionEl.append(modeBadge, number, line);
 }
 
-function loadQuestion() {
+function loadQuestion(restartTimer = true) {
 document.getElementById("timer").classList.remove("timerDanger");
 clearTimeout(hintTimer);
 
@@ -364,7 +382,7 @@ selected = Boolean(answers[index]);
 quizInputLocked = Boolean(answered[index]) || quizFinishing;
 
 hideHint();
-if (!answered[index]) startHintTimer();
+if (!selected && !answered[index]) startHintTimer();
 
 let percent = (index / quizData.length) * 100;
 progress.style.width = percent + "%";
@@ -383,6 +401,9 @@ let answersDiv = document.getElementById("answers");
 let feedbackEl = document.getElementById("questionFeedback");
 
 renderQuestionText(questionEl, data, index, quizData.length);
+document.getElementById("quizFeedbackModeLabel").textContent = quizFeedbackMode === "exam"
+? "Exam: answers revealed after Submit; you can change your selection."
+: "Practice: instant feedback after each answer.";
 
 answersDiv.innerHTML = "";
 if (feedbackEl) {
@@ -407,7 +428,7 @@ if (answers[index] === o) {
 div.classList.add("selected");
 }
 
-if (answered[index]) {
+if (answered[index] && quizFeedbackMode === "practice") {
 if (o === correctAnswer) {
 div.classList.add("correct");
 }
@@ -426,7 +447,7 @@ div.setAttribute("aria-disabled", "true");
 answersDiv.appendChild(div);
 });
 
-if (answered[index] && feedbackEl) {
+if (answered[index] && feedbackEl && quizFeedbackMode === "practice") {
 let picked = answers[index];
 renderQuestionFeedback(feedbackEl, picked, correctAnswer);
 }
@@ -445,9 +466,27 @@ if (autoSpeak) {
 speak(q.eng);
 }
 
-if (isChallengeMode) {
+if (isChallengeMode && restartTimer) {
 clearInterval(questionTimer);
 startQuestionTimer();
+}
+}
+
+function gradeAllQuizAnswers() {
+let finalIndex = index;
+for (index = 0; index < quizData.length; index++) checkAnswer();
+index = finalIndex;
+}
+
+function handleQuizQuestionTimeout() {
+if (!isQuizActive() || quizFinishing) return;
+if (quizFeedbackMode === "practice") checkAnswer();
+if (index === quizData.length - 1) {
+gradeAllQuizAnswers();
+finishQuiz();
+} else {
+index++;
+loadQuestion();
 }
 }
 
@@ -508,18 +547,26 @@ renderTable();
 }
 
 function submitAnswer() {
-if (quizFinishing) return;
+if (!isQuizActive() || quizFinishing) return;
 
 if (!answers[index]) {
 showThinkHint("Hmm... choose one before moving on.");
 return;
 }
 
+if (quizFeedbackMode === "exam") {
+if (!isChallengeMode && answers.slice(0, quizData.length).filter(Boolean).length !== quizData.length) {
+return;
+}
+gradeAllQuizAnswers();
+} else {
 checkAnswer();
-loadQuestion();
+}
+loadQuestion(false);
 
 if (index === quizData.length - 1) {
 quizFinishing = true;
+hideHint();
 setAnswerButtonsLocked(true);
 progress.style.width = "100%";
 
@@ -535,6 +582,7 @@ finishQuiz();
 }
 
 function finishQuiz() {
+hideHint();
 clearInterval(questionTimer);
 quizFinishing = false;
 quizScreen.classList.add("hidden");
@@ -696,14 +744,14 @@ resultScreen.classList.remove("hidden");
 }
 
 function nextQuestion() {
-if (quizFinishing) return;
+if (!isQuizActive() || quizFinishing) return;
 
 if (!answers[index]) {
 showThinkHint("Hmm... choose one before moving on.");
 return;
 }
 
-if (!answered[index]) {
+if (!answered[index] && quizFeedbackMode !== "exam") {
 lockCurrentQuestionInput();
 checkAnswer();
 }
@@ -719,7 +767,7 @@ loadQuestion();
 }
 
 function prevQuestion() {
-if (index <= 0 || quizFinishing) return;
+if (!isQuizActive() || index <= 0 || quizFinishing) return;
 
 index--;
 loadQuestion();

@@ -205,7 +205,7 @@
 <div>
 <span class="heroEyebrow">Review focus</span>
 <h2>Words that need another pass</h2>
-<p id="weakWordsCenterSummary">Words appear here when accuracy, due status, or mistakes suggest extra practice.</p>
+<p id="weakWordsCenterSummary">Words with mistakes leave this list after a correct answer.</p>
 </div>
 <button class="utilityBtn" id="weakWordsOpenBtn" type="button" data-app-page="focusWords">View words</button>
 </div>
@@ -216,7 +216,7 @@
 <div>
 <span class="heroEyebrow">Review focus</span>
 <h2>Words that need another pass</h2>
-<p id="focusWordsPageSummary">Words based on mistakes, mastery, and due status.</p>
+<p id="focusWordsPageSummary">Words with mistakes leave this list after a correct answer.</p>
 </div>
 <div class="focusWordsPageActions">
 <button class="miniBtn" type="button" data-app-page="dashboard">Back to Dashboard</button>
@@ -638,6 +638,7 @@
 </div>
 
 <div class="playSettings">
+<p>Start Quiz, Wrong Words and Favorites: instant feedback. Daily Challenge and Challenge: answers after Submit.</p>
 <label class="toggleLine">
 <input id="autoSpeakToggle" type="checkbox">
 <span>Auto speak English words</span>
@@ -696,6 +697,7 @@
 
 <div id="answers"></div>
 
+<p id="quizFeedbackModeLabel" class="questionFeedback"></p>
 <p id="questionFeedback" class="questionFeedback" aria-live="polite"></p>
 
 <br>
@@ -757,12 +759,11 @@
 
 <thead>
 <tr>
-<th>English</th>
-<th>POS</th>
-<th>Tag</th>
-<th>Vietnamese</th>
-<th>Level</th>
-<th>Action</th>
+<th>Word</th>
+<th>Meaning</th>
+<th>Study info</th>
+<th>Review</th>
+<th>Actions</th>
 </tr>
 </thead>
 
@@ -774,7 +775,7 @@
 
 <br><br>
 
-<button class="bigBtn startBtn" type="button" data-ui-action="practice-wrong">Start Practice</button>
+<button id="mistakePracticeBtn" class="bigBtn startBtn" type="button" data-ui-action="practice-wrong">Start Practice</button>
 <button class="bigBtn backBtn" type="button" data-ui-action="go-home">Back</button>
 
 </div>

@@ -26,8 +26,33 @@ The Dashboard's "Words that need another pass" summary opens the `focusWords`
 in-app page via "View words". The full candidate list is displayed there, not
 on the Dashboard, in a bounded `.table-container` with internal vertical and
 horizontal scrolling. It reuses Vocabulary's row renderer and actions (including
-inline editing); "Back to Dashboard" returns to the summary. Candidate criteria
-(mistakes, mastery, and due status) and the 12-word practice limit are unchanged.
+inline editing); "Back to Dashboard" returns to the summary. Focus candidates
+have recorded mistakes and no positive correct-answer streak since their latest
+mistake. A correct answer removes a word from Focus; a new mistake brings it
+back. Cumulative mistake history and the separate wrong-bank mastery rules are
+preserved. The practice limit remains 12 words. Practice Wrong Words displays
+the same candidate identities, order, count, current vocabulary stats and table
+actions as View words, and launches from that same projection (not stale
+wrong-bank copies). An active wrong-bank flag can surface a word even if legacy
+vocabulary counters are zero; a current positive correct streak still excludes
+it. Legacy UID mismatches may match by the same positive server ID within the
+active account for this projection only; stored UIDs and cloud identity rules
+are not rewritten. No stored mistake history is deleted to synchronize views.
+
+Start Quiz, Practice Wrong Words and Practice Favorites use Practice (instant
+feedback). Daily Challenge and Challenge use Exam (changeable selections,
+answers revealed only after Submit or final timeout). Selecting or changing an
+answer does not reset the challenge timer. Timed-out unanswered questions count
+as wrong when the whole round is graded, not during selection.
+The thinking hint is limited to unanswered active questions and is cancelled
+when answering, leaving the quiz, or opening recovery.
+
+Background stale-sync checks keep push blocked but do not reopen recovery over
+an active quiz. This does not resolve legacy-data conflicts: safe merge remains
+disabled without a reliable baseline. Export local data before choosing an
+authoritative cloud replacement.
+Snapshot activity and word merge timestamps exclude `nextReview`: scheduled
+future reviews must not be mistaken for newer cloud changes.
 
 Run these checks after frontend JavaScript changes:
 

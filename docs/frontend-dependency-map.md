@@ -85,6 +85,10 @@ sync semantics.
 Keep these stable until every consumer and regression test is moved:
 
 - vocabulary state and helper globals from `vocab.js`;
+- `getPracticeWrongWords()` from `vocab.js`: shared, account-local read-only
+  candidate projection for Focus, the mistake table and wrong-word practice;
+- `renderVocabularyTableRows()` from `vocab.js`: shared row presentation and
+  actions for Vocabulary, Focus and the mistake table;
 - page/navigation helpers such as `showAppPage`;
 - notification/status helpers such as `toast` or `showNotification` where present;
 - render/update helpers such as `renderTable`, `renderMistakeTable`, and `updateStats`;
