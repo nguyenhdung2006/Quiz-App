@@ -11,6 +11,7 @@ import com.quizapp.vocab.SyncConflictResponse;
 import com.quizapp.vocab.SyncClientUpgradeRequiredException;
 import com.quizapp.vocab.SyncClientUpgradeResponse;
 import com.quizapp.vocab.SyncRevisionConflictException;
+import com.quizapp.vocab.SyncItemValidationException;
 import java.util.Comparator;
 import java.util.List;
 import org.slf4j.Logger;
@@ -57,6 +58,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .badRequest()
                 .body(ApiError.of(exception.getMessage(), List.of()));
+    }
+
+    @ExceptionHandler(SyncItemValidationException.class)
+    ResponseEntity<ApiError> handleSyncItemValidation(SyncItemValidationException exception) {
+        String detail = exception.getFieldPath() + ": " + exception.getMessage();
+        log.warn("[SYNC] Invalid item: {}", detail);
+        if (healthCounters != null) healthCounters.incrementValidationErrors();
+        return ResponseEntity.badRequest().body(ApiError.of("Validation failed.", List.of(detail)));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

@@ -55,8 +55,11 @@ return reviewCount(word) >= 3 && wrongCount(word) >= 2 && wordAccuracy(word) < 6
 function isDue(word) {
 let raw = stats(word).nextReview;
 if (!raw) return false;
-let due = new Date(raw).getTime();
-return !Number.isNaN(due) && due <= Date.now();
+return window.WordArenaDateUtils?.isDueToday(raw) === true;
+}
+
+function dueTodayCount() {
+return getWords().filter(isDue).length;
 }
 
 function isOverdue(word) {
@@ -90,7 +93,7 @@ totalWords: words.length,
 masteredWords: mastered,
 learningWords: words.filter(word => !isMastered(word) && !isStruggling(word)).length,
 strugglingWords: struggling,
-dueToday: words.filter(isDue).length,
+dueToday: dueTodayCount(),
 averageAccuracy: accuracy(totalCorrect, totalReviews),
 totalQuizSessions: history.length,
 currentStreak: Math.max(0, ...words.map(word => Number(stats(word).streak || 0))),
@@ -140,7 +143,7 @@ level: word.level || "unknown"
 function buildLocalPressure() {
 let words = getWords();
 return {
-dueToday: words.filter(isDue).length,
+dueToday: dueTodayCount(),
 overdue: words.filter(isOverdue).length,
 mastered: words.filter(isMastered).length,
 learning: words.filter(word => !isMastered(word) && !isStruggling(word)).length,
@@ -229,7 +232,15 @@ fetchJson("/api/analytics/tag-performance")
 ]);
 
 if (!overview || !trend || !weakWords || !pressure || !performance) return null;
-return { overview, trend, weakWords, pressure, performance, source: "Cloud" };
+let dueToday = dueTodayCount();
+return {
+overview: { ...overview, dueToday },
+trend,
+weakWords,
+pressure: { ...pressure, dueToday },
+performance,
+source: "Cloud"
+};
 }
 
 function localAnalytics() {

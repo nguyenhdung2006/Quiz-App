@@ -22,6 +22,13 @@ override should continue to end in `/index.html`.
 
 ## Quality Gates
 
+The Dashboard's "Words that need another pass" summary opens the `focusWords`
+in-app page via "View words". The full candidate list is displayed there, not
+on the Dashboard, in a bounded `.table-container` with internal vertical and
+horizontal scrolling. It reuses Vocabulary's row renderer and actions (including
+inline editing); "Back to Dashboard" returns to the summary. Candidate criteria
+(mistakes, mastery, and due status) and the 12-word practice limit are unchanged.
+
 Run these checks after frontend JavaScript changes:
 
 ```powershell

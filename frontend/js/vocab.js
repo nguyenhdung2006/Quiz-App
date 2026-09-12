@@ -3,7 +3,8 @@ let editingWordIndex = null;
 
 const POS_OPTIONS = ["interjection", "n", "v", "adj", "adv", "proverb", "idiom"];
 const LEVEL_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2", "IELTS 5.0", "IELTS 6.0", "IELTS 7.0", "IELTS 8.0+", "School"];
-const MAX_ENGLISH_WORD_LENGTH = 120;
+const VOCABULARY_CONTRACT = window.WordArenaVocabularyContract;
+const WORD_OPERATIONS = window.WordArenaWordOperations;
 
 document.addEventListener("click", () => {
 document.querySelectorAll(".actionMenu.is-open").forEach(menu => menu.classList.remove("is-open"));
@@ -46,10 +47,8 @@ return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(
 }
 
 function validateWordFields(word) {
-if (!word.eng) return "Please enter an English word.";
-if (!word.vie) return "Please enter a Vietnamese meaning.";
-if (word.eng.length > MAX_ENGLISH_WORD_LENGTH) return "English word is too long.";
-return "";
+return VOCABULARY_CONTRACT?.firstMessage(word)
+|| (!word.eng ? "Please enter an English word." : !word.vie ? "Please enter a Vietnamese meaning." : "");
 }
 
 function normalizeWord(word) {
@@ -110,13 +109,7 @@ return due.toISOString();
 function isDueToday(word) {
 let raw = word?.stats?.nextReview;
 if (!raw) return Number(word?.stats?.seen || 0) > 0 && !word.mastered;
-
-let due = new Date(raw);
-if (Number.isNaN(due.getTime())) return true;
-
-let today = new Date();
-let endToday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-return due < endToday;
+return window.WordArenaDateUtils?.isDueToday(raw) === true;
 }
 
 function getNextReviewText(word) {
@@ -318,15 +311,26 @@ return;
 }
 
 stampWordUpdatedAt(word);
-let localIndex = vocab.push(word) - 1;
+vocab.push(word);
+let operation = WORD_OPERATIONS?.begin(word);
 
-save();
+if (save() === false) {
+WORD_OPERATIONS?.invalidate(word);
+renderTable();
+return;
+}
 renderTable();
 
 Promise.resolve(window.quizCloud?.createWord?.(word)).then(serverWord => {
 if (!serverWord) return;
-vocab[localIndex] = normalizeWord(serverWord);
-save();
+let accepted = WORD_OPERATIONS?.accept(vocab, operation, serverWord, normalizeWord);
+if (!accepted?.applied) return;
+vocab = accepted.items;
+if (save() === false) {
+WORD_OPERATIONS?.invalidate(word);
+renderTable();
+return;
+}
 renderTable();
 });
 
@@ -453,11 +457,13 @@ if (filters.due && !isDueToday(word)) return false;
 return true;
 }
 
-function createCellInput(value, className, placeholder = "") {
+function createCellInput(value, className, placeholder = "", contractField = "") {
 let input = document.createElement("input");
 input.className = className;
 input.value = value || "";
 input.placeholder = placeholder;
+let maxLength = VOCABULARY_CONTRACT?.limits?.[contractField];
+if (maxLength) input.maxLength = maxLength;
 return input;
 }
 
@@ -484,20 +490,20 @@ function renderEditRow(row, word, originalIndex) {
 row.classList.add("editingRow");
 
 let engCell = document.createElement("td");
-let engInputEdit = createCellInput(word.eng, "editEng", "English");
-let ipaInputEdit = createCellInput(word.ipa, "editIpa", "IPA");
+let engInputEdit = createCellInput(word.eng, "editEng", "English", "eng");
+let ipaInputEdit = createCellInput(word.ipa, "editIpa", "IPA", "ipa");
 appendInputStack(engCell, [engInputEdit, ipaInputEdit]);
 
 let meaningCell = document.createElement("td");
-let vieInputEdit = createCellInput(word.vie, "editVie", "Vietnamese");
-let contextInputEdit = createCellInput(word.context, "editContext", "Context / sense");
-let exampleInputEdit = createCellInput(word.example, "editExample", "Example");
-let exampleMeaningInputEdit = createCellInput(word.exampleMeaning, "editExampleMeaning", "Example meaning");
-let collocationInputEdit = createCellInput(word.collocation, "editCollocation", "Collocation");
-let synonymsInputEdit = createCellInput(word.synonyms, "editSynonyms", "Synonyms");
-let antonymsInputEdit = createCellInput(word.antonyms, "editAntonyms", "Antonyms");
-let commonMistakeInputEdit = createCellInput(word.commonMistake, "editCommonMistake", "Common mistake");
-let noteInputEdit = createCellInput(word.note, "editNote", "Note");
+let vieInputEdit = createCellInput(word.vie, "editVie", "Vietnamese", "vie");
+let contextInputEdit = createCellInput(word.context, "editContext", "Context / sense", "context");
+let exampleInputEdit = createCellInput(word.example, "editExample", "Example", "example");
+let exampleMeaningInputEdit = createCellInput(word.exampleMeaning, "editExampleMeaning", "Example meaning", "exampleMeaning");
+let collocationInputEdit = createCellInput(word.collocation, "editCollocation", "Collocation", "collocation");
+let synonymsInputEdit = createCellInput(word.synonyms, "editSynonyms", "Synonyms", "synonyms");
+let antonymsInputEdit = createCellInput(word.antonyms, "editAntonyms", "Antonyms", "antonyms");
+let commonMistakeInputEdit = createCellInput(word.commonMistake, "editCommonMistake", "Common mistake", "commonMistake");
+let noteInputEdit = createCellInput(word.note, "editNote", "Note", "note");
 appendInputStack(meaningCell, [
 vieInputEdit,
 contextInputEdit,
@@ -513,7 +519,7 @@ noteInputEdit
 let levelCell = document.createElement("td");
 let levelInputEdit = createEditSelect(word.level, LEVEL_OPTIONS);
 let posInputEdit = createEditSelect(word.pos, POS_OPTIONS);
-let tagInputEdit = createCellInput(word.tag, "editTag", "Topic / tag");
+let tagInputEdit = createCellInput(word.tag, "editTag", "Topic / tag", "tag");
 appendInputStack(levelCell, [levelInputEdit, posInputEdit, tagInputEdit]);
 
 let reviewCell = document.createElement("td");
@@ -717,16 +723,8 @@ row.appendChild(cell);
 table.appendChild(row);
 }
 
-function renderTable() {
-let table = document.getElementById("tableBody");
-table.innerHTML = "";
-
-refreshFilterOptions();
-let filters = getActiveFilters();
-let rows = vocab
-.map((word, originalIndex) => ({ word: normalizeWord(word), originalIndex }))
-.filter(({ word }) => matchesFilters(word, filters));
-
+function renderVocabularyTableRows(table, rows) {
+table.replaceChildren();
 let fragment = document.createDocumentFragment();
 
 rows.forEach(({ word, originalIndex }) => {
@@ -742,6 +740,19 @@ fragment.appendChild(row);
 });
 
 table.appendChild(fragment);
+}
+
+window.renderVocabularyTableRows = renderVocabularyTableRows;
+
+function renderTable() {
+let table = document.getElementById("tableBody");
+refreshFilterOptions();
+let filters = getActiveFilters();
+let rows = vocab
+.map((word, originalIndex) => ({ word: normalizeWord(word), originalIndex }))
+.filter(({ word }) => matchesFilters(word, filters));
+
+renderVocabularyTableRows(table, rows);
 if (!rows.length) renderEmptyTable(table, filters);
 
 totalWords.innerText = vocab.length;
@@ -774,16 +785,24 @@ return;
 let oldWord = normalizeWord(current);
 stampWordUpdatedAt(next);
 vocab[i] = next;
+let operation = WORD_OPERATIONS?.begin(next);
 wrongWords = wrongWords.map(word => sameWordIdentity(word, oldWord) ? normalizeWord({ ...word, ...next }) : word);
 editingWordIndex = null;
 
-save();
+if (save() === false) {
+WORD_OPERATIONS?.invalidate(next);
+renderTable();
+renderMistakeTable();
+return;
+}
 renderTable();
 renderMistakeTable();
 
 Promise.resolve(window.quizCloud?.updateWord?.(next)).then(serverWord => {
 if (!serverWord) return;
-vocab[i] = normalizeWord(serverWord);
+let accepted = WORD_OPERATIONS?.accept(vocab, operation, serverWord, normalizeWord);
+if (!accepted?.applied) return;
+vocab = accepted.items;
 save();
 renderTable();
 });
@@ -791,14 +810,27 @@ renderTable();
 
 function syncWordUpdate(i) {
 if (vocab[i]) stampWordUpdatedAt(vocab[i]);
-save();
+let operation = WORD_OPERATIONS?.begin(vocab[i]);
+let requestedWord = vocab[i];
+if (save() === false) {
+WORD_OPERATIONS?.invalidate(requestedWord);
+renderTable();
+renderMistakeTable();
+return;
+}
 renderTable();
 renderMistakeTable();
 
-Promise.resolve(window.quizCloud?.updateWord?.(vocab[i])).then(serverWord => {
+Promise.resolve(window.quizCloud?.updateWord?.(requestedWord)).then(serverWord => {
 if (!serverWord) return;
-vocab[i] = normalizeWord(serverWord);
-save();
+let accepted = WORD_OPERATIONS?.accept(vocab, operation, serverWord, normalizeWord);
+if (!accepted?.applied) return;
+vocab = accepted.items;
+if (save() === false) {
+renderTable();
+renderMistakeTable();
+return;
+}
 renderTable();
 });
 }
@@ -918,13 +950,18 @@ renderMistakeTable();
 
 function deleteWord(i) {
 let word = vocab[i];
+WORD_OPERATIONS?.invalidate(word);
 vocab.splice(i, 1);
 
 if (word) {
 wrongWords = wrongWords.filter(w => !sameWordIdentity(w, word));
 }
 
-save();
+if (save() === false) {
+renderTable();
+renderMistakeTable();
+return;
+}
 renderTable();
 
 let topWrong = document.getElementById("totalWrongWordsTop");

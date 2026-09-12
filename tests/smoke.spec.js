@@ -507,6 +507,12 @@ async function preparePage(page, options = {}) {
       apiOrigin: "http://localhost:8080",
       staleRecoveryEnabled: Boolean(seed.staleRecoveryEnabled)
     };
+    if (typeof seed.navigatorOnline === "boolean") {
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        get: () => seed.navigatorOnline
+      });
+    }
     if (seed.fixedNow) {
       const RealDate = Date;
       const fixedTime = new RealDate(seed.fixedNow).getTime();
@@ -559,7 +565,8 @@ async function preparePage(page, options = {}) {
     extraStorage: options.extraStorage || null,
     preserveStorageOnNavigation: Boolean(options.preserveStorageOnNavigation),
     fixedNow: options.fixedNow || null,
-    staleRecoveryEnabled: options.staleRecoveryEnabled || false
+    staleRecoveryEnabled: options.staleRecoveryEnabled || false,
+    navigatorOnline: typeof options.navigatorOnline === "boolean" ? options.navigatorOnline : null
   });
 
   await page.goto("index.html");
@@ -1078,10 +1085,11 @@ test("mobile sync status stays readable and vocabulary table scrolls inside its 
   expect(statusMetrics.clippedInline).toBe(false);
   expect(statusMetrics.clippedBlock).toBe(false);
   expect(statusMetrics.whiteSpace).not.toBe("nowrap");
-  expect(statusMetrics.ariaLabel).toBe("Sync paused to protect your data");
-  expect(statusMetrics.title).toBe("Sync paused to protect your data");
+  expect(statusMetrics.ariaLabel).toBe("Sync paused to protect your data: local and cloud both changed");
+  expect(statusMetrics.title).toBe("Sync paused to protect your data: local and cloud both changed");
   await expectNoDocumentHorizontalOverflow(page);
 
+  await page.locator("#staleRecoveryCancelBtn").click();
   await page.getByRole("button", { name: "Vocabulary", exact: true }).click();
   const tableMetrics = await page.locator(".table-container[data-app-page-panel='vocabulary']").evaluate((container) => ({
     containerScrolls: container.scrollWidth > container.clientWidth + 1,
@@ -1958,10 +1966,13 @@ test("stale guard preserves local state and retry remains fail-closed", async ({
   });
 
   await expect(page.locator("#cloudSyncStatus")).toContainText("Sync paused to protect your data");
+  await expect(page.locator("#staleRecoveryPanel")).toBeVisible();
+  await page.locator("#staleRecoveryCancelBtn").click();
   await page.locator("#syncRetryBtn").click();
   await page.waitForTimeout(300);
 
   expect(fatalConsole.syncBodies).toHaveLength(0);
+  await expect(page.locator("#staleRecoveryPanel")).toBeVisible();
   const localState = await page.evaluate((accountId) => ({
     vocab: JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]"),
     queue: JSON.parse(localStorage.getItem(`quizAccount:${accountId}:cloudDeleteQueue`) || "[]")
@@ -1971,11 +1982,10 @@ test("stale guard preserves local state and retry remains fail-closed", async ({
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
-test("stale recovery feature flag opens panel with unsafe choices disabled", async ({ page }) => {
+test("stale safety lock always opens recovery with unsafe choices disabled", async ({ page }) => {
   const profile = { name: "Recovery Flag", email: "recovery-flag@example.com", avatar: "images/icon.png" };
   const fatalConsole = await preparePage(page, {
     authenticated: true,
-    staleRecoveryEnabled: true,
     profile,
     vocab: [{
       ...word("flag-local", "local", "sync", 71),
@@ -2138,6 +2148,7 @@ test("stale recovery offline keeps local state and still allows export", async (
   const fatalConsole = await preparePage(page, {
     authenticated: true,
     staleRecoveryEnabled: true,
+    navigatorOnline: false,
     profile,
     vocab: [{
       ...word("offline-local", "local", "sync", 79),
@@ -2160,11 +2171,9 @@ test("stale recovery offline keeps local state and still allows export", async (
     }
   });
 
-  await page.evaluate(() => {
-    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
-  });
-  await page.locator("#staleRecoveryUseCloudBtn").click();
-  await expect(page.locator("#staleRecoveryStatus")).toContainText("offline");
+  await expect(page.locator("#staleRecoverySummary")).toContainText("Offline");
+  await expect(page.locator("#staleRecoveryUseCloudBtn")).toBeDisabled();
+  await expect(page.locator("#staleRecoveryExportBtn")).toBeEnabled();
   const downloadPromise = page.waitForEvent("download");
   await page.locator("#staleRecoveryExportBtn").click();
   await downloadPromise;
@@ -2237,6 +2246,8 @@ test("stale recovery use cloud replaces local only after backup and confirmation
   await page.locator("#staleRecoveryUseCloudBtn").click();
   await downloadPromise;
   await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  await page.evaluate(() => window.quizCloud.syncNow());
+  await expect.poll(() => fatalConsole.syncBodies.length).toBeGreaterThan(0);
 
   const state = await page.evaluate(([accountId, otherKey]) => ({
     words: JSON.parse(localStorage.getItem(`quizAccount:${accountId}:vocab`) || "[]").map(item => item.eng),
@@ -2246,7 +2257,7 @@ test("stale recovery use cloud replaces local only after backup and confirmation
   expect(state.words).toEqual(["use-cloud-cloud"]);
   expect(state.queue).toBeNull();
   expect(state.other).toEqual(["other-account-word"]);
-  expect(fatalConsole.syncBodies).toHaveLength(0);
+  expect(fatalConsole.syncBodies.length).toBeGreaterThan(0);
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });
 
@@ -2573,6 +2584,92 @@ test("quiz can start and accept an answer from seeded local words", async ({ pag
   await page.locator("#answers .answer").first().click();
   await expect(page.locator("#question")).toContainText(/Question [12]\/4/);
 
+  expect(fatalConsole).toEqual([]);
+});
+
+test("quiz result totals only the questions selected for that attempt", async ({ page }) => {
+  const twelveWords = Array.from({ length: 12 }, (_, index) => (
+    word(`quiz-word-${index + 1}`, `nghia quiz ${index + 1}`, "quiz", index)
+  ));
+  const fatalConsole = await preparePage(page, { vocab: twelveWords });
+
+  await page.locator("#quizDifficulty").selectOption("10");
+  await page.getByRole("button", { name: "Start Quiz" }).last().click();
+  for (let question = 0; question < 10; question++) {
+    await page.locator("#answers .answer").first().click();
+    if (question < 9) await page.locator(".nextBtn").click();
+  }
+  await page.locator(".submitBtn").click();
+
+  await expect(page.locator("#resultScreen")).toBeVisible();
+  await expect(page.locator("#rTotal")).toHaveText("10");
+  await expect(page.locator("#rCorrect")).toHaveText(/^\d+\/10$/);
+  const resultCounts = await page.evaluate(() => ({
+    correct: Number(document.getElementById("rCorrect").textContent.split("/")[0]),
+    wrong: Number(document.getElementById("rWrong").textContent)
+  }));
+  expect(resultCounts.correct + resultCounts.wrong).toBe(10);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("focus words open in a separate bounded table without lengthening dashboard", async ({ page }) => {
+  const focusWords = Array.from({ length: 40 }, (_, index) => ({
+    ...word(`focus-${index + 1}`, `tu can on ${index + 1}`, "review", index),
+    stats: {
+      ...word("", "", "", index).stats,
+      seen: 2,
+      wrong: 2
+    }
+  }));
+  const fatalConsole = await preparePage(page, { vocab: focusWords });
+
+  await expect(page.locator("#weakWordsTop")).toHaveText("40");
+  await expect(page.locator("#weakWordsCenterSummary")).toContainText("40 focus words");
+  await expect(page.locator("#focusWordsTable")).not.toBeVisible();
+  await expect(page.locator("[data-app-page-panel='dashboard'] tbody")).toHaveCount(0);
+
+  await page.locator("#weakWordsOpenBtn").click();
+  await expect(page.locator("body")).toHaveAttribute("data-app-page", "focusWords");
+  await expect(page.locator("#appPageTitle")).toHaveText("Words that need another pass");
+  await expect(page.locator("#focusWordsTableBody tr")).toHaveCount(40);
+  await expect(page.locator("#focusWordsTable th")).toHaveText(["Word", "Meaning", "Study Info", "Review", "Actions"]);
+  await expect(page.locator(".dashboardPanel")).not.toBeVisible();
+  const metrics = await page.locator("#focusWordsTable").evaluate(container => ({
+    height: container.clientHeight,
+    content: container.scrollHeight,
+    viewport: innerHeight
+  }));
+  expect(metrics.content).toBeGreaterThan(metrics.height);
+  expect(metrics.height).toBeLessThanOrEqual(metrics.viewport * 0.5);
+
+  // Reuse Vocabulary actions, including inline editing, on this page.
+  const firstRow = page.locator("#focusWordsTableBody tr").first();
+  await firstRow.getByRole("button", { name: "Edit", exact: true }).click();
+  await firstRow.locator(".editVie").fill("updated focus meaning");
+  await firstRow.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(firstRow.locator(".meaningCell strong")).toHaveText("updated focus meaning");
+
+  await page.getByRole("button", { name: "Back to Dashboard", exact: true }).click();
+  await expect(page.locator("#focusWordsTable")).not.toBeVisible();
+  await expect(page.locator(".dashboardPanel")).toBeVisible();
+  await page.locator("#weakWordsOpenBtn").click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobile = await page.locator("#focusWordsTable").evaluate(container => ({
+    width: container.clientWidth,
+    content: container.scrollWidth,
+    page: document.documentElement.scrollWidth,
+    viewport: innerWidth
+  }));
+  expect(mobile.content).toBeGreaterThan(mobile.width);
+  expect(mobile.page).toBeLessThanOrEqual(mobile.viewport + 1);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("focus words page has an empty state and disables practice without candidates", async ({ page }) => {
+  const fatalConsole = await preparePage(page, { vocab: sampleWords });
+  await page.locator("#weakWordsOpenBtn").click();
+  await expect(page.locator("#focusWordsTableBody .emptyTableCell")).toContainText("No focus words yet");
+  await expect(page.locator("#weakWordsReviewBtn")).toBeDisabled();
   expect(fatalConsole).toEqual([]);
 });
 
@@ -3078,7 +3175,7 @@ test("stale exact-replay response cannot regress the remembered sync revision", 
   expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
 });
 
-test("late submit response cannot consume or overwrite a replacement quiz", async ({ page }) => {
+test("pending submit blocks a replacement cloud quiz until the original operation is confirmed", async ({ page }) => {
   const fatalConsole = await preparePage(page, authenticatedQuizOptions());
   await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
   let releaseSubmit;
@@ -3096,16 +3193,18 @@ test("late submit response cannot consume or overwrite a replacement quiz", asyn
   await page.evaluate(() => window.goHome());
   await page.getByRole("button", { name: "Start Quiz" }).last().click();
   await expect(page.locator("#quizScreen")).toBeVisible();
-  const replacement = await page.evaluate(() => window.WordArenaQuizAttemptClient.state());
-  expect(replacement.attemptId).toBe("10000000-0000-4000-8000-000000000002");
+  expect(await page.evaluate(() => window.WordArenaQuizAttemptClient.state())).toBeNull();
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
   const oldResponse = page.waitForResponse(response => response.url().includes("000000000001/submit"));
   releaseSubmit();
   await (await oldResponse).finished();
   await completeFourQuestionQuiz(page);
-  await expect.poll(() => fatalConsole.attemptSubmitRequests.length).toBe(2);
-  expect(fatalConsole.attemptSubmitRequests[1].url).toContain(`${replacement.attemptId}/submit`);
-  await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("consumed");
-  expect(fatalConsole.attemptCreateBodies).toHaveLength(2);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(1);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+  const queued = await page.evaluate((accountId) => localStorage.getItem(
+    `quizAccount:${accountId}:pendingQuizAttempt`
+  ), fatalConsole.accountId);
+  expect(queued).not.toBeNull();
   expect(fatalConsole.legacyQuizRequests).toHaveLength(0);
   expect(fatalConsole.filter(message => !message.includes("Failed to load resource"))).toEqual([]);
 });

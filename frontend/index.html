@@ -207,10 +207,27 @@
 <h2>Words that need another pass</h2>
 <p id="weakWordsCenterSummary">Words appear here when accuracy, due status, or mistakes suggest extra practice.</p>
 </div>
+<button class="utilityBtn" id="weakWordsOpenBtn" type="button" data-app-page="focusWords">View words</button>
+</div>
+</section>
+
+<section class="focusWordsPage" data-app-page-panel="focusWords" aria-label="Words that need another pass">
+<div class="weakWordsCenterHead">
+<div>
+<span class="heroEyebrow">Review focus</span>
+<h2>Words that need another pass</h2>
+<p id="focusWordsPageSummary">Words based on mistakes, mastery, and due status.</p>
+</div>
+<div class="focusWordsPageActions">
+<button class="miniBtn" type="button" data-app-page="dashboard">Back to Dashboard</button>
 <button class="utilityBtn" id="weakWordsReviewBtn" type="button" disabled>Practice Focus Words</button>
 </div>
-<div class="weakWordsCenterList" id="weakWordsCenterList">
-<p class="emptyStudio">No focus words yet. Review or quiz a few words and this section will prioritize what needs attention.</p>
+</div>
+<div class="table-container focusWordsTable" id="focusWordsTable" tabindex="0" role="region" aria-label="Focus words table, scroll to see more words">
+<table aria-label="Focus words">
+<thead><tr><th>Word</th><th>Meaning</th><th>Study Info</th><th>Review</th><th>Actions</th></tr></thead>
+<tbody id="focusWordsTableBody"></tbody>
+</table>
 </div>
 </section>
 
@@ -405,17 +422,17 @@
 
 <label class="formField formField--primary">
 <span>English</span>
-<input id="engInput" placeholder="English">
+<input id="engInput" maxlength="255" placeholder="English">
 </label>
 
 <label class="formField formField--primary">
 <span>Vietnamese</span>
-<input id="vieInput" placeholder="Vietnamese">
+<input id="vieInput" maxlength="255" placeholder="Vietnamese">
 </label>
 
 <label class="formField formField--tag">
 <span>Tag</span>
-<input id="tagInput" placeholder="Tag (school, family...)">
+<input id="tagInput" maxlength="100" placeholder="Tag (school, family...)">
 </label>
 
 <label class="formField formField--compact">
@@ -458,47 +475,47 @@
 
 <label class="formField formField--primary">
 <span>IPA</span>
-<input id="ipaInput" placeholder="&#47;h&#601;&#712;lo&#650;&#47;">
+<input id="ipaInput" maxlength="120" placeholder="&#47;h&#601;&#712;lo&#650;&#47;">
 </label>
 
 <label class="formField formField--primary">
 <span>Context / Sense</span>
-<input id="contextInput" placeholder="greeting, academic writing...">
+<input id="contextInput" maxlength="2000" placeholder="greeting, academic writing...">
 </label>
 
 <label class="formField formField--wide">
 <span>Example</span>
-<input id="exampleInput" class="wideInput" placeholder="Example sentence">
+<input id="exampleInput" class="wideInput" maxlength="2000" placeholder="Example sentence">
 </label>
 
 <label class="formField formField--wide">
 <span>Example Meaning</span>
-<input id="exampleMeaningInput" class="wideInput" placeholder="Vietnamese meaning of the example">
+<input id="exampleMeaningInput" class="wideInput" maxlength="2000" placeholder="Vietnamese meaning of the example">
 </label>
 
 <label class="formField formField--wide">
 <span>Collocation</span>
-<input id="collocationInput" class="wideInput" placeholder="say hello, make a decision...">
+<input id="collocationInput" class="wideInput" maxlength="2000" placeholder="say hello, make a decision...">
 </label>
 
 <label class="formField formField--primary">
 <span>Synonyms</span>
-<input id="synonymsInput" placeholder="hi, greeting...">
+<input id="synonymsInput" maxlength="2000" placeholder="hi, greeting...">
 </label>
 
 <label class="formField formField--primary">
 <span>Antonyms</span>
-<input id="antonymsInput" placeholder="opposite words">
+<input id="antonymsInput" maxlength="2000" placeholder="opposite words">
 </label>
 
 <label class="formField formField--wide">
 <span>Common Mistake</span>
-<input id="commonMistakeInput" class="wideInput" placeholder="Common learner mistake or usage warning">
+<input id="commonMistakeInput" class="wideInput" maxlength="2000" placeholder="Common learner mistake or usage warning">
 </label>
 
 <label class="formField formField--wide">
 <span>Note</span>
-<input id="noteInput" class="wideInput" placeholder="Meaning / note">
+<input id="noteInput" class="wideInput" maxlength="2000" placeholder="Meaning / note">
 </label>
 
 </div>
@@ -1234,6 +1251,9 @@ Hmm... choose one before moving on!
 <!-- JS FILES -->
 
 <script src="js/config.js"></script>
+<script src="js/vocabulary-contract.js"></script>
+<script src="js/word-operations.js"></script>
+<script src="js/date-utils.js"></script>
 <script src="js/quiz-attempt-client.js"></script>
 <script src="js/review-operation-client.js"></script>
 <script src="js/storage.js"></script>

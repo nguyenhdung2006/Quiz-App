@@ -1395,9 +1395,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 }
 
 .weakWordsCenter {
-  display: grid;
-  gap: 14px;
-  padding: 18px;
+  overflow: hidden;
   border: 1px solid rgba(255, 227, 110, 0.14);
   border-radius: var(--radius);
   background:
@@ -1411,6 +1409,26 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding: 18px;
+}
+
+.focusWordsPage {
+  display: grid;
+  width: min(1320px, 100%);
+  min-width: 0;
+  margin: 0 auto;
+  gap: 14px;
+}
+
+.focusWordsPageActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.focusWordsTable:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
 }
 
 .weakWordsCenterHead h2 {
@@ -1423,12 +1441,6 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   margin: 0;
   color: var(--text-muted);
   font-weight: 650;
-}
-
-.weakWordsCenterList {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 10px;
 }
 
 .weakFixCard {

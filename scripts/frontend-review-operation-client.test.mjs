@@ -119,3 +119,49 @@ await test("simultaneous click shares in-flight operation without duplicate lear
   assert.equal(h.requests.length, 1); assert.equal(h.state().local, 1);
 });
 console.log(`Review operation helper: ${passed}/${passed} passed.`);
+
+await test("pending operation survives reload, remains account-scoped, and clears after replay", async () => {
+  const values = new Map();
+  const storage = {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, String(value)),
+    removeItem: key => values.delete(key)
+  };
+  const make = (activeAccount, responseQueue, requests) => {
+    const durableWindow = {
+      crypto: { randomUUID }, localStorage: storage,
+      getCurrentAccountId: () => activeAccount,
+      accountStorageKey: (key, id = activeAccount) => `quizAccount:${id}:${key}`,
+      quizApiOrigin: () => "https://example.test", addEventListener() {},
+      WordArenaSyncStatus: { render() {} },
+      quizCloud: { isReady: () => true, state: () => ({ lastKnownRevision: 0 }), rememberResponseRevision() {} },
+      async quizApiFetch(url, options) {
+        requests.push({ activeAccount, url, body: options?.body });
+        const next = responseQueue.shift();
+        if (next instanceof Error) throw next;
+        return typeof next === "function" ? next(JSON.parse(options.body)) : next;
+      }
+    };
+    vm.runInNewContext(source, { window: durableWindow });
+    return durableWindow.WordArenaReviewOperationClient;
+  };
+  const requests = [];
+  const first = make("A", [new Error("offline"), response(503, {})], requests);
+  await first.run({ wordId: 7, action: "known", local() {} });
+  const key = "quizAccount:A:pendingReviewOperations";
+  const persisted = JSON.parse(storage.getItem(key));
+  assert.equal(persisted.length, 1);
+  const operationBody = persisted[0].body;
+
+  const other = make("B", [], requests);
+  assert.equal(other.pendingCount(), 0);
+
+  const reloaded = make("A", [payload => success(payload, 1)], requests);
+  assert.equal(reloaded.pendingCount(), 1);
+  const results = await reloaded.retryPending();
+  assert.equal(results[0].ok, true);
+  assert.equal(storage.getItem(key), null);
+  assert.equal(reloaded.pendingCount(), 0);
+  await reloaded.retryPending();
+  assert.equal(requests.at(-1).body, operationBody);
+});

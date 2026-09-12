@@ -191,3 +191,60 @@ assert.equal(requests.at(-1).options.body, requests.at(-2).options.body);
 assert.equal(client.state().lastResponse.attemptId, nextPayload.attemptId);
 
 console.log("Frontend quiz attempt client tests passed.");
+
+function durableStorage() {
+  const values = new Map();
+  return {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, String(value)),
+    removeItem: key => values.delete(key)
+  };
+}
+
+function durableQuizClient(storage, account, queuedResponses, durableRequests) {
+  const durableWindow = {
+    localStorage: storage,
+    getCurrentAccountId: () => account,
+    accountStorageKey: (key, id = account) => `quizAccount:${id}:${key}`,
+    quizApiOrigin: () => "https://api.example.test",
+    quizCloud: { isReady: () => true },
+    WordArenaSyncStatus: { render() {} },
+    addEventListener() {},
+    async quizApiFetch(url, options) {
+      durableRequests.push({ account, url, body: options?.body });
+      const response = queuedResponses.shift();
+      if (response instanceof Error) throw response;
+      return response;
+    }
+  };
+  vm.runInNewContext(source, { window: durableWindow, globalThis: durableWindow });
+  return durableWindow.WordArenaQuizAttemptClient;
+}
+
+{
+  const storage = durableStorage();
+  const durableRequests = [];
+  const firstResponses = [jsonResponse(200, issuedPayload), jsonResponse(503, {}), jsonResponse(503, {})];
+  const firstClient = durableQuizClient(storage, "A", firstResponses, durableRequests);
+  await firstClient.issue(plan);
+  await firstClient.submit(["tap trung", "wrong"]);
+  const pendingKey = "quizAccount:A:pendingQuizAttempt";
+  const persistedBody = JSON.parse(storage.getItem(pendingKey)).submissionBody;
+
+  const otherClient = durableQuizClient(storage, "B", [], durableRequests);
+  assert.equal(otherClient.state(), null, "account B must not hydrate account A's attempt");
+
+  const replayResponse = jsonResponse(200, {
+    attemptId: issuedPayload.attemptId,
+    replayed: true,
+    outcome,
+    snapshot: { revision: 4 }
+  }, 4);
+  const reloadedClient = durableQuizClient(storage, "A", [replayResponse], durableRequests);
+  assert.equal(reloadedClient.state().status, "pending");
+  assert.equal(reloadedClient.state().submissionBody, persistedBody);
+  assert.equal((await reloadedClient.retryActiveSubmission()).ok, true);
+  assert.equal(storage.getItem(pendingKey), null);
+  assert.equal((await reloadedClient.retryActiveSubmission()).reason, "no-retryable-submission");
+  assert.equal(durableRequests.at(-1).body, persistedBody);
+}

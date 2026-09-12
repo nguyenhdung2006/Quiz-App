@@ -8,7 +8,6 @@ const WRONG_BANK_CLEAR_QUEUE_KEY = "wrongBankClearQueue";
 const AUTH_PROFILE_RETRY_DELAYS = [500, 1000];
 const CLOUD_SYNC_META_KEY = "cloudSyncMeta";
 const STALE_SYNC_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
-const STALE_RECOVERY_ENABLED = Boolean(window.QUIZ_APP_CONFIG?.staleRecoveryEnabled);
 const DELETE_RETRY_30_SECONDS = 30 * 1000;
 const DELETE_RETRY_5_MINUTES = 5 * 60 * 1000;
 const DELETE_RETRY_1_HOUR = 60 * 60 * 1000;
@@ -433,10 +432,8 @@ return staleAge > STALE_SYNC_THRESHOLD_MS && cloudUpdated > lastSync;
 }
 
 function blockStaleSyncPush(snapshot = staleRecoveryState.snapshot) {
-setSyncStatus("Sync paused to protect your data", "warn");
-if (STALE_RECOVERY_ENABLED) {
+setSyncStatus("Sync paused to protect your data: local and cloud both changed", "warn");
 openStaleRecoveryPanel(snapshot);
-}
 return false;
 }
 
@@ -931,11 +928,6 @@ stats: {
 ...(primary?.stats || {})
 }
 };
-
-for (let key of ["eng", "vie", "pos", "tag", "ipa", "level", "context", "example", "exampleMeaning", "collocation", "synonyms", "antonyms", "commonMistake", "note", "updatedAt"]) {
-if (!merged[key] && secondary?.[key]) merged[key] = secondary[key];
-}
-
 return normalizeWord(merged);
 }
 
@@ -1143,6 +1135,21 @@ return null;
 }
 }
 
+function firstSyncValidationFailure() {
+let contract = window.WordArenaVocabularyContract;
+if (!contract) return "";
+for (let [collection, words] of [["Vocabulary", getVocab()], ["Wrong bank", getWrongWords()]]) {
+for (let [index, word] of words.entries()) {
+let error = contract.validate(word)[0];
+if (error) {
+let name = String(word?.eng || `item ${index + 1}`).trim();
+return `Cannot sync ${collection.toLowerCase()} “${name}”: ${error.message}`;
+}
+}
+}
+return "";
+}
+
 async function syncCloudNow(options = {}) {
 if (!cloudSyncReady || applyingCloudSnapshot) return;
 
@@ -1157,6 +1164,11 @@ return;
 }
 }
 if (isStaleDeviceRisk()) return blockStaleSyncPush();
+let validationFailure = firstSyncValidationFailure();
+if (validationFailure) {
+setSyncStatus(validationFailure, "warn");
+return;
+}
 setSyncStatus("Syncing...", "syncing");
 await flushPendingCloudDeletes();
 let response = await API_FETCH(`${AUTH_API_ORIGIN}/api/sync`, {
@@ -1188,7 +1200,8 @@ if (error?.error === "SYNC_CLIENT_UPGRADE_REQUIRED") {
 setSyncStatus("Please refresh the app before syncing.", "warn");
 return;
 }
-setSyncStatus("Sync validation failed", "warn");
+let detail = Array.isArray(error?.errors) ? error.errors[0] : "";
+setSyncStatus(detail ? `Cannot sync: ${detail}` : `Cannot sync: ${error?.message || "validation failed"}`, "warn");
 return;
 }
 
@@ -1395,6 +1408,31 @@ let result = await window.WordArenaQuizAttemptClient?.retryActiveSubmission?.();
 return applyQuizAttemptSubmission(result, context);
 }
 
+async function retryDurableLearningOperations() {
+if (!cloudSyncReady) return false;
+let recovered = false;
+let quizClient = window.WordArenaQuizAttemptClient;
+if (quizClient?.state?.()?.submissionBody) {
+let quizResult = await quizClient.retryActiveSubmission();
+if (quizResult?.ok && quizResult.body?.snapshot) {
+rememberResponseRevision(quizResult.response);
+applyServerSnapshot(quizResult.body.snapshot);
+recovered = true;
+}
+}
+let reviewClient = window.WordArenaReviewOperationClient;
+let hadReviewPending = Number(reviewClient?.pendingCount?.() || 0) > 0;
+if (hadReviewPending) {
+let results = await reviewClient.retryPending();
+recovered = recovered || results.some(result => result?.ok || result?.rejected);
+}
+if (recovered) {
+cloudSyncState.hasPulledCloudSnapshot = false;
+await pullCloudSnapshot();
+}
+return recovered;
+}
+
 function updateStats() {
 let topWords = document.getElementById("totalWordsTop");
 let topWrong = document.getElementById("totalWrongWordsTop");
@@ -1448,12 +1486,10 @@ return streaks.length ? Math.max(...streaks, 0) : 0;
 }
 
 function getDueTodayCount() {
-let now = Date.now();
 return getVocab().filter(word => {
 let nextReview = word?.stats?.nextReview;
 if (!nextReview) return Number(word?.stats?.seen || 0) > 0 && !word.mastered;
-let due = new Date(nextReview).getTime();
-return !Number.isNaN(due) && due <= now;
+return window.WordArenaDateUtils?.isDueToday(nextReview) === true;
 }).length;
 }
 
@@ -1467,9 +1503,9 @@ let total = getWordReviewCount(word);
 return total ? Math.round(Number(word?.stats?.correct || 0) / total * 100) : 0;
 }
 
-function getWeakWordCandidates(limit = 8) {
+function getWeakWordCandidates(limit = null) {
 let now = Date.now();
-return getVocab()
+let candidates = getVocab()
 .map(word => {
 let stats = word?.stats || {};
 let nextReview = stats.nextReview ? new Date(stats.nextReview).getTime() : null;
@@ -1483,17 +1519,18 @@ let score = wrong * 4 + (100 - accuracy) / 10 + (overdue ? 12 : 0);
 return { word, wrong, reviews, accuracy, overdue, score, weak };
 })
 .filter(item => item.word?.eng && item.word?.vie && item.weak)
-.sort((a, b) => b.score - a.score)
-.slice(0, limit);
+.sort((a, b) => b.score - a.score);
+return Number.isInteger(limit) && limit >= 0 ? candidates.slice(0, limit) : candidates;
 }
 
 function renderWeakWordsCenter() {
-let list = document.getElementById("weakWordsCenterList");
+let list = document.getElementById("focusWordsTableBody");
 let summary = document.getElementById("weakWordsCenterSummary");
+let pageSummary = document.getElementById("focusWordsPageSummary");
 let button = document.getElementById("weakWordsReviewBtn");
 if (!list) return;
 
-let items = getWeakWordCandidates(6);
+let items = getWeakWordCandidates();
 list.innerHTML = "";
 if (summary) {
 summary.textContent = items.length
@@ -1501,10 +1538,13 @@ summary.textContent = items.length
 : "Focus words appear after quizzes or reviews reveal what needs another pass.";
 }
 if (button) button.disabled = items.length === 0;
+if (pageSummary) pageSummary.textContent = summary?.textContent || "";
 
 if (!items.length) {
-let empty = document.createElement("div");
-empty.className = "emptyStudio emptyStudio--action";
+let row = document.createElement("tr");
+let empty = document.createElement("td");
+empty.colSpan = 5;
+empty.className = "emptyTableCell";
 let message = document.createElement("p");
 message.textContent = getVocab().length
 ? "No focus words yet. Keep reviewing and this section will surface words that need attention."
@@ -1523,28 +1563,15 @@ secondary.textContent = "Generate Deck";
 secondary.addEventListener("click", () => showAppPage("aiDeck"));
 actions.append(primary, secondary);
 empty.append(message, actions);
-list.appendChild(empty);
+row.appendChild(empty);
+list.appendChild(row);
 return;
 }
 
-items.forEach(item => {
-let card = document.createElement("article");
-card.className = "weakFixCard";
-let main = document.createElement("div");
-main.className = "weakFixMain";
-let title = document.createElement("strong");
-title.textContent = item.word.eng;
-let meaning = document.createElement("span");
-meaning.className = "weakFixMeaning";
-meaning.textContent = item.word.vie;
-main.append(title, meaning);
-let meta = document.createElement("small");
-meta.className = "weakFixStats";
-let dueText = item.overdue ? "overdue" : `${item.reviews} reviews`;
-meta.textContent = `${item.accuracy}% accuracy | ${item.wrong} wrong | ${dueText} | ${item.word.tag || "untagged"}`;
-card.append(main, meta);
-list.appendChild(card);
-});
+window.renderVocabularyTableRows(list, items.map(item => ({
+word: normalizeWord(item.word),
+originalIndex: getVocab().indexOf(item.word)
+})));
 }
 
 function startWeakWordsReview() {
@@ -1723,6 +1750,7 @@ return { status: "transientFailure" };
 const APP_PAGE_LABELS = {
 dashboard: { eyebrow: "Workspace", title: "Dashboard" },
 vocabulary: { eyebrow: "Word Bank", title: "Vocabulary" },
+focusWords: { eyebrow: "Review Focus", title: "Words that need another pass" },
 review: { eyebrow: "Spaced Repetition", title: "Review" },
 aiDeck: { eyebrow: "Generator", title: "AI Deck" },
 analytics: { eyebrow: "Insights", title: "Analytics" },
@@ -1759,6 +1787,7 @@ document.querySelector(".heroPanel")?.classList.toggle("hidden", nextPage !== "d
 
 if (nextPage === "analytics") window.analyticsDashboard?.refresh?.();
 if (nextPage === "review") window.reviewToday?.refresh?.();
+if (nextPage === "focusWords") renderWeakWordsCenter();
 window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -1941,6 +1970,7 @@ await window.quizCsrf?.refresh?.();
 cloudSyncReady = true;
 cloudSyncState.syncReady = true;
 let pulled = await pullCloudSnapshot();
+await retryDurableLearningOperations();
 if (pulled) syncCloudNow();
 return;
 }
@@ -2565,6 +2595,9 @@ toast(`Local save failed: ${event.detail?.message || "browser storage is unavail
 if (window.__wordArenaStorageError) {
 toast(`Local save failed: ${window.__wordArenaStorageError}`, "err", 5000);
 }
+window.addEventListener("online", () => {
+void retryDurableLearningOperations().then(() => syncCloudNow());
+});
 loadAuthenticatedProfile();
 updateStats();
 

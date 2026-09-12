@@ -103,7 +103,9 @@ class SyncContractV2Tests {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", is("wordUid is required for sync vocabulary items.")));
+                .andExpect(jsonPath("$.message", is("Validation failed.")))
+                .andExpect(jsonPath("$.errors[0]", is(
+                        "vocab[0].wordUid: wordUid is required for sync vocabulary items.")));
     }
 
     @Test
