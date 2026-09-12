@@ -1524,8 +1524,9 @@ return Number.isInteger(limit) && limit >= 0 ? candidates.slice(0, limit) : cand
 }
 
 function renderWeakWordsCenter() {
-let list = document.getElementById("weakWordsCenterList");
+let list = document.getElementById("focusWordsTableBody");
 let summary = document.getElementById("weakWordsCenterSummary");
+let pageSummary = document.getElementById("focusWordsPageSummary");
 let button = document.getElementById("weakWordsReviewBtn");
 if (!list) return;
 
@@ -1537,10 +1538,13 @@ summary.textContent = items.length
 : "Focus words appear after quizzes or reviews reveal what needs another pass.";
 }
 if (button) button.disabled = items.length === 0;
+if (pageSummary) pageSummary.textContent = summary?.textContent || "";
 
 if (!items.length) {
-let empty = document.createElement("div");
-empty.className = "emptyStudio emptyStudio--action";
+let row = document.createElement("tr");
+let empty = document.createElement("td");
+empty.colSpan = 5;
+empty.className = "emptyTableCell";
 let message = document.createElement("p");
 message.textContent = getVocab().length
 ? "No focus words yet. Keep reviewing and this section will surface words that need attention."
@@ -1559,28 +1563,15 @@ secondary.textContent = "Generate Deck";
 secondary.addEventListener("click", () => showAppPage("aiDeck"));
 actions.append(primary, secondary);
 empty.append(message, actions);
-list.appendChild(empty);
+row.appendChild(empty);
+list.appendChild(row);
 return;
 }
 
-items.forEach(item => {
-let card = document.createElement("article");
-card.className = "weakFixCard";
-let main = document.createElement("div");
-main.className = "weakFixMain";
-let title = document.createElement("strong");
-title.textContent = item.word.eng;
-let meaning = document.createElement("span");
-meaning.className = "weakFixMeaning";
-meaning.textContent = item.word.vie;
-main.append(title, meaning);
-let meta = document.createElement("small");
-meta.className = "weakFixStats";
-let dueText = item.overdue ? "overdue" : `${item.reviews} reviews`;
-meta.textContent = `${item.accuracy}% accuracy | ${item.wrong} wrong | ${dueText} | ${item.word.tag || "untagged"}`;
-card.append(main, meta);
-list.appendChild(card);
-});
+window.renderVocabularyTableRows(list, items.map(item => ({
+word: normalizeWord(item.word),
+originalIndex: getVocab().indexOf(item.word)
+})));
 }
 
 function startWeakWordsReview() {
@@ -1759,6 +1750,7 @@ return { status: "transientFailure" };
 const APP_PAGE_LABELS = {
 dashboard: { eyebrow: "Workspace", title: "Dashboard" },
 vocabulary: { eyebrow: "Word Bank", title: "Vocabulary" },
+focusWords: { eyebrow: "Review Focus", title: "Words that need another pass" },
 review: { eyebrow: "Spaced Repetition", title: "Review" },
 aiDeck: { eyebrow: "Generator", title: "AI Deck" },
 analytics: { eyebrow: "Insights", title: "Analytics" },
@@ -1795,6 +1787,7 @@ document.querySelector(".heroPanel")?.classList.toggle("hidden", nextPage !== "d
 
 if (nextPage === "analytics") window.analyticsDashboard?.refresh?.();
 if (nextPage === "review") window.reviewToday?.refresh?.();
+if (nextPage === "focusWords") renderWeakWordsCenter();
 window.scrollTo({ top: 0, behavior: "smooth" });
 }
 

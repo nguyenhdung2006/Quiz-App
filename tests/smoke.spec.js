@@ -2612,8 +2612,8 @@ test("quiz result totals only the questions selected for that attempt", async ({
   expect(fatalConsole).toEqual([]);
 });
 
-test("dashboard keeps every focus word in a collapsed on-demand list", async ({ page }) => {
-  const focusWords = Array.from({ length: 8 }, (_, index) => ({
+test("focus words open in a separate bounded table without lengthening dashboard", async ({ page }) => {
+  const focusWords = Array.from({ length: 40 }, (_, index) => ({
     ...word(`focus-${index + 1}`, `tu can on ${index + 1}`, "review", index),
     stats: {
       ...word("", "", "", index).stats,
@@ -2623,16 +2623,53 @@ test("dashboard keeps every focus word in a collapsed on-demand list", async ({ 
   }));
   const fatalConsole = await preparePage(page, { vocab: focusWords });
 
-  const disclosure = page.locator("#weakWordsDisclosure");
-  await expect(page.locator("#weakWordsTop")).toHaveText("8");
-  await expect(page.locator("#weakWordsCenterSummary")).toContainText("8 focus words");
-  await expect(disclosure).not.toHaveAttribute("open", "");
-  await expect(page.locator("#weakWordsCenterList")).not.toBeVisible();
+  await expect(page.locator("#weakWordsTop")).toHaveText("40");
+  await expect(page.locator("#weakWordsCenterSummary")).toContainText("40 focus words");
+  await expect(page.locator("#focusWordsTable")).not.toBeVisible();
+  await expect(page.locator("[data-app-page-panel='dashboard'] tbody")).toHaveCount(0);
 
-  await disclosure.locator("summary").click();
-  await expect(disclosure).toHaveAttribute("open", "");
-  await expect(page.locator("#weakWordsCenterList")).toBeVisible();
-  await expect(page.locator("#weakWordsCenterList .weakFixCard")).toHaveCount(8);
+  await page.locator("#weakWordsOpenBtn").click();
+  await expect(page.locator("body")).toHaveAttribute("data-app-page", "focusWords");
+  await expect(page.locator("#appPageTitle")).toHaveText("Words that need another pass");
+  await expect(page.locator("#focusWordsTableBody tr")).toHaveCount(40);
+  await expect(page.locator("#focusWordsTable th")).toHaveText(["Word", "Meaning", "Study Info", "Review", "Actions"]);
+  await expect(page.locator(".dashboardPanel")).not.toBeVisible();
+  const metrics = await page.locator("#focusWordsTable").evaluate(container => ({
+    height: container.clientHeight,
+    content: container.scrollHeight,
+    viewport: innerHeight
+  }));
+  expect(metrics.content).toBeGreaterThan(metrics.height);
+  expect(metrics.height).toBeLessThanOrEqual(metrics.viewport * 0.5);
+
+  // Reuse Vocabulary actions, including inline editing, on this page.
+  const firstRow = page.locator("#focusWordsTableBody tr").first();
+  await firstRow.getByRole("button", { name: "Edit", exact: true }).click();
+  await firstRow.locator(".editVie").fill("updated focus meaning");
+  await firstRow.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(firstRow.locator(".meaningCell strong")).toHaveText("updated focus meaning");
+
+  await page.getByRole("button", { name: "Back to Dashboard", exact: true }).click();
+  await expect(page.locator("#focusWordsTable")).not.toBeVisible();
+  await expect(page.locator(".dashboardPanel")).toBeVisible();
+  await page.locator("#weakWordsOpenBtn").click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobile = await page.locator("#focusWordsTable").evaluate(container => ({
+    width: container.clientWidth,
+    content: container.scrollWidth,
+    page: document.documentElement.scrollWidth,
+    viewport: innerWidth
+  }));
+  expect(mobile.content).toBeGreaterThan(mobile.width);
+  expect(mobile.page).toBeLessThanOrEqual(mobile.viewport + 1);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("focus words page has an empty state and disables practice without candidates", async ({ page }) => {
+  const fatalConsole = await preparePage(page, { vocab: sampleWords });
+  await page.locator("#weakWordsOpenBtn").click();
+  await expect(page.locator("#focusWordsTableBody .emptyTableCell")).toContainText("No focus words yet");
+  await expect(page.locator("#weakWordsReviewBtn")).toBeDisabled();
   expect(fatalConsole).toEqual([]);
 });
 

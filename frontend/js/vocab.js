@@ -723,16 +723,8 @@ row.appendChild(cell);
 table.appendChild(row);
 }
 
-function renderTable() {
-let table = document.getElementById("tableBody");
-table.innerHTML = "";
-
-refreshFilterOptions();
-let filters = getActiveFilters();
-let rows = vocab
-.map((word, originalIndex) => ({ word: normalizeWord(word), originalIndex }))
-.filter(({ word }) => matchesFilters(word, filters));
-
+function renderVocabularyTableRows(table, rows) {
+table.replaceChildren();
 let fragment = document.createDocumentFragment();
 
 rows.forEach(({ word, originalIndex }) => {
@@ -748,6 +740,19 @@ fragment.appendChild(row);
 });
 
 table.appendChild(fragment);
+}
+
+window.renderVocabularyTableRows = renderVocabularyTableRows;
+
+function renderTable() {
+let table = document.getElementById("tableBody");
+refreshFilterOptions();
+let filters = getActiveFilters();
+let rows = vocab
+.map((word, originalIndex) => ({ word: normalizeWord(word), originalIndex }))
+.filter(({ word }) => matchesFilters(word, filters));
+
+renderVocabularyTableRows(table, rows);
 if (!rows.length) renderEmptyTable(table, filters);
 
 totalWords.innerText = vocab.length;

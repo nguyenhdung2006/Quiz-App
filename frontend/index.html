@@ -200,28 +200,36 @@
 </div>
 </section>
 
-<details class="weakWordsCenter" id="weakWordsDisclosure" data-app-page-panel="dashboard" aria-label="Review focus">
-<summary class="weakWordsCenterHead">
+<section class="weakWordsCenter" data-app-page-panel="dashboard" aria-label="Review focus">
+<div class="weakWordsCenterHead">
 <div>
 <span class="heroEyebrow">Review focus</span>
 <h2>Words that need another pass</h2>
 <p id="weakWordsCenterSummary">Words appear here when accuracy, due status, or mistakes suggest extra practice.</p>
 </div>
-<span class="weakWordsDisclosureAction" aria-hidden="true">
-<span class="weakWordsDisclosureLabel weakWordsDisclosureLabel--closed">View list</span>
-<span class="weakWordsDisclosureLabel weakWordsDisclosureLabel--open">Hide list</span>
-<span class="weakWordsDisclosureIcon">⌄</span>
-</span>
-</summary>
-<div class="weakWordsCenterBody">
-<div class="weakWordsCenterList" id="weakWordsCenterList">
-<p class="emptyStudio">No focus words yet. Review or quiz a few words and this section will prioritize what needs attention.</p>
+<button class="utilityBtn" id="weakWordsOpenBtn" type="button" data-app-page="focusWords">View words</button>
 </div>
-<div class="weakWordsCenterActions">
+</section>
+
+<section class="focusWordsPage" data-app-page-panel="focusWords" aria-label="Words that need another pass">
+<div class="weakWordsCenterHead">
+<div>
+<span class="heroEyebrow">Review focus</span>
+<h2>Words that need another pass</h2>
+<p id="focusWordsPageSummary">Words based on mistakes, mastery, and due status.</p>
+</div>
+<div class="focusWordsPageActions">
+<button class="miniBtn" type="button" data-app-page="dashboard">Back to Dashboard</button>
 <button class="utilityBtn" id="weakWordsReviewBtn" type="button" disabled>Practice Focus Words</button>
 </div>
 </div>
-</details>
+<div class="table-container focusWordsTable" id="focusWordsTable" tabindex="0" role="region" aria-label="Focus words table, scroll to see more words">
+<table aria-label="Focus words">
+<thead><tr><th>Word</th><th>Meaning</th><th>Study Info</th><th>Review</th><th>Actions</th></tr></thead>
+<tbody id="focusWordsTableBody"></tbody>
+</table>
+</div>
+</section>
 
 <section class="playerHub" aria-label="Profile and leaderboard" data-app-page-panel="dashboard">
 <article class="profilePanel">
