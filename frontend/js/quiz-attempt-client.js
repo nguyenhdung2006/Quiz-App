@@ -7,6 +7,71 @@ const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 let active = null;
 let issuing = false;
 let generation = 0;
+let hydrationBlockedAccount = null;
+const PENDING_KEY = "pendingQuizAttempt";
+
+function account() {
+if (typeof global.getCurrentAccountId === "function") return global.getCurrentAccountId();
+try {
+let profile = JSON.parse(global.localStorage?.getItem("quizUserProfile") || "{}");
+return String(profile?.email || "").trim().toLowerCase() || "local-guest";
+} catch (_error) {
+return "local-guest";
+}
+}
+
+function storageKey(accountId = account()) {
+return typeof global.accountStorageKey === "function"
+? global.accountStorageKey(PENDING_KEY, accountId)
+: `quizAccount:${accountId}:${PENDING_KEY}`;
+}
+
+function persist(attempt = active) {
+if (!attempt?.submissionBody) return;
+try {
+global.localStorage?.setItem(storageKey(attempt.account), JSON.stringify({
+attemptId: attempt.attemptId,
+items: attempt.items,
+submissionBody: attempt.submissionBody,
+status: "pending",
+account: attempt.account
+}));
+} catch (_error) {
+notice("Quiz is saved locally, but the retry queue could not be stored.", "warn");
+}
+}
+
+function clearPersisted(attempt) {
+try { global.localStorage?.removeItem(storageKey(attempt?.account)); } catch (_error) { /* noop */ }
+}
+
+function readPersisted(accountId = account()) {
+let stored;
+try { stored = JSON.parse(global.localStorage?.getItem(storageKey(accountId)) || "null"); }
+catch (_error) { return null; }
+if (!stored?.attemptId || !stored?.submissionBody || !Array.isArray(stored.items)
+|| stored.account !== accountId) return null;
+return stored;
+}
+
+function hydrate() {
+let currentAccount = account();
+if (hydrationBlockedAccount && hydrationBlockedAccount !== currentAccount) hydrationBlockedAccount = null;
+if (active && active.account !== currentAccount) {
+generation++;
+active = null;
+}
+if (hydrationBlockedAccount === currentAccount) return null;
+if (active?.account === currentAccount) return active;
+let stored = readPersisted(currentAccount);
+if (!stored) return null;
+active = { ...stored, status: "pending", lastResponse: null, generation };
+return active;
+}
+
+function isCurrent(attempt) {
+return active === attempt && attempt?.generation === generation && attempt.account === account();
+}
 
 function notice(message, tone) {
 global.WordArenaSyncStatus?.render?.(message, tone);
@@ -54,6 +119,10 @@ return Object.freeze(bound);
 
 async function issue(plan) {
 if (issuing) return { online: false, reason: "issue-in-progress" };
+if (hydrate()?.submissionBody || readPersisted()?.submissionBody) {
+notice("A previous quiz save is pending. Retry sync before starting a cloud quiz.", "warn");
+return { online: false, reason: "pending-submission" };
+}
 reset();
 let issuedGeneration = generation;
 if (!isCloudReady()) return { online: false, reason: "cloud-not-ready" };
@@ -89,7 +158,9 @@ attemptId: String(body.attemptId),
 items: boundItems,
 submissionBody: null,
 status: "issued",
-lastResponse: null
+lastResponse: null,
+account: account(),
+generation
 };
 return { online: true, attemptId: active.attemptId, items: active.items };
 } catch (error) {
@@ -103,7 +174,7 @@ issuing = false;
 }
 
 async function sendSubmission(attempt) {
-if (active !== attempt) return { ok: false, cancelled: true };
+if (!isCurrent(attempt)) return { ok: false, cancelled: true };
 if (!attempt?.submissionBody) return { ok: false, reason: "no-active-submission" };
 let response;
 try {
@@ -113,10 +184,10 @@ headers: { "Content-Type": "application/json" },
 body: attempt.submissionBody
 });
 } catch (error) {
-if (active !== attempt) return { ok: false, cancelled: true };
+if (!isCurrent(attempt)) return { ok: false, cancelled: true };
 return { ok: false, retryable: true, error };
 }
-if (active !== attempt) return { ok: false, cancelled: true };
+if (!isCurrent(attempt)) return { ok: false, cancelled: true };
 if (!response.ok) {
 return { ok: false, retryable: RETRYABLE_STATUS.has(response.status), status: response.status };
 }
@@ -124,15 +195,16 @@ let body;
 try {
 body = await response.json();
 } catch (error) {
-if (active !== attempt) return { ok: false, cancelled: true };
+if (!isCurrent(attempt)) return { ok: false, cancelled: true };
 return { ok: false, retryable: true, error };
 }
-if (active !== attempt) return { ok: false, cancelled: true };
+if (!isCurrent(attempt)) return { ok: false, cancelled: true };
 if (body?.attemptId !== attempt.attemptId) {
 return { ok: false, retryable: true, reason: "unexpected-attempt-response" };
 }
 attempt.status = "consumed";
 attempt.lastResponse = body;
+clearPersisted(attempt);
 return { ok: true, response, body };
 }
 
@@ -149,14 +221,15 @@ selectedAnswer: String(selections[index] ?? "")
 }))
 });
 attempt.status = "submitting";
+persist(attempt);
 
 let first = await sendSubmission(attempt);
-if (active !== attempt) return { ok: false, cancelled: true };
+if (!isCurrent(attempt)) return { ok: false, cancelled: true };
 if (first.ok) return first;
 if (first.retryable) {
 attempt.status = "retrying";
 let retry = await sendSubmission(attempt);
-if (active !== attempt) return { ok: false, cancelled: true };
+if (!isCurrent(attempt)) return { ok: false, cancelled: true };
 if (retry.ok) return retry;
 first = retry;
 }
@@ -166,13 +239,14 @@ return first;
 }
 
 async function retryActiveSubmission() {
-if (!active?.submissionBody || !["pending", "consumed"].includes(active.status)) {
+hydrate();
+if (!active?.submissionBody || active.status !== "pending") {
 return { ok: false, reason: "no-retryable-submission" };
 }
 let attempt = active;
 attempt.status = "retrying";
 let result = await sendSubmission(attempt);
-if (active !== attempt) return { ok: false, cancelled: true };
+if (!isCurrent(attempt)) return { ok: false, cancelled: true };
 if (!result.ok) {
 attempt.status = "pending";
 notice("Quiz cloud save is still pending.", "warn");
@@ -181,17 +255,20 @@ return result;
 }
 
 function reset() {
+hydrationBlockedAccount = account();
 generation++;
 active = null;
 }
 
 function state() {
+hydrate();
 return active ? {
 attemptId: active.attemptId,
 items: active.items,
 submissionBody: active.submissionBody,
 status: active.status,
-lastResponse: active.lastResponse
+lastResponse: active.lastResponse,
+account: active.account
 } : null;
 }
 

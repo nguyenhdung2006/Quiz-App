@@ -1395,9 +1395,7 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
 }
 
 .weakWordsCenter {
-  display: grid;
-  gap: 14px;
-  padding: 18px;
+  overflow: hidden;
   border: 1px solid rgba(255, 227, 110, 0.14);
   border-radius: var(--radius);
   background:
@@ -1411,6 +1409,57 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding: 18px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.weakWordsCenterHead::-webkit-details-marker {
+  display: none;
+}
+
+.weakWordsCenterHead:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: -3px;
+}
+
+.weakWordsDisclosureAction {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--cyan);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.weakWordsDisclosureIcon {
+  display: inline-block;
+  font-size: 1.1rem;
+  transition: transform 160ms ease;
+}
+
+.weakWordsDisclosureLabel--open {
+  display: none;
+}
+
+.weakWordsCenter[open] .weakWordsDisclosureLabel--closed {
+  display: none;
+}
+
+.weakWordsCenter[open] .weakWordsDisclosureLabel--open {
+  display: inline;
+}
+
+.weakWordsCenter[open] .weakWordsDisclosureIcon {
+  transform: rotate(180deg);
+}
+
+.weakWordsCenterBody {
+  display: grid;
+  gap: 14px;
+  padding: 14px 18px 18px;
+  border-top: 1px solid rgba(158, 241, 255, 0.1);
 }
 
 .weakWordsCenterHead h2 {
@@ -1429,6 +1478,11 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 10px;
+}
+
+.weakWordsCenterActions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .weakFixCard {

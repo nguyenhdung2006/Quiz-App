@@ -79,7 +79,7 @@ public class SyncService {
         log.info("[SYNC] Push start userId={} expectedRevision={}", syncUser.getId(), request.expectedRevision());
         ensureExpectedRevision(syncUser, request.expectedRevision());
 
-        Map<UUID, WordRequest> incomingWords = dedupeWordsByUid(request.vocab());
+        Map<UUID, WordRequest> incomingWords = dedupeWordsByUid(request.vocab(), "vocab");
         Map<UUID, WordDeletionRequest> incomingDeletions = dedupeDeletionsByUid(request.deletions());
         Map<UUID, WordDeletionRequest> incomingWrongWordDeletions = dedupeDeletionsByUid(request.wrongWordDeletions());
         incomingDeletions.keySet().forEach(incomingWords::remove);
@@ -206,15 +206,17 @@ public class SyncService {
         }
     }
 
-    private Map<UUID, WordRequest> dedupeWordsByUid(List<WordRequest> incomingWords) {
+    private Map<UUID, WordRequest> dedupeWordsByUid(List<WordRequest> incomingWords, String collection) {
         Map<UUID, WordRequest> result = new LinkedHashMap<>();
         if (incomingWords == null) return result;
-        for (WordRequest incoming : incomingWords) {
+        for (int index = 0; index < incomingWords.size(); index++) {
+            WordRequest incoming = incomingWords.get(index);
             if (incoming == null) continue;
             if (incoming.wordUid() == null) {
-                throw new IllegalArgumentException("wordUid is required for sync vocabulary items.");
+                throw new SyncItemValidationException(collection + "[" + index + "].wordUid",
+                        "wordUid is required for sync vocabulary items.");
             }
-            ensureUsableSyncWord(incoming);
+            ensureUsableSyncWord(incoming, collection + "[" + index + "]");
             result.put(incoming.wordUid(), incoming);
         }
         return result;
@@ -400,26 +402,31 @@ public class SyncService {
         ensureStats(word);
     }
 
-    private void ensureUsableSyncWord(WordRequest request) {
+    private void ensureUsableSyncWord(WordRequest request, String path) {
         String eng = normalizeEnglishForStorage(request.eng());
         String vie = trim(request.vie());
-        if (eng.isBlank() || vie.isBlank()) {
-            throw new IllegalArgumentException("English and Vietnamese are required.");
-        }
-        if (eng.length() > 255 || vie.length() > 255
-                || !within(request.pos(), 50)
-                || !within(request.tag(), 100)
-                || !within(request.ipa(), 120)
-                || !within(request.level(), 40)
-                || !within(request.context(), 2_000)
-                || !within(request.example(), 2_000)
-                || !within(request.exampleMeaning(), 2_000)
-                || !within(request.collocation(), 2_000)
-                || !within(request.synonyms(), 2_000)
-                || !within(request.antonyms(), 2_000)
-                || !within(request.commonMistake(), 2_000)
-                || !within(request.note(), 2_000)) {
-            throw new IllegalArgumentException("Sync vocabulary item is invalid.");
+        if (eng.isBlank()) throw new SyncItemValidationException(path + ".eng", "English word is required.");
+        if (vie.isBlank()) throw new SyncItemValidationException(path + ".vie", "Vietnamese meaning is required.");
+        requireWithin(path, "eng", eng, VocabularyConstraints.WORD_MAX);
+        requireWithin(path, "vie", vie, VocabularyConstraints.MEANING_MAX);
+        requireWithin(path, "pos", request.pos(), VocabularyConstraints.POS_MAX);
+        requireWithin(path, "tag", request.tag(), VocabularyConstraints.TAG_MAX);
+        requireWithin(path, "ipa", request.ipa(), VocabularyConstraints.IPA_MAX);
+        requireWithin(path, "level", request.level(), VocabularyConstraints.LEVEL_MAX);
+        requireWithin(path, "context", request.context(), VocabularyConstraints.DETAIL_MAX);
+        requireWithin(path, "example", request.example(), VocabularyConstraints.DETAIL_MAX);
+        requireWithin(path, "exampleMeaning", request.exampleMeaning(), VocabularyConstraints.DETAIL_MAX);
+        requireWithin(path, "collocation", request.collocation(), VocabularyConstraints.DETAIL_MAX);
+        requireWithin(path, "synonyms", request.synonyms(), VocabularyConstraints.DETAIL_MAX);
+        requireWithin(path, "antonyms", request.antonyms(), VocabularyConstraints.DETAIL_MAX);
+        requireWithin(path, "commonMistake", request.commonMistake(), VocabularyConstraints.DETAIL_MAX);
+        requireWithin(path, "note", request.note(), VocabularyConstraints.DETAIL_MAX);
+    }
+
+    private void requireWithin(String path, String field, String value, int maxLength) {
+        if (!within(value, maxLength)) {
+            throw new SyncItemValidationException(path + "." + field,
+                    field + " must be " + maxLength + " characters or less.");
         }
     }
 

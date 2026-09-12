@@ -13,6 +13,7 @@ public record SyncRequest(
         @Valid
         ProfileRequest profile,
 
+        @Valid
         @Size(max = 5_000, message = "Sync payload cannot include more than 5000 vocabulary words.")
         List<WordRequest> vocab,
 
@@ -24,6 +25,7 @@ public record SyncRequest(
         @Size(max = 5_000, message = "Sync payload cannot include more than 5000 wrong-bank deletions.")
         List<WordDeletionRequest> wrongWordDeletions,
 
+        @Valid
         @Size(max = 5_000, message = "Sync payload cannot include more than 5000 wrong words.")
         List<WordRequest> wrongWords
 ) {
