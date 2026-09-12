@@ -507,6 +507,12 @@ async function preparePage(page, options = {}) {
       apiOrigin: "http://localhost:8080",
       staleRecoveryEnabled: Boolean(seed.staleRecoveryEnabled)
     };
+    if (typeof seed.navigatorOnline === "boolean") {
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        get: () => seed.navigatorOnline
+      });
+    }
     if (seed.fixedNow) {
       const RealDate = Date;
       const fixedTime = new RealDate(seed.fixedNow).getTime();
@@ -559,7 +565,8 @@ async function preparePage(page, options = {}) {
     extraStorage: options.extraStorage || null,
     preserveStorageOnNavigation: Boolean(options.preserveStorageOnNavigation),
     fixedNow: options.fixedNow || null,
-    staleRecoveryEnabled: options.staleRecoveryEnabled || false
+    staleRecoveryEnabled: options.staleRecoveryEnabled || false,
+    navigatorOnline: typeof options.navigatorOnline === "boolean" ? options.navigatorOnline : null
   });
 
   await page.goto("index.html");
@@ -2141,6 +2148,7 @@ test("stale recovery offline keeps local state and still allows export", async (
   const fatalConsole = await preparePage(page, {
     authenticated: true,
     staleRecoveryEnabled: true,
+    navigatorOnline: false,
     profile,
     vocab: [{
       ...word("offline-local", "local", "sync", 79),
@@ -2163,11 +2171,9 @@ test("stale recovery offline keeps local state and still allows export", async (
     }
   });
 
-  await page.evaluate(() => {
-    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
-  });
-  await page.locator("#staleRecoveryUseCloudBtn").click();
-  await expect(page.locator("#staleRecoveryStatus")).toContainText("offline");
+  await expect(page.locator("#staleRecoverySummary")).toContainText("Offline");
+  await expect(page.locator("#staleRecoveryUseCloudBtn")).toBeDisabled();
+  await expect(page.locator("#staleRecoveryExportBtn")).toBeEnabled();
   const downloadPromise = page.waitForEvent("download");
   await page.locator("#staleRecoveryExportBtn").click();
   await downloadPromise;
