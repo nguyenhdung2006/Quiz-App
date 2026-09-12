@@ -189,7 +189,7 @@
 <small class="dashCaption">Ready for today</small>
 </div>
 <div class="dashCard">
-<span class="dashLabel">Focus Words</span>
+<span class="dashLabel">Needs Practice</span>
 <strong id="weakWordsTop">0</strong>
 <small class="dashCaption">Need another pass</small>
 </div>
@@ -220,7 +220,7 @@
 </div>
 <div class="focusWordsPageActions">
 <button class="miniBtn" type="button" data-app-page="dashboard">Back to Dashboard</button>
-<button class="utilityBtn" id="weakWordsReviewBtn" type="button" disabled>Practice Focus Words</button>
+<button class="utilityBtn" id="weakWordsReviewBtn" type="button" disabled>Start Practice</button>
 </div>
 </div>
 <div class="table-container focusWordsTable" id="focusWordsTable" tabindex="0" role="region" aria-label="Focus words table, scroll to see more words">
@@ -739,45 +739,6 @@
 <div id="reviewList" class="reviewList"></div>
 <button class="bigBtn backBtn" type="button" data-ui-action="show-result-screen">Back To Result</button>
 <button class="bigBtn startBtn" type="button" data-ui-action="go-home">Home</button>
-</div>
-
-<div id="mistakeScreen" class="hidden">
-
-<h2>Mistake Words</h2>
-
-<button type="button" data-ui-action="clear-mastered" class="clearBtn">
-    Clear Mastered
-</button>
-
-<h3>Total wrong words: <span id="totalWrongWords">0</span></h3>
-
-<h2>Mistake Words Table</h2>
-
-<div class="table-container">
-
-<table>
-
-<thead>
-<tr>
-<th>Word</th>
-<th>Meaning</th>
-<th>Study info</th>
-<th>Review</th>
-<th>Actions</th>
-</tr>
-</thead>
-
-<tbody id="mistakeTableBody"></tbody>
-
-</table>
-
-</div>
-
-<br><br>
-
-<button id="mistakePracticeBtn" class="bigBtn startBtn" type="button" data-ui-action="practice-wrong">Start Practice</button>
-<button class="bigBtn backBtn" type="button" data-ui-action="go-home">Back</button>
-
 </div>
 
 </main>

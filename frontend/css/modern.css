@@ -1431,6 +1431,13 @@ body[data-app-page] .heroPanel[data-app-page-panel]:not(.is-active-page) {
   outline-offset: 3px;
 }
 
+/* Short practice lists should not inherit the generic fixed-height table box. */
+.focusWordsPage .focusWordsTable {
+  height: auto;
+  min-height: 0;
+  max-height: min(520px, 50vh);
+}
+
 .weakWordsCenterHead h2 {
   margin: 5px 0 3px;
   color: #ffffff;

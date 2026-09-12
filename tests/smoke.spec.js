@@ -1086,8 +1086,8 @@ test("mobile sync status stays readable and vocabulary table scrolls inside its 
   expect(statusMetrics.clippedInline).toBe(false);
   expect(statusMetrics.clippedBlock).toBe(false);
   expect(statusMetrics.whiteSpace).not.toBe("nowrap");
-  expect(statusMetrics.ariaLabel).toBe("Sync paused to protect your data: local and cloud both changed");
-  expect(statusMetrics.title).toBe("Sync paused to protect your data: local and cloud both changed");
+  expect(statusMetrics.ariaLabel).toBe("Sync paused to protect your data: review local/cloud differences before upload");
+  expect(statusMetrics.title).toBe("Sync paused to protect your data: review local/cloud differences before upload");
   await expectNoDocumentHorizontalOverflow(page);
 
   await page.locator("#staleRecoveryCancelBtn").click();
@@ -1679,7 +1679,9 @@ test("Clear Mastered syncs only mastered wrong-bank identities and keeps unrelat
   page.once("dialog", dialog => dialog.accept());
 
   await page.locator("[data-ui-action='open-mistake-screen']").click();
-  await page.locator("[data-ui-action='clear-mastered']").click();
+  // Retained compatibility operation; the unified active list no longer offers
+  // destructive history cleanup as a normal practice action.
+  await page.evaluate(() => window.clearMastered());
   await expect.poll(() => fatalConsole.syncBodies.length).toBe(1);
 
   const body = fatalConsole.syncBodies[0];
@@ -2701,9 +2703,48 @@ test("focus words open in a separate bounded table without lengthening dashboard
 test("focus words page has an empty state and disables practice without candidates", async ({ page }) => {
   const fatalConsole = await preparePage(page, { vocab: sampleWords });
   await page.locator("#weakWordsOpenBtn").click();
-  await expect(page.locator("#focusWordsTableBody .emptyTableCell")).toContainText("No focus words yet");
+  await expect(page.locator("#focusWordsTableBody .emptyTableCell")).toContainText("No focus words need practice");
   await expect(page.locator("#weakWordsReviewBtn")).toBeDisabled();
   expect(fatalConsole).toEqual([]);
+});
+
+test("practice entry points share navigation and short tables fit their content", async ({ page }) => {
+  const words = sampleWords.map((item, ordinal) => ({
+    ...item, stats: { ...item.stats, seen: 1, correct: ordinal ? 1 : 0,
+      wrong: ordinal ? 0 : 1, streak: ordinal ? 1 : 0,
+      nextReview: new Date(Date.now() + 86400000 * 3).toISOString() }
+  }));
+  const fatalConsole = await preparePage(page, { vocab: words });
+  await expect(page.locator("#weakWordsTop")).toHaveText("1");
+  await expect(page.locator("#dueTodayTop")).toHaveText("0");
+  await page.getByRole("button", { name: "Practice Wrong Words", exact: true }).evaluate(button => button.scrollIntoView());
+  await page.getByRole("button", { name: "Practice Wrong Words", exact: true }).click();
+  await expect(page.locator("body")).toHaveAttribute("data-app-page", "focusWords");
+  await expect(page.locator("#appPageTitle")).toHaveText("Words that need another pass");
+  expect(await page.evaluate(() => scrollY)).toBe(0);
+  await expect(page.locator("#focusWordsTableBody tr")).toHaveCount(1);
+  const sizes = await page.locator("#focusWordsTable").evaluate(container => ({
+    box: container.getBoundingClientRect().height,
+    table: container.querySelector("table").getBoundingClientRect().height
+  }));
+  expect(sizes.box).toBeLessThanOrEqual(sizes.table + 20);
+  await page.getByRole("button", { name: "Back to Dashboard", exact: true }).click();
+  await page.locator("#weakWordsOpenBtn").click();
+  await expect(page.locator("#focusWordsTableBody .engWord")).toHaveText(words[0].eng);
+  expect(fatalConsole).toEqual([]);
+});
+
+test("unified practice launches the complete displayed list, not a hidden twelve-word subset", async ({ page }) => {
+  const words = Array.from({ length: 14 }, (_, ordinal) => ({
+    ...word(`practice-${ordinal}`, `meaning-${ordinal}`, "practice", ordinal),
+    stats: { ...sampleWords[0].stats, seen: 1, wrong: 1 }
+  }));
+  await preparePage(page, { vocab: words });
+  await page.locator("#weakWordsOpenBtn").click();
+  await expect(page.locator("#focusWordsTableBody tr")).toHaveCount(14);
+  await page.locator("#weakWordsReviewBtn").click();
+  expect(await page.evaluate(() => quizData.map(item => item.word.eng).sort()))
+    .toEqual(words.map(item => item.eng).sort());
 });
 
 test("legacy mistake projection matches positive IDs without rewriting identities or matching missing IDs", async ({ page }) => {
@@ -2739,10 +2780,13 @@ test("Focus and Wrong Practice share current words, stats, counts and quiz input
   const focusRows = await page.locator("#focusWordsTableBody tr").allTextContents();
   await page.getByRole("button", { name: "Back to Dashboard", exact: true }).click();
   await page.getByRole("button", { name: "Practice Wrong Words", exact: true }).click();
-  await expect(page.locator("#totalWrongWords")).toHaveText("2");
-  expect(await page.locator("#mistakeTableBody tr").allTextContents()).toEqual(focusRows);
-  await expect(page.locator("#mistakeTableBody")).not.toContainText("outdated bank meaning");
-  await page.locator("#mistakePracticeBtn").click();
+  await expect(page.locator("#weakWordsTop")).toHaveText("2");
+  await expect(page.locator("body")).toHaveAttribute("data-app-page", "focusWords");
+  await expect(page.locator("#appPageTitle")).toHaveText("Words that need another pass");
+  await expect(page.locator("#mistakeScreen")).toHaveCount(0);
+  expect(await page.locator("#focusWordsTableBody tr").allTextContents()).toEqual(focusRows);
+  await expect(page.locator("#focusWordsTableBody")).not.toContainText("outdated bank meaning");
+  await page.locator("#weakWordsReviewBtn").click();
   const issuedWords = await page.evaluate(() => quizData.map(item => item.word.eng).sort());
   expect(issuedWords).toEqual(words.slice(0, 2).map(item => item.eng).sort());
   await page.evaluate(() => {
@@ -2751,14 +2795,14 @@ test("Focus and Wrong Practice share current words, stats, counts and quiz input
     window.showAppPage("focusWords");
   });
   await expect(page.locator("#focusWordsTableBody")).toContainText("No focus words");
-  await expect(page.locator("#totalWrongWords")).toHaveText("0");
-  await expect(page.locator("#mistakePracticeBtn")).toBeDisabled();
+  await expect(page.locator("#weakWordsTop")).toHaveText("0");
+  await expect(page.locator("#weakWordsReviewBtn")).toBeDisabled();
   await page.evaluate(() => {
     window.recordWordResult(vocab[0], false);
     window.renderMistakeTable();
   });
-  await expect(page.locator("#totalWrongWords")).toHaveText("1");
-  expect(await page.locator("#mistakeTableBody tr").allTextContents()).toEqual(await page.locator("#focusWordsTableBody tr").allTextContents());
+  await expect(page.locator("#weakWordsTop")).toHaveText("1");
+  await expect(page.locator("#focusWordsTableBody .engWord")).toHaveText(words[0].eng);
   expect(fatalConsole).toEqual([]);
 });
 
@@ -2980,12 +3024,62 @@ async function completeQuizWithOneWrongAnswer(page) {
     const labels = (await choices.allTextContents()).map(label => label.replace(/^\d+\. /, ""));
     const choice = labels.findIndex(label => item.id === 4 ? label !== correct : label === correct);
     expect(choice).toBeGreaterThanOrEqual(0);
-    await choices.nth(choice).click();
+    if (!(await choices.nth(choice).isDisabled())) await choices.nth(choice).click();
     if (ordinal < 3) await page.locator(".nextBtn").click();
   }
   await page.locator(".submitBtn").click();
   await expect(page.locator("#resultScreen")).toBeVisible();
 }
+
+test("issued practice updates learning per answer without duplicate completion or sync pushes", async ({ page }) => {
+  const options = authenticatedQuizOptions({
+    attemptSubmitResponses: [{ status: 503 }], preserveStorageOnNavigation: true
+  });
+  const fatalConsole = await preparePage(page, options);
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  const before = await readQuizLearningState(page);
+  const syncCount = fatalConsole.syncBodies.length;
+  await page.getByRole("button", { name: "Start Quiz", exact: true }).last().click();
+  const first = await page.evaluate(() => quizData[index]);
+  await page.locator("#answers .answer").filter({ hasText: first.correctAnswer }).first().click();
+  const immediate = await readQuizLearningState(page);
+  expect(immediate.vocab.find(item => item.id === first.word.id).stats.seen).toBe(1);
+  expect(immediate.vocab.find(item => item.id === first.word.id).stats.correct).toBe(1);
+  expect(immediate.vocab.find(item => item.id === first.word.id).mastered).toBe(false);
+  expect(immediate.profile).toEqual(before.profile);
+  expect(immediate.revision).toBe(before.revision);
+  expect(immediate.history).toHaveLength(0);
+  expect(fatalConsole.attemptSubmitRequests).toHaveLength(0);
+  // Finish using the already locked first answer, then retry the saved body.
+  await completeQuizWithOneWrongAnswer(page);
+  await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("pending");
+  const completed = await readQuizLearningState(page);
+  expect(completed.vocab.map(item => item.stats.seen)).toEqual([1, 1, 1, 1]);
+  await page.evaluate(() => window.WordArenaQuizAttemptClient.retryActiveSubmission());
+  expect(await readQuizLearningState(page)).toEqual(completed);
+  expect(fatalConsole.syncBodies).toHaveLength(syncCount);
+  await page.reload();
+  await expect(page.locator("#home")).toBeVisible();
+  expect((await readQuizLearningState(page)).vocab).toEqual(completed.vocab);
+  expect((await readQuizLearningState(page)).wrongWords).toEqual(completed.wrongWords);
+});
+
+test("issued exam selection leaves learning unchanged until the round is submitted", async ({ page }) => {
+  const fatalConsole = await preparePage(page, authenticatedQuizOptions({
+    attemptSubmitResponses: [{ status: 503 }]
+  }));
+  await expect(page.locator("#cloudSyncStatus")).toContainText("Synced");
+  const before = await readQuizLearningState(page);
+  await page.getByRole("button", { name: "Daily Challenge", exact: true }).click();
+  const first = await page.evaluate(() => quizData[index]);
+  await page.locator("#answers .answer").filter({ hasText: first.correctAnswer }).first().click();
+  expect(await readQuizLearningState(page)).toEqual(before);
+  await expect(page.locator("#questionFeedback")).toHaveText("");
+  await completeQuizWithOneWrongAnswer(page);
+  await expect.poll(() => page.evaluate(() => window.WordArenaQuizAttemptClient.state()?.status)).toBe("pending");
+  expect((await readQuizLearningState(page)).vocab.map(item => item.stats.seen)).toEqual([1, 1, 1, 1]);
+  expect(fatalConsole.attemptCreateBodies).toHaveLength(1);
+});
 
 test("pending issued quiz retains local learning effects exactly once", async ({ page }) => {
   const fatalConsole = await preparePage(page, authenticatedQuizOptions({
@@ -3174,7 +3268,7 @@ for (const practice of [false, true]) {
       expect(pending.vocab.map(item => item.mastered)).toEqual([true, true, true, false]);
       expect(pending.vocab.map(item => item.stats.streak)).toEqual([5, 5, 5, 0]);
       expect(pending.vocab.map(item => item.stats.masteryLevel)).toEqual([5, 5, 5, 3]);
-      expect(pending.wrongWords.find(item => item.id === 1).mastered).toBe(practice);
+      expect(pending.wrongWords.map(item => item.id)).toEqual([4]);
       expect(localRequests.attemptCreateBodies).toHaveLength(0);
       expect(localRequests.attemptSubmitRequests).toHaveLength(0);
       expect(localRequests.legacyQuizRequests).toHaveLength(0);

@@ -29,21 +29,30 @@ horizontal scrolling. It reuses Vocabulary's row renderer and actions (including
 inline editing); "Back to Dashboard" returns to the summary. Focus candidates
 have recorded mistakes and no positive correct-answer streak since their latest
 mistake. A correct answer removes a word from Focus; a new mistake brings it
-back. Cumulative mistake history and the separate wrong-bank mastery rules are
-preserved. The practice limit remains 12 words. Practice Wrong Words displays
-the same candidate identities, order, count, current vocabulary stats and table
-actions as View words, and launches from that same projection (not stale
-wrong-bank copies). An active wrong-bank flag can surface a word even if legacy
+back. Cumulative mistake history and the spaced-repetition schedule are
+preserved. View words and Practice Wrong Words open the same page and table;
+Start Practice launches its full candidate list, without a separate 12-word cap.
+Navigation updates the header, resets page scroll and cancels quiz timers/hints.
+Short lists have content-sized tables; long lists keep bounded internal scrolling.
+An active wrong-bank flag can surface a word even if legacy
 vocabulary counters are zero; a current positive correct streak still excludes
 it. Legacy UID mismatches may match by the same positive server ID within the
 active account for this projection only; stored UIDs and cloud identity rules
-are not rewritten. No stored mistake history is deleted to synchronize views.
+are not rewritten. New quiz results update vocabulary first, then refresh the
+compatible active wrong-bank marker from current vocabulary stats. Correct
+answers remove that marker, not cumulative mistake history, and do not grant
+Mastered after one answer. Review Due is independent of Needs Practice.
 
 Start Quiz, Practice Wrong Words and Practice Favorites use Practice (instant
 feedback). Daily Challenge and Challenge use Exam (changeable selections,
 answers revealed only after Submit or final timeout). Selecting or changing an
 answer does not reset the challenge timer. Timed-out unanswered questions count
 as wrong when the whole round is graded, not during selection.
+Authenticated Practice applies local learning immediately after each graded
+answer, without scheduling an ordinary cloud push or granting rewards. Its
+completion plan tracks already-applied answers so submission/retry cannot count
+them twice. Server completion remains authoritative. Exam learning is deferred
+until the round is submitted or the final timeout occurs.
 The thinking hint is limited to unanswered active questions and is cancelled
 when answering, leaving the quiz, or opening recovery.
 

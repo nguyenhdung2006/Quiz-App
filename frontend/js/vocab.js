@@ -257,6 +257,11 @@ target.mastered = false;
 
 target.stats.nextReview = nextReviewDate(target.stats, isCorrect);
 stampWordUpdatedAt(target, reviewedAt);
+// Vocabulary owns learning state. The compatible cloud wrong-bank payload is
+// an active marker, refreshed from that state rather than stale quiz copies.
+wrongWords = wrongWords.filter(item => !sameWordIdentity(item, target));
+if (!isCorrect) wrongWords.push(normalizeWord(target));
+return target;
 }
 
 function buildExampleSentence(eng, pos, context, collocation) {

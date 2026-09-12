@@ -433,7 +433,7 @@ return staleAge > STALE_SYNC_THRESHOLD_MS && cloudUpdated > lastSync;
 }
 
 function blockStaleSyncPush(snapshot = staleRecoveryState.snapshot) {
-setSyncStatus("Sync paused to protect your data: local and cloud both changed", "warn");
+setSyncStatus("Sync paused to protect your data: review local/cloud differences before upload", "warn");
 // Background saves must not interrupt a quiz. The safety lock still blocks push.
 if (window.isQuizActive?.()) return false;
 openStaleRecoveryPanel(snapshot);
@@ -567,7 +567,7 @@ panel.innerHTML = `
   <div class="staleRecoveryHead">
     <span class="heroEyebrow">Sync paused</span>
     <h2 id="staleRecoveryTitle">Stale Device Recovery</h2>
-    <p>Your local deck is older than the latest cloud activity. Push is blocked until you choose a safe path.</p>
+    <p>This device has no recent confirmed sync baseline. Local data may contain unsaved words or progress. Export a backup before choosing a safe recovery path; matching revision numbers alone do not prove the decks are identical.</p>
   </div>
   <div class="staleRecoverySummary" id="staleRecoverySummary"></div>
   <div class="staleRecoveryActions">
@@ -1351,6 +1351,7 @@ if (context.localApplied || pendingQuizResultContext !== context
 || context.accountId !== currentAccountId()
 || context.attemptId !== window.WordArenaQuizAttemptClient?.state?.()?.attemptId) return;
 for (let item of context.localPlan.items) {
+if (item.localApplied) continue;
 window.recordLocalQuizAnswer(item.word, item.isCorrect, context.localPlan.practice);
 }
 context.localApplied = true;
@@ -1533,8 +1534,8 @@ let items = getWeakWordCandidates();
 list.innerHTML = "";
 if (summary) {
 summary.textContent = items.length
-? `${items.length} focus words with mistakes and no correct answer since the latest mistake.`
-: "Focus words appear after quizzes or reviews reveal what needs another pass.";
+? `${items.length} words need practice. A correct answer removes a word; a new mistake brings it back.`
+: "No words need another pass. Your review schedule and mistake history are kept separately.";
 }
 if (button) button.disabled = items.length === 0;
 if (pageSummary) pageSummary.textContent = summary?.textContent || "";
@@ -1546,7 +1547,7 @@ empty.colSpan = 5;
 empty.className = "emptyTableCell";
 let message = document.createElement("p");
 message.textContent = getVocab().length
-? "No focus words yet. Keep reviewing and this section will surface words that need attention."
+? "No focus words need practice. Correct answers leave this list, but their review schedule and mistake history are kept."
 : "No vocabulary yet. Add words or generate an AI Deck to start learning.";
 let actions = document.createElement("div");
 actions.className = "emptyStudioActions";
@@ -1574,13 +1575,7 @@ originalIndex: getVocab().indexOf(item.word)
 }
 
 function startWeakWordsReview() {
-let words = getWeakWordCandidates(12).map(item => item.word);
-if (!words.length) return;
-if (typeof startWordSetQuiz === "function") {
-startWordSetQuiz(words, "mixed", { kind: "weak-words" });
-} else if (typeof showAppPage === "function") {
-showAppPage("review");
-}
+return window.practiceWrong();
 }
 
 function getQuizHistory() {
@@ -1749,7 +1744,7 @@ return { status: "transientFailure" };
 const APP_PAGE_LABELS = {
 dashboard: { eyebrow: "Workspace", title: "Dashboard" },
 vocabulary: { eyebrow: "Word Bank", title: "Vocabulary" },
-focusWords: { eyebrow: "Review Focus", title: "Words that need another pass" },
+focusWords: { eyebrow: "Practice", title: "Words that need another pass" },
 review: { eyebrow: "Spaced Repetition", title: "Review" },
 aiDeck: { eyebrow: "Generator", title: "AI Deck" },
 analytics: { eyebrow: "Insights", title: "Analytics" },
@@ -1781,7 +1776,6 @@ document.getElementById("home")?.classList.remove("hidden");
 document.getElementById("quizScreen")?.classList.add("hidden");
 document.getElementById("resultScreen")?.classList.add("hidden");
 document.getElementById("reviewScreen")?.classList.add("hidden");
-document.getElementById("mistakeScreen")?.classList.add("hidden");
 document.getElementById("challengeMenu")?.classList.add("hidden");
 document.getElementById("challengeMenu")?.classList.remove("show");
 document.querySelector(".heroPanel")?.classList.toggle("hidden", nextPage !== "dashboard");
@@ -1789,7 +1783,7 @@ document.querySelector(".heroPanel")?.classList.toggle("hidden", nextPage !== "d
 if (nextPage === "analytics") window.analyticsDashboard?.refresh?.();
 if (nextPage === "review") window.reviewToday?.refresh?.();
 if (nextPage === "focusWords") renderWeakWordsCenter();
-window.scrollTo({ top: 0, behavior: "smooth" });
+window.scrollTo({ top: 0, behavior: "instant" });
 }
 
 function refreshOnboardingPanel() {
@@ -1854,6 +1848,7 @@ showAppPage(document.body.dataset.appPage || "dashboard");
 }
 
 window.showAppPage = showAppPage;
+window.renderPracticeWrongWords = renderWeakWordsCenter;
 
 function initInlineFreeActions() {
 document.addEventListener("click", event => {

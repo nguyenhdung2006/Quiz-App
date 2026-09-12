@@ -53,6 +53,7 @@ let quizFinishing = false;
 let quizStarting = false;
 let quizAccountId = null;
 let quizFeedbackMode = "practice";
+let locallyAppliedAnswers = new Set();
 
 function quizUsesIssuedAttempt() {
 return Boolean(Array.isArray(quizData)
@@ -92,6 +93,7 @@ attemptOrdinal: issued?.ordinal
 index = 0;
 answers = [];
 answered = [];
+locallyAppliedAnswers = new Set();
 correctCount = 0;
 combo = 0;
 maxCombo = 0;
@@ -490,17 +492,9 @@ loadQuestion();
 }
 }
 
-function recordLocalQuizAnswer(word, isCorrect, practice) {
-recordWordResult(word, isCorrect);
-if (isCorrect) {
-if (practice) {
-let wrongWord = wrongWords.find(w => sameWordIdentity(w, word));
-if (wrongWord) wrongWord.mastered = true;
-}
-} else {
-wrongWords = wrongWords.filter(w => !sameWordIdentity(w, word));
-wrongWords.push({ ...word, stats: { ...word.stats }, mastered: false });
-}
+function recordLocalQuizAnswer(word, isCorrect, _practice) {
+// The legacy practice argument remains accepted by the cloud submission seam.
+return recordWordResult(word, isCorrect);
 }
 
 function captureQuizLocalResultPlan() {
@@ -510,7 +504,8 @@ practice: isPracticeMode,
 items: Object.freeze(quizData.map((item, ordinal) => Object.freeze({
 word: Object.freeze({ ...item.word, stats: Object.freeze({ ...item.word.stats }) }),
 selectedAnswer: answers[ordinal] || "",
-isCorrect: answers[ordinal] === item.correctAnswer
+isCorrect: answers[ordinal] === item.correctAnswer,
+localApplied: locallyAppliedAnswers.has(ordinal)
 })))
 });
 }
@@ -524,8 +519,15 @@ let selectedAnswer = answers[index];
 let correct = quizData[index].correctAnswer;
 let isCorrect = selectedAnswer === correct;
 
-if (!quizUsesIssuedAttempt()) {
+if (quizAccountId === window.getCurrentAccountId()
+&& (!quizUsesIssuedAttempt() || quizFeedbackMode === "practice")) {
 recordLocalQuizAnswer(q, isCorrect, isPracticeMode);
+locallyAppliedAnswers.add(index);
+if (quizUsesIssuedAttempt()) {
+window.quizCloud.saveLocalReview();
+renderMistakeTable();
+renderTable();
+}
 }
 
 if (isCorrect) {

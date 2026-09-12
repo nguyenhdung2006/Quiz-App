@@ -146,13 +146,7 @@ if(e.key === "Enter" && quizData?.length){
 });
 
 function openMistakeScreen() {
-
-document.getElementById("home").classList.add("hidden");
-document.querySelector(".heroPanel")?.classList.add("hidden");
-document.getElementById("mistakeScreen").classList.remove("hidden");
-
-renderMistakeTable();
-
+window.showAppPage?.("focusWords");
 }
 
 function hideAllScreens() {
@@ -164,7 +158,6 @@ clearInterval(questionTimer);
     quizScreen.classList.add("hidden");
     resultScreen.classList.add("hidden");
     reviewScreen.classList.add("hidden");
-    document.getElementById("mistakeScreen").classList.add("hidden");
 }
 
 wrongWords = wrongWords.map(w => ({

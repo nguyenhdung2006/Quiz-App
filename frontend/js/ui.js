@@ -85,28 +85,8 @@ menu.classList.add("show");
 }
 
 function renderMistakeTable() {
-let table = document.getElementById("mistakeTableBody");
-let total = document.getElementById("totalWrongWords");
-let topWrong = document.getElementById("totalWrongWordsTop");
-
-table.innerHTML = "";
-let words = window.getPracticeWrongWords();
-total.innerText = words.length;
-if (topWrong) topWrong.innerText = words.length;
-document.getElementById("mistakePracticeBtn").disabled = words.length === 0;
-if (!words.length) {
-let row = document.createElement("tr");
-let cell = document.createElement("td");
-cell.colSpan = 5;
-cell.className = "emptyTableCell";
-cell.textContent = "No words need another pass. Answered correctly? They leave both mistake views.";
-row.appendChild(cell);
-table.appendChild(row);
-return;
-}
-window.renderVocabularyTableRows(table, words.map(word => ({
-word: normalizeWord(word), originalIndex: vocab.indexOf(word)
-})));
+// Compatibility entry point for CRUD/review callers; only one table now exists.
+window.renderPracticeWrongWords?.();
 }
 
 function deleteMistake(eng) {
